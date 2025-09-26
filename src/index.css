@@ -2,104 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Modern Design System - All colors, gradients, fonts, etc defined here. 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    /* Background & Surface Colors */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    /* Modern ERP Design System */
+    --background: 248 250% 99%;
+    --foreground: 215 25% 27%;
+
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 215 25% 27%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover-foreground: 215 25% 27%;
 
-    /* Brand Colors - Modern Blue to Purple */
-    --primary: 262 90% 50%;
-    --primary-foreground: 210 40% 98%;
-    --primary-glow: 262 100% 70%;
+    /* Corporate Blue Primary */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 55%;
+    --primary-light: 217 91% 95%;
 
-    /* Secondary Colors */
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
+    /* Elegant Grays */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 215 25% 35%;
 
-    /* Accent & Supporting Colors */
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 20% 65%;
 
-    /* System Colors */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 262 90% 50%;
+    /* Success Green */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 76% 95%;
 
-    /* Design System Tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(262, 90%, 50%) 0%, hsl(292, 84%, 61%) 100%);
-    --gradient-subtle: linear-gradient(135deg, hsl(220, 14%, 98%) 0%, hsl(220, 14%, 95%) 100%);
-    --shadow-elegant: 0 10px 30px -10px hsl(262 90% 50% / 0.3);
-    --shadow-glow: 0 0 40px hsl(262 100% 70% / 0.4);
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Warning & Error */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 95%;
 
-    --radius: 0.5rem;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 84% 95%;
 
+    /* Accent for highlights */
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 262 83% 95%;
+
+    /* Borders and inputs */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(262 83% 58%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(210 40% 98%) 100%);
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(215 25% 27% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(215 25% 27% / 0.1), 0 2px 4px -1px hsl(215 25% 27% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(215 25% 27% / 0.1), 0 4px 6px -2px hsl(215 25% 27% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(215 25% 27% / 0.1), 0 10px 10px -5px hsl(215 25% 27% / 0.04);
+
+    --radius: 0.75rem;
+
+    /* Sidebar variables */
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    /* Dark Background & Surface Colors */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    /* Dark mode ERP colors */
+    --background: 215 28% 17%;
+    --foreground: 210 40% 98%;
 
-    /* Dark Brand Colors */
-    --primary: 262 90% 50%;
-    --primary-foreground: 0 0% 98%;
-    --primary-glow: 262 100% 70%;
+    --card: 215 28% 17%;
+    --card-foreground: 210 40% 98%;
 
-    /* Dark Secondary Colors */
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --popover: 215 28% 17%;
+    --popover-foreground: 210 40% 98%;
 
-    /* Dark Accent & Supporting Colors */
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 55%;
+    --primary-light: 217 91% 95%;
 
-    /* Dark System Colors */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 262 90% 50%;
+    --secondary: 215 32% 27%;
+    --secondary-foreground: 210 40% 98%;
 
-    /* Dark Design System Tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(262, 90%, 50%) 0%, hsl(292, 84%, 61%) 100%);
-    --gradient-subtle: linear-gradient(135deg, hsl(240, 10%, 3%) 0%, hsl(240, 3.7%, 15%) 100%);
-    --shadow-elegant: 0 10px 30px -10px hsl(262 90% 50% / 0.5);
-    --shadow-glow: 0 0 40px hsl(262 100% 70% / 0.6);
+    --muted: 215 32% 27%;
+    --muted-foreground: 215 20% 65%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 76% 95%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 95%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --destructive-light: 0 63% 95%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 262 83% 95%;
+
+    --border: 215 32% 27%;
+    --input: 215 32% 27%;
+    --ring: 217 91% 60%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -118,27 +138,5 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-@layer utilities {
-  .gradient-primary {
-    background: var(--gradient-primary);
-  }
-  
-  .gradient-subtle {
-    background: var(--gradient-subtle);
-  }
-  
-  .shadow-elegant {
-    box-shadow: var(--shadow-elegant);
-  }
-  
-  .shadow-glow {
-    box-shadow: var(--shadow-glow);
-  }
-  
-  .transition-smooth {
-    transition: var(--transition-smooth);
   }
 }
