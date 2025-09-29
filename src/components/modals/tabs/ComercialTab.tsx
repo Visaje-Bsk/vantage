@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { OrdenKanban, Cliente, Proyecto } from "@/types/kanban";
-import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2, Edit, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -35,6 +35,10 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
 
+  // Estados de modo edición
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isFieldsLocked, setIsFieldsLocked] = useState(false);
+
   // Usuarios asignables (excluye admin y comercial)
   const [asignables, setAsignables] = useState<Array<{ user_id: string; label: string; role: AppRole }>>([]);
   // uuid del ingeniero asignado
@@ -46,11 +50,20 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
   const [planes, setPlanes] = useState<Array<Database["public"]["Tables"]["plan"]["Row"]>>([]);
   const [apns, setApns] = useState<Array<Database["public"]["Tables"]["apn"]["Row"]>>([]);
 
+  // Estado para mostrar información inmediatamente
+  const [displayData, setDisplayData] = useState({
+    cliente_nombre: "",
+    proyecto_nombre: "",
+    ingeniero_nombre: "",
+    orden_compra: order.orden_compra || "",
+    observaciones: order.observaciones_orden || "",
+  });
+
   const [formData, setFormData] = useState({
     id_cliente: "",
     id_proyecto: "",
-    observaciones_orden: "",
-    orden_compra: "",
+    observaciones_orden: order.observaciones_orden || "",
+    orden_compra: order.orden_compra || "",
   });
 
   const [productLines, setProductLines] = useState([
@@ -215,80 +228,94 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
   const digitsOnly = (s: string) => s.replace(/[^0-9]/g, "");
 
   useEffect(() => {
-    loadData();
+    // Carga inmediata de datos existentes de la orden
+    loadInitialDisplayData();
+
+    // Determinar modo inicial basado en fecha_modificacion
+    const isNewOrder = !order.fecha_modificacion;
+    if (isNewOrder) {
+      setIsEditMode(true);
+      // Para órdenes nuevas, cargar datos de edición después de los datos iniciales
+      setTimeout(() => loadEditModeData(), 100);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    // Carga detalles solo si es necesario
+    if (isEditMode) {
+      loadEditModeData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode]);
+
+  const loadInitialDisplayData = async () => {
     try {
-      // Clientes
-      const { data: clientesData, error: cliErr } = await supabase
-        .from("cliente")
-        .select("*")
-        .order("nombre_cliente");
-      if (cliErr) throw cliErr;
-      setClientes(clientesData ?? []);
-
-      // Usuarios asignables (desde profiles) excluyendo admin y comercial
-      const { data: comercialesData, error: comErr } = await supabase
-        .from("profiles")
-        .select("user_id, nombre, username, role")
-        .neq("role", "comercial" as AppRole)
-        .neq("role", "admin" as AppRole)
-        .order("nombre", { ascending: true, nullsFirst: false })
-        .order("username", { ascending: true });
-      if (comErr) throw comErr;
-
-      setAsignables(
-        (comercialesData ?? []).map((u: ProfileRow) => ({
-          user_id: u.user_id,
-          label: u.nombre ?? u.username ?? "(sin nombre)",
-          role: u.role as AppRole,
-        }))
-      );
-
-      //Lineas
-      const { data: operadoresData, error: opErr } = await supabase
-        .from("operador")
-        .select("*")
-        .order("nombre_operador");
-      if (opErr) throw opErr;
-      setOperadores(operadoresData ?? []);
-
-      const { data: planesData, error: planErr } = await supabase
-        .from("plan")
-        .select("*")
-        .order("nombre_plan");
-      if (planErr) throw planErr;
-      setPlanes(planesData ?? []);
-
-      const { data: apnsData, error: apnErr } = await supabase
-        .from("apn")
-        .select("*")
-        .order("apn");
-      if (apnErr) throw apnErr;
-      setApns(apnsData ?? []);
-
-
-      // Orden y proyecto
+      // Obtener datos básicos de la orden actual con joins mínimos
       const { data: orderData, error: ordErr } = await supabase
         .from("ordenpedido")
         .select(`
           *,
-          cliente ( nombre_cliente ),
+          cliente ( nombre_cliente, nit ),
           proyecto ( id_proyecto, nombre_proyecto ),
-          metododespacho:metododespacho ( id_metodo_despacho, direccion_despacho, contacto_telefono, contacto_email_guia )
+          metododespacho ( direccion_despacho, contacto_telefono, contacto_email_guia )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
         .single();
       if (ordErr) throw ordErr;
 
-      setFormData({
-        id_cliente: orderData.id_cliente?.toString() ?? "",
-        id_proyecto: orderData.id_proyecto?.toString() ?? "",
-        observaciones_orden: orderData.observaciones_orden ?? "",
-        orden_compra: orderData.orden_compra ?? "",
+      // Obtener ingeniero asignado
+      const { data: resp, error: respErr } = await supabase
+        .from("responsable_orden")
+        .select(`
+          user_id,
+          profiles!inner ( nombre, username )
+        `)
+        .eq("id_orden_pedido", order.id_orden_pedido)
+        .neq("role", "comercial" as AppRole)
+        .neq("role", "admin" as AppRole)
+        .maybeSingle();
+      if (respErr && respErr.code !== "PGRST116") throw respErr;
+
+      // Actualizar datos de visualización inmediata
+      setDisplayData({
+        cliente_nombre: (orderData as any).cliente?.nombre_cliente || "",
+        proyecto_nombre: (orderData as any).proyecto?.nombre_proyecto || "",
+        ingeniero_nombre: resp ? ((resp as any).profiles?.nombre || (resp as any).profiles?.username || "Sin nombre") : "",
+        orden_compra: orderData.orden_compra || "",
+        observaciones: orderData.observaciones_orden || "",
       });
+
+      // Verificar si los campos deben estar bloqueados (si ya hay ingeniero asignado)
+      setIsFieldsLocked(Boolean(resp));
+      setSelectedComercial(resp?.user_id as string || "");
+
+      // Actualizar formData básico
+      setFormData({
+        id_cliente: orderData.id_cliente?.toString() || "",
+        id_proyecto: orderData.id_proyecto?.toString() || "",
+        observaciones_orden: orderData.observaciones_orden || "",
+        orden_compra: orderData.orden_compra || "",
+      });
+
+      // Si no hay nombre de proyecto en el join pero sí hay id_proyecto, cargar el proyecto
+      if (orderData.id_proyecto && !(orderData as any).proyecto?.nombre_proyecto) {
+        try {
+          const { data: proyectoData, error: projErr } = await supabase
+            .from("proyecto")
+            .select("nombre_proyecto")
+            .eq("id_proyecto", orderData.id_proyecto)
+            .single();
+          if (!projErr && proyectoData) {
+            setDisplayData(prev => ({
+              ...prev,
+              proyecto_nombre: proyectoData.nombre_proyecto
+            }));
+          }
+        } catch (error) {
+          console.error("Error loading project name:", error);
+        }
+      }
 
       // Cargar metodo de despacho existente
       const md = (orderData as any).metododespacho;
@@ -304,34 +331,83 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         setMetodoDespachoForm({ direccion_despacho: "", contacto_telefono: "", contacto_email_guia: "" });
       }
 
-      if (orderData.id_cliente) {
-        await loadProyectos(orderData.id_cliente.toString());
-      }
-
-      // Cargar detalle existente y reflejarlo en el formulario
+      // Cargar detalle existente
       await loadDetalleOrden(order.id_orden_pedido);
 
-      // Ingeniero asignado (responsable_orden con rol distinto a admin/comercial)
-      const { data: resp, error: respErr } = await supabase
-        .from("responsable_orden")
-        .select(`
-          user_id,
-          role,
-          profiles!inner ( nombre, username )
-        `)
-        .eq("id_orden_pedido", order.id_orden_pedido)
-        .neq("role", "comercial" as AppRole)
-        .neq("role", "admin" as AppRole)
-        .maybeSingle();
-      if (respErr && respErr.code !== "PGRST116") throw respErr; // ignore no rows
-
-      if (resp) {
-        setSelectedComercial(resp.user_id as string);
+      // Si hay cliente asignado, cargar proyectos para que estén disponibles inmediatamente
+      if (orderData.id_cliente) {
+        try {
+          const { data: proyectosData, error: projErr } = await supabase
+            .from("proyecto")
+            .select("*")
+            .eq("id_cliente", orderData.id_cliente)
+            .order("nombre_proyecto");
+          if (!projErr) {
+            setProyectos(proyectosData ?? []);
+          }
+        } catch (error) {
+          console.error("Error loading initial projects:", error);
+        }
       }
 
     } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("No se pudo cargar la información");
+      console.error("Error loading initial display data:", error);
+      toast.error("No se pudo cargar la información básica");
+    }
+  };
+
+  const loadEditModeData = async () => {
+    try {
+      // Solo cargar datos necesarios para edición
+      const [clientesRes, comercialesRes, operadoresRes, planesRes, apnsRes] = await Promise.all([
+        // Clientes
+        supabase.from("cliente").select("*").order("nombre_cliente"),
+
+        // Usuarios asignables (desde profiles) excluyendo admin y comercial
+        supabase.from("profiles")
+          .select("user_id, nombre, username, role")
+          .neq("role", "comercial" as AppRole)
+          .neq("role", "admin" as AppRole)
+          .order("nombre", { ascending: true, nullsFirst: false })
+          .order("username", { ascending: true }),
+
+        // Operadores
+        supabase.from("operador").select("*").order("nombre_operador"),
+
+        // Planes
+        supabase.from("plan").select("*").order("nombre_plan"),
+
+        // APNs
+        supabase.from("apn").select("*").order("apn")
+      ]);
+
+      if (clientesRes.error) throw clientesRes.error;
+      if (comercialesRes.error) throw comercialesRes.error;
+      if (operadoresRes.error) throw operadoresRes.error;
+      if (planesRes.error) throw planesRes.error;
+      if (apnsRes.error) throw apnsRes.error;
+
+      setClientes(clientesRes.data ?? []);
+      setOperadores(operadoresRes.data ?? []);
+      setPlanes(planesRes.data ?? []);
+      setApns(apnsRes.data ?? []);
+
+      setAsignables(
+        (comercialesRes.data ?? []).map((u: ProfileRow) => ({
+          user_id: u.user_id,
+          label: u.nombre ?? u.username ?? "(sin nombre)",
+          role: u.role as AppRole,
+        }))
+      );
+
+      // Cargar proyectos si ya hay cliente seleccionado y no están cargados
+      if (formData.id_cliente && proyectos.length === 0) {
+        await loadProyectos(formData.id_cliente);
+      }
+
+    } catch (error) {
+      console.error("Error loading edit mode data:", error);
+      toast.error("No se pudo cargar los datos para edición");
     }
   };
 
@@ -354,6 +430,25 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
   const handleClienteChange = (clienteId: string) => {
     setFormData(prev => ({ ...prev, id_cliente: clienteId, id_proyecto: "" }));
     loadProyectos(clienteId);
+  };
+
+  const handleEditToggle = () => {
+    if (!isEditMode) {
+      loadEditModeData();
+    }
+    setIsEditMode(!isEditMode);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    // Restaurar datos originales
+    setFormData({
+      id_cliente: "",
+      id_proyecto: "",
+      observaciones_orden: order.observaciones_orden || "",
+      orden_compra: order.orden_compra || "",
+    });
+    loadInitialDisplayData();
   };
 
   // --- productos/servicios (igual que lo tenías) ---
@@ -406,6 +501,53 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
 
   // --- guardar ---
   const handleSave = async () => {
+    // Validar líneas de productos antes de guardar
+    const invalidProductLines = productLines.filter(line => {
+      const hasEquipo = line.selectedEquipo && line.selectedEquipo.id_equipo;
+      const hasData = line.cantidad || line.valorUnitario;
+
+      // Si hay datos pero no hay equipo seleccionado
+      if (hasData && !hasEquipo) {
+        return true;
+      }
+
+      // Si hay equipo pero faltan datos requeridos
+      if (hasEquipo && (
+        !line.cantidad ||
+        Number(line.cantidad) <= 0 ||
+        !line.valorUnitario ||
+        Number(line.valorUnitario) <= 0
+      )) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (invalidProductLines.length > 0) {
+      const hasDataWithoutEquipo = invalidProductLines.some(line =>
+        (line.cantidad || line.valorUnitario) && !(line.selectedEquipo && line.selectedEquipo.id_equipo)
+      );
+
+      if (hasDataWithoutEquipo) {
+        toast.error("No puedes guardar cantidad o valor sin seleccionar un equipo");
+      } else {
+        toast.error("Todos los equipos seleccionados deben tener cantidad y valor unitario válidos");
+      }
+      return;
+    }
+
+    // Validar líneas de servicios antes de guardar
+    const invalidServiceLines = servicioLines.filter(line =>
+      (line.operadorId || line.planId || line.apnId || line.claseCobro || line.valorMensual || line.permanencia) &&
+      (!line.operadorId || !line.planId || !line.apnId || !line.claseCobro || !line.valorMensual || !line.permanencia)
+    );
+
+    if (invalidServiceLines.length > 0) {
+      toast.error("Todas las líneas de servicio deben estar completamente configuradas o vacías");
+      return;
+    }
+
     setSaving(true);
     try {
       // 0) Upsert de metodo de despacho y vinculación a la orden
@@ -494,10 +636,17 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         await supabase.from("detalleorden").delete().in("id_orden_detalle", idsPrevios);
       }
 
-      // 3a) Persistir productos para equipos
-      const selectedEquipos = productLines
-        .filter((l) => l.selectedEquipo)
-        .map((l) => l.selectedEquipo as EquipoOption);
+      // 3a) Persistir productos para equipos - solo los que tienen equipo, cantidad y valor
+      const validProductLines = productLines.filter((l) =>
+        l.selectedEquipo &&
+        l.selectedEquipo.id_equipo &&
+        l.cantidad &&
+        Number(l.cantidad) > 0 &&
+        l.valorUnitario &&
+        Number(l.valorUnitario) > 0
+      );
+
+      const selectedEquipos = validProductLines.map((l) => l.selectedEquipo as EquipoOption);
 
       if (selectedEquipos.length > 0) {
         // Upsert productos con id_equipo
@@ -559,11 +708,11 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         }
 
         // Crear detalleorden para equipos
-        const detalleEquipoRows = selectedEquipos.map((eq, idx) => ({
+        const detalleEquipoRows = validProductLines.map((line, idx) => ({
           id_orden_pedido: order.id_orden_pedido,
           id_producto: productosEquipoResult?.[idx]?.id_producto,
-          cantidad: productLines.find(l => l.selectedEquipo?.id_equipo === eq.id_equipo)?.cantidad ? Number(productLines.find(l => l.selectedEquipo?.id_equipo === eq.id_equipo)?.cantidad) : null,
-          valor_unitario: productLines.find(l => l.selectedEquipo?.id_equipo === eq.id_equipo)?.valorUnitario ? Number(productLines.find(l => l.selectedEquipo?.id_equipo === eq.id_equipo)?.valorUnitario) : null,
+          cantidad: Number(line.cantidad),
+          valor_unitario: Number(line.valorUnitario),
           observaciones_detalle: null,
         } satisfies Database["public"]["Tables"]["detalleorden"]["Insert"]));
 
@@ -573,13 +722,12 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         }
 
         // Update plantilla information in equipo table
-        for (const eq of selectedEquipos) {
-          const productLine = productLines.find(l => l.selectedEquipo?.id_equipo === eq.id_equipo);
-          if (productLine && productLine.plantilla && productLine.plantillaText) {
+        for (const line of validProductLines) {
+          if (line.plantilla && line.plantillaText && line.selectedEquipo) {
             const { error: plantillaErr } = await supabase
               .from("equipo")
-              .update({ plantilla: productLine.plantillaText })
-              .eq("id_equipo", eq.id_equipo);
+              .update({ plantilla: line.plantillaText })
+              .eq("id_equipo", line.selectedEquipo.id_equipo);
             if (plantillaErr) {
               console.error("Error updating plantilla:", plantillaErr);
               // Don't throw here, just log the error
@@ -723,8 +871,19 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
       onUpdateOrder(order.id_orden_pedido, {
         fecha_modificacion: new Date().toISOString(),
       });
-  
+
       await loadDetalleOrden(order.id_orden_pedido);
+
+      // Si se asignó un ingeniero, bloquear campos principales
+      if (selectedComercial) {
+        setIsFieldsLocked(true);
+      }
+
+      // Actualizar datos de visualización
+      await loadInitialDisplayData();
+
+      // Salir del modo edición
+      setIsEditMode(false);
 
       toast.success("Datos guardados correctamente");
     } catch (error) {
@@ -739,86 +898,173 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <User className="w-5 h-5" />
-            Información Comercial
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-lg">
+              <User className="w-5 h-5" />
+              Información Comercial
+            </span>
+            <div className="flex items-center gap-2">
+              {isFieldsLocked && (
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Lock className="w-4 h-4" />
+                  Campos bloqueados
+                </div>
+              )}
+              {!isEditMode ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEditToggle}
+                  disabled={loading}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                    disabled={loading}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Building2 className="w-4 h-4" />
-                Cliente
-              </Label>
-              <Select value={formData.id_cliente} onValueChange={handleClienteChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes.map((c) => (
-                    <SelectItem key={c.id_cliente} value={c.id_cliente.toString()}>
-                      {c.nombre_cliente} — {c.nit}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {!isEditMode ? (
+            // Modo de solo lectura
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Cliente
+                  </Label>
+                  <div className="p-3 bg-muted/50 rounded-md text-sm">
+                    {displayData.cliente_nombre || "Sin asignar"}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4" />
+                    Proyecto
+                  </Label>
+                  <div className="p-3 bg-muted/50 rounded-md text-sm">
+                    {displayData.proyecto_nombre || "Sin asignar"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ingeniero asignado</Label>
+                <div className="p-3 bg-muted/50 rounded-md text-sm">
+                  {displayData.ingeniero_nombre || "Sin asignar"}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Código OC</Label>
+                <div className="p-3 bg-muted/50 rounded-md text-sm">
+                  {displayData.orden_compra || "Sin definir"}
+                </div>
+              </div>
             </div>
+          ) : (
+            // Modo de edición
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Cliente
+                  </Label>
+                  <Select
+                    value={formData.id_cliente}
+                    onValueChange={handleClienteChange}
+                    disabled={isFieldsLocked}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id_cliente} value={c.id_cliente.toString()}>
+                          {c.nombre_cliente} — {c.nit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
-                Proyecto
-              </Label>
-              <Select
-                value={formData.id_proyecto}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, id_proyecto: value }))}
-                disabled={!formData.id_cliente}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar proyecto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {proyectos.map((p) => (
-                    <SelectItem key={p.id_proyecto} value={p.id_proyecto.toString()}>
-                      {p.nombre_proyecto}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4" />
+                    Proyecto
+                  </Label>
+                  <Select
+                    value={formData.id_proyecto}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, id_proyecto: value }))}
+                    disabled={!formData.id_cliente || isFieldsLocked}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar proyecto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {proyectos.map((p) => (
+                        <SelectItem key={p.id_proyecto} value={p.id_proyecto.toString()}>
+                          {p.nombre_proyecto}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Ingeniero asignado</Label>
+                <Select
+                  value={selectedComercial}
+                  onValueChange={(v) => setSelectedComercial(v)}
+                  disabled={isFieldsLocked}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar usuario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {asignables.map((u) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Código OC</Label>
+                <Input
+                  type="text"
+                  placeholder="Código de Orden de Compra"
+                  value={formData.orden_compra}
+                  onChange={(e) => setFormData(prev => ({ ...prev, orden_compra: e.target.value }))}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <Label>Ingeniero asignado</Label>
-            <Select value={selectedComercial} onValueChange={(v) => setSelectedComercial(v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar usuario" />
-              </SelectTrigger>
-              <SelectContent>
-                {asignables.map((u) => (
-                  <SelectItem key={u.user_id} value={u.user_id}>
-                    {u.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Código OC</Label>
-            <Input
-              type="text"
-              placeholder="Código de Orden de Compra"
-              value={formData.orden_compra}
-              onChange={(e) => setFormData(prev => ({ ...prev, orden_compra: e.target.value }))}
-            />
-          </div>
-
-          {/* Productos y Servicios (sin cambios relevantes) */}
+          {/* Productos y Servicios - Siempre mostrar */}
           <Card>
             <CardHeader><CardTitle className="text-base">Productos y Servicios</CardTitle></CardHeader>
             <CardContent className="space-y-6">
+              {isEditMode ? (
+                // Modo edición - formularios interactivos
+                <>
               {productLines.map((line) => (
                 <div key={line.id_linea_detalle} className="grid grid-cols-12 gap-4 items-start">
                   <div className="col-span-12 md:col-span-1 flex md:justify-start justify-end">
@@ -844,12 +1090,26 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                     />
                   </div>
                   <div className="space-y-2 col-span-6 md:col-span-2">
-                    <Label>Cantidad</Label>
-                    <Input type="number" placeholder="0" value={line.cantidad}
-                      onChange={(e) => updateProductLine(line.id_linea_detalle, "cantidad", e.target.value)} />
+                    <Label>
+                      Cantidad {line.selectedEquipo?.id_equipo && <span className="text-red-500">*</span>}
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={line.cantidad}
+                      onChange={(e) => updateProductLine(line.id_linea_detalle, "cantidad", e.target.value)}
+                      className={
+                        (line.selectedEquipo?.id_equipo && (!line.cantidad || Number(line.cantidad) <= 0)) ||
+                        (line.cantidad && !line.selectedEquipo?.id_equipo)
+                          ? "border-red-300"
+                          : ""
+                      }
+                    />
                   </div>
                   <div className="space-y-2 col-span-6 md:col-span-2">
-                    <Label>Valor Unitario</Label>
+                    <Label>
+                      Valor Unitario {line.selectedEquipo?.id_equipo && <span className="text-red-500">*</span>}
+                    </Label>
                     <Input
                       type="text"
                       inputMode="numeric"
@@ -859,6 +1119,12 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                         const digits = digitsOnly(e.target.value);
                         updateProductLine(line.id_linea_detalle, "valorUnitario", digits);
                       }}
+                      className={
+                        (line.selectedEquipo?.id_equipo && (!line.valorUnitario || Number(line.valorUnitario) <= 0)) ||
+                        (line.valorUnitario && !line.selectedEquipo?.id_equipo)
+                          ? "border-red-300"
+                          : ""
+                      }
                     />
                   </div>
                   
@@ -883,20 +1149,20 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                   </div>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={addProductLine}>
-                <Plus className="w-4 h-4 mr-2" /> Agregar Línea
-              </Button>
-            </CardContent>
-            <CardHeader 
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => setShowLineasDetalle(!showLineasDetalle)}
-            >
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>Líneas de Servicio</span>
-                {showLineasDetalle ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </CardTitle>
-            </CardHeader>
-            {showLineasDetalle && (
+                  <Button variant="outline" size="sm" onClick={addProductLine}>
+                    <Plus className="w-4 h-4 mr-2" /> Agregar Línea
+                  </Button>
+
+                  <CardHeader
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setShowLineasDetalle(!showLineasDetalle)}
+                  >
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span>Líneas de Servicio</span>
+                      {showLineasDetalle ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </CardTitle>
+                  </CardHeader>
+                  {showLineasDetalle && (
               <CardContent className="space-y-4">
                 {servicioLines.map((line) => (
                   <div key={line.id_linea_detalle} className="grid grid-cols-12 gap-4 items-start">
@@ -1037,67 +1303,194 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                   onClick={addServicioLine}
                   className="mt-2"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar Línea de Servicio
-                </Button>
-              </CardContent>
-            )}
+                      <Plus className="w-4 h-4 mr-2" />
+                      Agregar Línea de Servicio
+                    </Button>
+                  </CardContent>
+                )}
+                </>
+              ) : (
+                // Modo solo lectura - mostrar información existente
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Equipos Configurados</h4>
+                    {productLines.length > 0 && productLines.some(line => line.selectedEquipo) ? (
+                      <div className="space-y-2">
+                        {productLines
+                          .filter(line => line.selectedEquipo)
+                          .map((line, idx) => (
+                          <div key={idx} className="p-3 bg-muted/30 rounded-lg">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                              <div>
+                                <span className="font-medium">Equipo:</span> {line.selectedEquipo?.nombre_equipo}
+                              </div>
+                              <div>
+                                <span className="font-medium">Código:</span> {line.selectedEquipo?.codigo}
+                              </div>
+                              <div>
+                                <span className="font-medium">Cantidad:</span> {line.cantidad || "0"}
+                              </div>
+                              <div>
+                                <span className="font-medium">Valor:</span> {formatCOP(line.valorUnitario)}
+                              </div>
+                            </div>
+                            {line.plantilla && line.plantillaText && (
+                              <div className="mt-2 text-xs">
+                                <span className="font-medium">Plantilla:</span> {line.plantillaText}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+                        No hay equipos configurados
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Líneas de Servicio</h4>
+                    {servicioLines.length > 0 && servicioLines.some(line => line.operadorId) ? (
+                      <div className="space-y-2">
+                        {servicioLines
+                          .filter(line => line.operadorId)
+                          .map((line, idx) => {
+                            const operador = operadores.find(op => op.id_operador.toString() === line.operadorId);
+                            const plan = planes.find(p => p.id_plan.toString() === line.planId);
+                            const apn = apns.find(a => a.id_apn.toString() === line.apnId);
+
+                            return (
+                              <div key={idx} className="p-3 bg-muted/30 rounded-lg">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                                  <div>
+                                    <span className="font-medium">Operador:</span> {operador?.nombre_operador || line.operadorId}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Plan:</span> {plan?.nombre_plan || line.planId}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">APN:</span> {apn?.apn || line.apnId}
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm mt-2">
+                                  <div>
+                                    <span className="font-medium">Permanencia:</span> {line.permanencia} meses
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Clase Cobro:</span> {line.claseCobro}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Valor:</span> {formatCOP(line.valorMensual)}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+                        No hay líneas de servicio configuradas
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
           </Card>
 
-          {/* Servicios opcionales */}
-{/* Service Lines Section */}
+          {/* Método de Despacho - Siempre mostrar */}
           <Card>
-            {/* Metodo de Despacho */}
             <CardHeader>
               <CardTitle className="text-base">Método de Despacho</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2 md:col-span-1">
-                  <Label>Dirección de Despacho</Label>
-                  <Input
-                    type="text"
-                    placeholder="Dirección completa"
-                    value={metodoDespachoForm.direccion_despacho}
-                    onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, direccion_despacho: e.target.value }))}
-                  />
+              {isEditMode ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2 md:col-span-1">
+                    <Label>Dirección de Despacho</Label>
+                    <Input
+                      type="text"
+                      placeholder="Dirección completa"
+                      value={metodoDespachoForm.direccion_despacho}
+                      onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, direccion_despacho: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label>Contacto Teléfono</Label>
+                    <Input
+                      type="text"
+                      placeholder="Teléfono de contacto"
+                      value={metodoDespachoForm.contacto_telefono}
+                      onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, contacto_telefono: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label>Email para Guía</Label>
+                    <Input
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      value={metodoDespachoForm.contacto_email_guia}
+                      onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, contacto_email_guia: e.target.value }))}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2 md:col-span-1">
-                  <Label>Contacto Teléfono</Label>
-                  <Input
-                    type="text"
-                    placeholder="Teléfono de contacto"
-                    value={metodoDespachoForm.contacto_telefono}
-                    onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, contacto_telefono: e.target.value }))}
-                  />
+              ) : (
+                <div className="space-y-3">
+                  {metodoDespachoForm.direccion_despacho || metodoDespachoForm.contacto_telefono || metodoDespachoForm.contacto_email_guia ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-medium">Dirección</Label>
+                        <div className="p-2 bg-muted/30 rounded text-sm">
+                          {metodoDespachoForm.direccion_despacho || "Sin definir"}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-sm font-medium">Teléfono</Label>
+                        <div className="p-2 bg-muted/30 rounded text-sm">
+                          {metodoDespachoForm.contacto_telefono || "Sin definir"}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-sm font-medium">Email</Label>
+                        <div className="p-2 bg-muted/30 rounded text-sm">
+                          {metodoDespachoForm.contacto_email_guia || "Sin definir"}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+                      No hay información de despacho configurada
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-2 md:col-span-1">
-                  <Label>Email para Guía</Label>
-                  <Input
-                    type="email"
-                    placeholder="correo@ejemplo.com"
-                    value={metodoDespachoForm.contacto_email_guia}
-                    onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, contacto_email_guia: e.target.value }))}
-                  />
-                </div>
-              </div>
+              )}
             </CardContent>
-          </Card> 
+          </Card>
 
+          {/* Observaciones Comerciales */}
           <div className="space-y-2">
             <Label>Observaciones Comerciales</Label>
-            <Textarea
-              value={formData.observaciones_orden}
-              onChange={(e) => setFormData(prev => ({ ...prev, observaciones_orden: e.target.value }))}
-              placeholder="Observaciones comerciales, condiciones especiales, acuerdos..."
-              rows={4}
-            />
+            {!isEditMode ? (
+              <div className="p-3 bg-muted/50 rounded-md text-sm min-h-[100px]">
+                {displayData.observaciones || "Sin observaciones"}
+              </div>
+            ) : (
+              <Textarea
+                value={formData.observaciones_orden}
+                onChange={(e) => setFormData(prev => ({ ...prev, observaciones_orden: e.target.value }))}
+                placeholder="Observaciones comerciales, condiciones especiales, acuerdos..."
+                rows={4}
+              />
+            )}
           </div>
 
-          <Button onClick={handleSave} disabled={loading} variant="default" className="w-full">
-            <Save className="w-4 h-4 mr-2" />
-            {loading ? "Guardando..." : "Guardar Información Comercial"}
-          </Button>
+          {isEditMode && (
+            <Button onClick={handleSave} disabled={loading} variant="default" className="w-full">
+              <Save className="w-4 h-4 mr-2" />
+              {loading ? "Guardando..." : "Guardar Información Comercial"}
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
