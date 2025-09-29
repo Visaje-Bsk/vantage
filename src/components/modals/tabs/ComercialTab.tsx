@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { OrdenKanban, Cliente, Proyecto } from "@/types/kanban";
-import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2, Edit, Lock } from "lucide-react";
+import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2, Edit, Lock, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -80,12 +80,20 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
       valorMensual: ""  }
   ]);
 
-  // Metodo de despacho (vinculado a ordenpedido.id_metodo_despacho)
-  const [metodoDespachoId, setMetodoDespachoId] = useState<number | null>(null);
-  const [metodoDespachoForm, setMetodoDespachoForm] = useState({
-    direccion_despacho: "",
-    contacto_telefono: "",
-    contacto_email_guia: "",
+  // Información de despacho (tabla despacho_orden)
+  const [despachoOrdenId, setDespachoOrdenId] = useState<number | null>(null);
+  const [tiposDespacho, setTiposDespacho] = useState<Array<Database["public"]["Tables"]["tipo_despacho"]["Row"]>>([]);
+  const [transportadoras, setTransportadoras] = useState<Array<Database["public"]["Tables"]["transportadora"]["Row"]>>([]);
+  const [despachoForm, setDespachoForm] = useState({
+    id_tipo_despacho: "",
+    id_transportadora: "",
+    direccion: "",
+    ciudad: "",
+    nombre_contacto: "",
+    telefono_contacto: "",
+    email_contacto: "",
+    fecha_despacho: "",
+    observaciones: "",
   });
 
   // Money helpers (COP formatting)
@@ -257,14 +265,27 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         .select(`
           *,
           cliente ( nombre_cliente, nit ),
-          proyecto ( id_proyecto, nombre_proyecto ),
-          metododespacho ( direccion_despacho, contacto_telefono, contacto_email_guia )
+          proyecto ( id_proyecto, nombre_proyecto )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
         .single();
       if (ordErr) throw ordErr;
 
-      // Obtener ingeniero asignado
+      // Obtener información de despacho existente con direccion y contacto
+      const { data: despachoData, error: despachoErr } = await supabase
+        .from("despacho_orden")
+        .select(`
+          *,
+          tipo_despacho ( nombre_tipo, requiere_direccion, requiere_transportadora ),
+          transportadora ( nombre_transportadora ),
+          direccion_despacho ( direccion, ciudad ),
+          contacto_despacho ( nombre_contacto, telefono, email )
+        `)
+        .eq("id_orden_pedido", order.id_orden_pedido)
+        .maybeSingle();
+      if (despachoErr && despachoErr.code !== "PGRST116") throw despachoErr;
+
+      // Obtener ingeniero asignado (incluyendo comercial ahora)
       const { data: resp, error: respErr } = await supabase
         .from("responsable_orden")
         .select(`
@@ -272,8 +293,6 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
           profiles!inner ( nombre, username )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
-        .neq("role", "comercial" as AppRole)
-        .neq("role", "admin" as AppRole)
         .maybeSingle();
       if (respErr && respErr.code !== "PGRST116") throw respErr;
 
@@ -317,18 +336,33 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         }
       }
 
-      // Cargar metodo de despacho existente
-      const md = (orderData as any).metododespacho;
-      if (md) {
-        setMetodoDespachoId(md.id_metodo_despacho as number);
-        setMetodoDespachoForm({
-          direccion_despacho: md.direccion_despacho ?? "",
-          contacto_telefono: md.contacto_telefono ?? "",
-          contacto_email_guia: md.contacto_email_guia ?? "",
+      // Configurar datos de despacho existente
+      if (despachoData) {
+        setDespachoOrdenId(despachoData.id_despacho_orden);
+        setDespachoForm({
+          id_tipo_despacho: despachoData.id_tipo_despacho?.toString() || "",
+          id_transportadora: despachoData.id_transportadora?.toString() || "",
+          direccion: (despachoData as any).direccion_despacho?.direccion || "",
+          ciudad: (despachoData as any).direccion_despacho?.ciudad || "",
+          nombre_contacto: (despachoData as any).contacto_despacho?.nombre_contacto || "",
+          telefono_contacto: (despachoData as any).contacto_despacho?.telefono || "",
+          email_contacto: (despachoData as any).contacto_despacho?.email || "",
+          fecha_despacho: despachoData.fecha_despacho || "",
+          observaciones: despachoData.observaciones || "",
         });
       } else {
-        setMetodoDespachoId(null);
-        setMetodoDespachoForm({ direccion_despacho: "", contacto_telefono: "", contacto_email_guia: "" });
+        setDespachoOrdenId(null);
+        setDespachoForm({
+          id_tipo_despacho: "",
+          id_transportadora: "",
+          direccion: "",
+          ciudad: "",
+          nombre_contacto: "",
+          telefono_contacto: "",
+          email_contacto: "",
+          fecha_despacho: "",
+          observaciones: "",
+        });
       }
 
       // Cargar detalle existente
@@ -359,7 +393,7 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
   const loadEditModeData = async () => {
     try {
       // Solo cargar datos necesarios para edición
-      const [clientesRes, comercialesRes, operadoresRes, planesRes, apnsRes] = await Promise.all([
+      const [clientesRes, comercialesRes, operadoresRes, planesRes, apnsRes, tiposDespachoRes, transportadorasRes] = await Promise.all([
         // Clientes
         supabase.from("cliente").select("*").order("nombre_cliente"),
 
@@ -378,7 +412,13 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         supabase.from("plan").select("*").order("nombre_plan"),
 
         // APNs
-        supabase.from("apn").select("*").order("apn")
+        supabase.from("apn").select("*").order("apn"),
+
+        // Tipos de despacho
+        supabase.from("tipo_despacho").select("*").order("nombre_tipo"),
+
+        // Transportadoras
+        supabase.from("transportadora").select("*").order("nombre_transportadora")
       ]);
 
       if (clientesRes.error) throw clientesRes.error;
@@ -386,11 +426,15 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
       if (operadoresRes.error) throw operadoresRes.error;
       if (planesRes.error) throw planesRes.error;
       if (apnsRes.error) throw apnsRes.error;
+      if (tiposDespachoRes.error) throw tiposDespachoRes.error;
+      if (transportadorasRes.error) throw transportadorasRes.error;
 
       setClientes(clientesRes.data ?? []);
       setOperadores(operadoresRes.data ?? []);
       setPlanes(planesRes.data ?? []);
       setApns(apnsRes.data ?? []);
+      setTiposDespacho(tiposDespachoRes.data ?? []);
+      setTransportadoras(transportadorasRes.data ?? []);
 
       setAsignables(
         (comercialesRes.data ?? []).map((u: ProfileRow) => ({
@@ -550,39 +594,44 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
 
     setSaving(true);
     try {
-      // 0) Upsert de metodo de despacho y vinculación a la orden
-      let newMetodoDespachoId = metodoDespachoId;
-      const hasMDValues = Boolean(
-        metodoDespachoForm.direccion_despacho || metodoDespachoForm.contacto_telefono || metodoDespachoForm.contacto_email_guia
+      // 0) Upsert de información de despacho
+      const hasDespachoValues = Boolean(
+        despachoForm.id_tipo_despacho || despachoForm.id_transportadora || despachoForm.observaciones
       );
-      if (hasMDValues) {
-        if (metodoDespachoId) {
-          const { error: mdUpdErr } = await supabase
-            .from("metododespacho")
-            .update({
-              direccion_despacho: metodoDespachoForm.direccion_despacho || null,
-              contacto_telefono: metodoDespachoForm.contacto_telefono || null,
-              contacto_email_guia: metodoDespachoForm.contacto_email_guia || null,
-            })
-            .eq("id_metodo_despacho", metodoDespachoId);
-          if (mdUpdErr) throw mdUpdErr;
+
+      if (hasDespachoValues) {
+        const despachoData = {
+          id_orden_pedido: order.id_orden_pedido,
+          id_tipo_despacho: despachoForm.id_tipo_despacho ? parseInt(despachoForm.id_tipo_despacho) : null,
+          id_transportadora: despachoForm.id_transportadora ? parseInt(despachoForm.id_transportadora) : null,
+          observaciones: despachoForm.observaciones || null,
+        };
+
+        if (despachoOrdenId) {
+          // Actualizar despacho existente
+          const { error: despachoUpdErr } = await supabase
+            .from("despacho_orden")
+            .update(despachoData)
+            .eq("id_despacho_orden", despachoOrdenId);
+          if (despachoUpdErr) throw despachoUpdErr;
         } else {
-          const { data: mdIns, error: mdInsErr } = await supabase
-            .from("metododespacho")
-            .insert({
-              direccion_despacho: metodoDespachoForm.direccion_despacho || null,
-              contacto_telefono: metodoDespachoForm.contacto_telefono || null,
-              contacto_email_guia: metodoDespachoForm.contacto_email_guia || null,
-            })
-            .select("id_metodo_despacho")
+          // Crear nuevo despacho
+          const { data: despachoIns, error: despachoInsErr } = await supabase
+            .from("despacho_orden")
+            .insert(despachoData)
+            .select("id_despacho_orden")
             .single();
-          if (mdInsErr) throw mdInsErr;
-          newMetodoDespachoId = mdIns?.id_metodo_despacho ?? null;
-          setMetodoDespachoId(newMetodoDespachoId);
+          if (despachoInsErr) throw despachoInsErr;
+          setDespachoOrdenId(despachoIns?.id_despacho_orden ?? null);
         }
-      } else {
-        // Si limpian todos los campos, desvincula de la orden pero no borres del catálogo
-        newMetodoDespachoId = null;
+      } else if (despachoOrdenId) {
+        // Si no hay valores pero existe despacho, eliminarlo
+        const { error: despachoDelErr } = await supabase
+          .from("despacho_orden")
+          .delete()
+          .eq("id_despacho_orden", despachoOrdenId);
+        if (despachoDelErr) throw despachoDelErr;
+        setDespachoOrdenId(null);
       }
 
       // 1) Persistir cabecera de la orden
@@ -593,7 +642,6 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
           id_proyecto: formData.id_proyecto ? parseInt(formData.id_proyecto) : null,
           observaciones_orden: formData.observaciones_orden,
           orden_compra: formData.orden_compra || null,
-          id_metodo_despacho: newMetodoDespachoId,
           fecha_modificacion: new Date().toISOString(),
         })
         .eq("id_orden_pedido", order.id_orden_pedido);
@@ -1399,74 +1447,237 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
             </CardContent>
           </Card>
 
-          {/* Método de Despacho - Siempre mostrar */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Método de Despacho</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {isEditMode ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2 md:col-span-1">
-                    <Label>Dirección de Despacho</Label>
-                    <Input
-                      type="text"
-                      placeholder="Dirección completa"
-                      value={metodoDespachoForm.direccion_despacho}
-                      onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, direccion_despacho: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-1">
-                    <Label>Contacto Teléfono</Label>
-                    <Input
-                      type="text"
-                      placeholder="Teléfono de contacto"
-                      value={metodoDespachoForm.contacto_telefono}
-                      onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, contacto_telefono: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-1">
-                    <Label>Email para Guía</Label>
-                    <Input
-                      type="email"
-                      placeholder="correo@ejemplo.com"
-                      value={metodoDespachoForm.contacto_email_guia}
-                      onChange={(e) => setMetodoDespachoForm(prev => ({ ...prev, contacto_email_guia: e.target.value }))}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {metodoDespachoForm.direccion_despacho || metodoDespachoForm.contacto_telefono || metodoDespachoForm.contacto_email_guia ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <Label className="text-sm font-medium">Dirección</Label>
-                        <div className="p-2 bg-muted/30 rounded text-sm">
-                          {metodoDespachoForm.direccion_despacho || "Sin definir"}
-                        </div>
+          {/* Información de Despacho */}
+          {despachoForm.id_tipo_despacho && (() => {
+            const tipoSeleccionado = tiposDespacho.find(t => t.id_tipo_despacho.toString() === despachoForm.id_tipo_despacho);
+            const requiereDireccion = tipoSeleccionado?.requiere_direccion ?? false;
+            const requiereTransportadora = tipoSeleccionado?.requiere_transportadora ?? false;
+
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Truck className="w-4 h-4" />
+                    Información de Despacho
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isEditMode ? (
+                    <div className="space-y-4">
+                      {/* Tipo de Despacho */}
+                      <div className="space-y-2">
+                        <Label>Tipo de Despacho</Label>
+                        <Select
+                          value={despachoForm.id_tipo_despacho}
+                          onValueChange={(value) => setDespachoForm(prev => ({ ...prev, id_tipo_despacho: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tiposDespacho.map((tipo) => (
+                              <SelectItem key={tipo.id_tipo_despacho} value={tipo.id_tipo_despacho.toString()}>
+                                {tipo.nombre_tipo}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-sm font-medium">Teléfono</Label>
-                        <div className="p-2 bg-muted/30 rounded text-sm">
-                          {metodoDespachoForm.contacto_telefono || "Sin definir"}
-                        </div>
+
+                      {/* Fecha - siempre se muestra */}
+                      <div className="space-y-2">
+                        <Label>
+                          {requiereDireccion ? 'Fecha de Entrega Estimada' : 'Fecha de Recogida'}
+                        </Label>
+                        <Input
+                          type="date"
+                          value={despachoForm.fecha_despacho}
+                          onChange={(e) => setDespachoForm(prev => ({ ...prev, fecha_despacho: e.target.value }))}
+                        />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-sm font-medium">Email</Label>
-                        <div className="p-2 bg-muted/30 rounded text-sm">
-                          {metodoDespachoForm.contacto_email_guia || "Sin definir"}
+
+                      {/* Campos de Dirección - solo si requiere_direccion */}
+                      {requiereDireccion && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Dirección de Envío</Label>
+                            <Textarea
+                              value={despachoForm.direccion}
+                              onChange={(e) => setDespachoForm(prev => ({ ...prev, direccion: e.target.value }))}
+                              placeholder="Dirección completa de entrega"
+                              rows={2}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Ciudad</Label>
+                            <Input
+                              value={despachoForm.ciudad}
+                              onChange={(e) => setDespachoForm(prev => ({ ...prev, ciudad: e.target.value }))}
+                              placeholder="Ciudad"
+                            />
+                          </div>
+
+                          <div className="border-t pt-4">
+                            <h4 className="text-sm font-semibold mb-3">Contacto de Entrega</h4>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Nombre del Contacto</Label>
+                                <Input
+                                  value={despachoForm.nombre_contacto}
+                                  onChange={(e) => setDespachoForm(prev => ({ ...prev, nombre_contacto: e.target.value }))}
+                                  placeholder="Nombre completo"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Teléfono</Label>
+                                  <Input
+                                    value={despachoForm.telefono_contacto}
+                                    onChange={(e) => setDespachoForm(prev => ({ ...prev, telefono_contacto: e.target.value }))}
+                                    placeholder="Teléfono"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Email</Label>
+                                  <Input
+                                    type="email"
+                                    value={despachoForm.email_contacto}
+                                    onChange={(e) => setDespachoForm(prev => ({ ...prev, email_contacto: e.target.value }))}
+                                    placeholder="Email"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Transportadora - solo si requiere_transportadora */}
+                      {requiereTransportadora && (
+                        <div className="space-y-2">
+                          <Label>Transportadora</Label>
+                          <Select
+                            value={despachoForm.id_transportadora}
+                            onValueChange={(value) => setDespachoForm(prev => ({ ...prev, id_transportadora: value }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar transportadora" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {transportadoras.map((transportadora) => (
+                                <SelectItem key={transportadora.id_transportadora} value={transportadora.id_transportadora.toString()}>
+                                  {transportadora.nombre_transportadora}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
+                      )}
+
+                      {/* Observaciones */}
+                      <div className="space-y-2">
+                        <Label>Observaciones de Despacho</Label>
+                        <Textarea
+                          placeholder="Observaciones especiales para el despacho..."
+                          value={despachoForm.observaciones}
+                          onChange={(e) => setDespachoForm(prev => ({ ...prev, observaciones: e.target.value }))}
+                          rows={3}
+                        />
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-                      No hay información de despacho configurada
+                    // Vista readonly
+                    <div className="space-y-3">
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Tipo de Despacho</Label>
+                          <div className="p-2 bg-muted/30 rounded text-sm">
+                            {tipoSeleccionado?.nombre_tipo || "Sin definir"}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">
+                            {requiereDireccion ? 'Fecha de Entrega' : 'Fecha de Recogida'}
+                          </Label>
+                          <div className="p-2 bg-muted/30 rounded text-sm">
+                            {despachoForm.fecha_despacho || "Sin definir"}
+                          </div>
+                        </div>
+
+                        {requiereDireccion && (
+                          <>
+                            <div className="space-y-1">
+                              <Label className="text-sm font-medium">Dirección</Label>
+                              <div className="p-2 bg-muted/30 rounded text-sm">
+                                {despachoForm.direccion || "Sin definir"}
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-sm font-medium">Ciudad</Label>
+                              <div className="p-2 bg-muted/30 rounded text-sm">
+                                {despachoForm.ciudad || "Sin definir"}
+                              </div>
+                            </div>
+                            {(despachoForm.nombre_contacto || despachoForm.telefono_contacto || despachoForm.email_contacto) && (
+                              <div className="border-t pt-3 space-y-2">
+                                <h4 className="text-sm font-semibold">Contacto de Entrega</h4>
+                                {despachoForm.nombre_contacto && (
+                                  <div className="space-y-1">
+                                    <Label className="text-sm font-medium">Nombre</Label>
+                                    <div className="p-2 bg-muted/30 rounded text-sm">
+                                      {despachoForm.nombre_contacto}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-4">
+                                  {despachoForm.telefono_contacto && (
+                                    <div className="space-y-1">
+                                      <Label className="text-sm font-medium">Teléfono</Label>
+                                      <div className="p-2 bg-muted/30 rounded text-sm">
+                                        {despachoForm.telefono_contacto}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {despachoForm.email_contacto && (
+                                    <div className="space-y-1">
+                                      <Label className="text-sm font-medium">Email</Label>
+                                      <div className="p-2 bg-muted/30 rounded text-sm">
+                                        {despachoForm.email_contacto}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {requiereTransportadora && (
+                          <div className="space-y-1">
+                            <Label className="text-sm font-medium">Transportadora</Label>
+                            <div className="p-2 bg-muted/30 rounded text-sm">
+                              {transportadoras.find(t => t.id_transportadora.toString() === despachoForm.id_transportadora)?.nombre_transportadora || "Sin definir"}
+                            </div>
+                          </div>
+                        )}
+
+                        {despachoForm.observaciones && (
+                          <div className="space-y-1">
+                            <Label className="text-sm font-medium">Observaciones</Label>
+                            <div className="p-2 bg-muted/30 rounded text-sm">
+                              {despachoForm.observaciones}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Observaciones Comerciales */}
           <div className="space-y-2">

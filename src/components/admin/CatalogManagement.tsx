@@ -63,9 +63,9 @@ const catalogTabs = [
   },
   { 
     value: 'metodo-despacho', 
-    label: 'Método Despacho', 
+    label: 'Tipo Despacho', 
     icon: Map,
-    description: 'Métodos de despacho y envío'
+    description: 'Tipos de despacho y envío'
   },
 ];
 

@@ -53,15 +53,22 @@ interface TipoPago {
   forma_pago: string;
 }
 
-interface MetodoDespacho {
-  id_metodo_despacho: number;
-  tipo_despacho: string;
+interface TipoDespacho {
+  id_tipo_despacho: number;
+  nombre_tipo: string;
+  requiere_direccion: boolean | null;
+  requiere_transportadora: boolean | null;
 }
 
 interface TipoServicio {
   id_tipo_servicio: number;
   siglas_tipo_servicio: string;
   nombre_tipo_servicio: string;
+}
+
+interface Transportadora {
+  id_transportadora: number;
+  nombre_transportadora: string;
 }
 
 type ClaseCobro = Database["public"]["Enums"]["clase_cobro"];
@@ -77,8 +84,9 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
   const [apns, setApns] = useState<Array<Database["public"]["Tables"]["apn"]["Row"]>>([]);
   const [clasesOrden , setClasesOrden] = useState<Array<ClaseOrden>>([]);
   const [tiposPago, setTiposPago] = useState<Array<TipoPago>>([]);
-  const [metodosDespacho, setMetodosDespacho] = useState<Array<MetodoDespacho>>([]);
+  const [tiposDespacho, setTiposDespacho] = useState<Array<TipoDespacho>>([]);
   const [tiposServicio, setTiposServicio] = useState<Array<TipoServicio>>([]);
+  const [transportadoras, setTransportadoras] = useState<Array<Transportadora>>([]);
   const [loading, setLoading] = useState(false);
   const [showLineasDetalle, setShowLineasDetalle] = useState(false);
   
@@ -87,10 +95,20 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
     id_proyecto: '',
     id_clase_orden: '',
     id_tipo_pago: '',
-    id_metodo_despacho: '',
+    id_tipo_despacho: '',
     id_tipo_servicio: '',
     observaciones_orden: '',
     orden_compra: '',
+  });
+
+  const [despachoData, setDespachoData] = useState({
+    direccion: '',
+    ciudad: '',
+    nombre_contacto: '',
+    telefono_contacto: '',
+    email_contacto: '',
+    id_transportadora: '',
+    fecha_entrega: '',
   });
 
   const [selectedComercial, setSelectedComercial] = useState<string>('');
@@ -126,10 +144,19 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       id_proyecto: '',
       id_clase_orden: '',
       id_tipo_pago: '',
-      id_metodo_despacho: '',
+      id_tipo_despacho: '',
       id_tipo_servicio: '',
       observaciones_orden: '',
       orden_compra: '',
+    });
+    setDespachoData({
+      direccion: '',
+      ciudad: '',
+      nombre_contacto: '',
+      telefono_contacto: '',
+      email_contacto: '',
+      id_transportadora: '',
+      fecha_entrega: '',
     });
     setSelectedComercial('');
   };
@@ -162,12 +189,13 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
         }))
       );
 
-      const [proyectosRes, clasesOrdenRes, tipoPagoRes, metodoDespachoRes, tiposServicioRes] = await Promise.all ([
+      const [proyectosRes, clasesOrdenRes, tipoPagoRes, metodoDespachoRes, tiposServicioRes, transportadorasRes] = await Promise.all ([
         supabase.from('proyecto').select('*').order('nombre_proyecto'),
         supabase.from('claseorden').select('*').order('tipo_orden'),
         supabase.from('tipopago').select('*').order('forma_pago'),
-        supabase.from('metododespacho').select('*').order('tipo_despacho'),
-        supabase.from('tipo_servicio').select('*').order('nombre_tipo_servicio')
+        supabase.from('tipo_despacho').select('*').order('nombre_tipo'),
+        supabase.from('tipo_servicio').select('*').order('nombre_tipo_servicio'),
+        supabase.from('transportadora').select('*').order('nombre_transportadora')
       ]);
 
       if (proyectosRes.error) throw proyectosRes.error;
@@ -175,12 +203,14 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       if (tipoPagoRes.error) throw tipoPagoRes.error;
       if (metodoDespachoRes.error) throw metodoDespachoRes.error;
       if (tiposServicioRes.error) throw tiposServicioRes.error;
+      if (transportadorasRes.error) throw transportadorasRes.error;
 
       setProyectos(proyectosRes.data ?? []);
       setClasesOrden(clasesOrdenRes.data ?? []);
       setTiposPago(tipoPagoRes.data ?? []);
-      setMetodosDespacho(metodoDespachoRes.data ?? []);
+      setTiposDespacho(metodoDespachoRes.data ?? []);
       setTiposServicio(tiposServicioRes.data ?? []);
+      setTransportadoras(transportadorasRes.data ?? []);
 
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -216,13 +246,30 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       toast.error('Debe seleccionar un cliente');
       return;
     }
-  
+
     // Validate required fields
     if (!formData.id_clase_orden || !formData.id_tipo_pago || !formData.id_tipo_servicio) {
       toast.error('Por favor complete todos los campos requeridos');
       return;
     }
-  
+
+    // Validate dispatch information if tipo_despacho is selected
+    if (formData.id_tipo_despacho) {
+      const tipoSeleccionado = tiposDespacho.find(t => t.id_tipo_despacho.toString() === formData.id_tipo_despacho);
+
+      if (tipoSeleccionado?.requiere_direccion) {
+        if (!despachoData.direccion || !despachoData.nombre_contacto) {
+          toast.error('Por favor complete la información de dirección y contacto');
+          return;
+        }
+      }
+
+      if (tipoSeleccionado?.requiere_transportadora && !despachoData.id_transportadora) {
+        toast.error('Por favor seleccione una transportadora');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       // Create the order with the new fields
@@ -231,31 +278,126 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
         id_proyecto: formData.id_proyecto ? parseInt(formData.id_proyecto) : null,
         id_clase_orden: formData.id_clase_orden ? parseInt(formData.id_clase_orden) : null,
         id_tipo_pago: formData.id_tipo_pago ? parseInt(formData.id_tipo_pago) : null,
-        id_metodo_despacho: formData.id_metodo_despacho ? parseInt(formData.id_metodo_despacho) : null,
         id_tipo_servicio: formData.id_tipo_servicio ? parseInt(formData.id_tipo_servicio) : null,
         orden_compra: formData.orden_compra || null,
         observaciones_orden: formData.observaciones_orden || null,
       };
-  
+
       const { data: order, error: orderError } = await supabase
         .from('ordenpedido')
         .insert(ordenData)
         .select('id_orden_pedido')
         .single();
-  
+
       if (orderError) throw orderError;
-  
+
+      const orderId = order.id_orden_pedido;
+
+      // Create responsable_orden if a responsible is selected
+      if (selectedComercial) {
+        const { error: responsableError } = await supabase
+          .from('responsable_orden')
+          .insert({
+            id_orden_pedido: orderId,
+            user_id: selectedComercial,
+            role: 'comercial' as AppRole,
+          });
+
+        if (responsableError) {
+          console.error('Error creating responsable:', responsableError);
+          // Don't fail the entire operation, just log the error
+        }
+      }
+
+      // Create dispatch information if tipo_despacho is selected
+      if (formData.id_tipo_despacho) {
+        const tipoSeleccionado = tiposDespacho.find(t => t.id_tipo_despacho.toString() === formData.id_tipo_despacho);
+        let id_direccion: number | null = null;
+        let id_contacto: number | null = null;
+
+        // Create direccion_despacho if required
+        if (tipoSeleccionado?.requiere_direccion && despachoData.direccion) {
+          const { data: direccion, error: direccionError } = await supabase
+            .from('direccion_despacho')
+            .insert({
+              id_cliente: parseInt(formData.id_cliente),
+              direccion: despachoData.direccion,
+              ciudad: despachoData.ciudad || null,
+            })
+            .select('id_direccion')
+            .single();
+
+          if (direccionError) {
+            console.error('Error creating direccion:', direccionError);
+            throw new Error('Error al crear la dirección de despacho');
+          }
+
+          id_direccion = direccion.id_direccion;
+
+          // Create contacto_despacho if direccion was created and contact info provided
+          if (id_direccion && despachoData.nombre_contacto) {
+            const { data: contacto, error: contactoError } = await supabase
+              .from('contacto_despacho')
+              .insert({
+                id_direccion: id_direccion,
+                nombre_contacto: despachoData.nombre_contacto,
+                telefono: despachoData.telefono_contacto || null,
+                email: despachoData.email_contacto || null,
+              })
+              .select('id_contacto')
+              .single();
+
+            if (contactoError) {
+              console.error('Error creating contacto:', contactoError);
+              // Don't fail, contacto is optional
+            } else {
+              id_contacto = contacto.id_contacto;
+            }
+          }
+        }
+
+        // Create despacho_orden
+        const { data: despacho, error: despachoError } = await supabase
+          .from('despacho_orden')
+          .insert({
+            id_orden_pedido: orderId,
+            id_tipo_despacho: parseInt(formData.id_tipo_despacho),
+            id_direccion: id_direccion,
+            id_contacto: id_contacto,
+            id_transportadora: despachoData.id_transportadora ? parseInt(despachoData.id_transportadora) : null,
+            fecha_despacho: despachoData.fecha_entrega || null,
+          })
+          .select('id_despacho_orden')
+          .single();
+
+        if (despachoError) {
+          console.error('Error creating despacho_orden:', despachoError);
+          throw new Error('Error al crear la información de despacho');
+        }
+
+        // Update ordenpedido with id_despacho_orden
+        const { error: updateError } = await supabase
+          .from('ordenpedido')
+          .update({ id_despacho_orden: despacho.id_despacho_orden })
+          .eq('id_orden_pedido', orderId);
+
+        if (updateError) {
+          console.error('Error updating orden with despacho:', updateError);
+          // Don't fail the operation
+        }
+      }
+
       toast.success('Orden creada exitosamente');
-      
+
       // Pass the new order ID to the parent component
-      onOrderCreated(order.id_orden_pedido);
-      
+      onOrderCreated(orderId);
+
       // Close the modal
       onOpenChange(false);
-  
+
     } catch (error) {
       console.error('Error creating order:', error);
-      toast.error('Error al crear la orden');
+      toast.error(error instanceof Error ? error.message : 'Error al crear la orden');
     } finally {
       setLoading(false);
     }
@@ -412,21 +554,21 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
                 {/* Método de Despacho */}
                 <div className="space-y-2">
-                    <Label>Método de Despacho</Label>
+                    <Label>Tipo de Despacho</Label>
                     <Select
-                    value={formData.id_metodo_despacho}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, id_metodo_despacho: value }))}
+                    value={formData.id_tipo_despacho}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, id_tipo_despacho: value }))}
                     >
                     <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar método" />
+                        <SelectValue placeholder="Seleccionar tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                        {metodosDespacho.map((metodo) => (
-                        <SelectItem 
-                            key={metodo.id_metodo_despacho} 
-                            value={metodo.id_metodo_despacho.toString()}
+                        {tiposDespacho.map((tipo) => (
+                        <SelectItem
+                            key={tipo.id_tipo_despacho}
+                            value={tipo.id_tipo_despacho.toString()}
                         >
-                            {metodo.tipo_despacho}
+                            {tipo.nombre_tipo}
                         </SelectItem>
                         ))}
                     </SelectContent>
@@ -436,38 +578,123 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
             </CardContent>
           </Card>
 
-          {/* Método de Despacho */}
-          <Card className="border-0 shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Truck className="w-5 h-5" />
-                  <span>Método de Despacho</span>
-                </CardTitle>
-                <CardDescription>
-                  Configuración del envío y entrega
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="metodo-despacho">Método de Despacho</Label>
-                  <Select 
-                    value={formData.id_metodo_despacho} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, id_metodo_despacho: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar método de despacho" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {metodosDespacho.map((metodo) => (
-                        <SelectItem key={metodo.id_metodo_despacho} value={metodo.id_metodo_despacho.toString()}>
-                          {metodo.tipo_despacho}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Información de Despacho */}
+          {formData.id_tipo_despacho && (() => {
+            const tipoSeleccionado = tiposDespacho.find(t => t.id_tipo_despacho.toString() === formData.id_tipo_despacho);
+            const requiereDireccion = tipoSeleccionado?.requiere_direccion ?? false;
+            const requiereTransportadora = tipoSeleccionado?.requiere_transportadora ?? false;
+
+            return (
+              <Card className="border-0 shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Truck className="w-5 h-5" />
+                    <span>Información de Despacho</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Complete la información requerida para {tipoSeleccionado?.nombre_tipo}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Fecha de Entrega/Despacho - SIEMPRE se muestra */}
+                  <div className="space-y-2">
+                    <Label>
+                      {requiereDireccion ? 'Fecha de Entrega Estimada' : 'Fecha de Recogida'}
+                    </Label>
+                    <Input
+                      type="date"
+                      value={despachoData.fecha_entrega}
+                      onChange={(e) => setDespachoData(prev => ({ ...prev, fecha_entrega: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {requiereDireccion
+                        ? 'Fecha estimada en la que se realizará la entrega'
+                        : 'Fecha acordada para que el cliente recoja el pedido'
+                      }
+                    </p>
+                  </div>
+                  {/* Campos de Dirección - solo si requiere_direccion es true */}
+                  {requiereDireccion && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Dirección de Envío *</Label>
+                        <Textarea
+                          value={despachoData.direccion}
+                          onChange={(e) => setDespachoData(prev => ({ ...prev, direccion: e.target.value }))}
+                          placeholder="Dirección completa de entrega"
+                          rows={2}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Ciudad</Label>
+                        <Input
+                          value={despachoData.ciudad}
+                          onChange={(e) => setDespachoData(prev => ({ ...prev, ciudad: e.target.value }))}
+                          placeholder="Ciudad"
+                        />
+                      </div>
+
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-semibold mb-3">Contacto de Entrega</h4>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Nombre del Contacto *</Label>
+                            <Input
+                              value={despachoData.nombre_contacto}
+                              onChange={(e) => setDespachoData(prev => ({ ...prev, nombre_contacto: e.target.value }))}
+                              placeholder="Nombre completo"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Teléfono</Label>
+                              <Input
+                                value={despachoData.telefono_contacto}
+                                onChange={(e) => setDespachoData(prev => ({ ...prev, telefono_contacto: e.target.value }))}
+                                placeholder="Teléfono de contacto"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Email</Label>
+                              <Input
+                                type="email"
+                                value={despachoData.email_contacto}
+                                onChange={(e) => setDespachoData(prev => ({ ...prev, email_contacto: e.target.value }))}
+                                placeholder="Email de contacto"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Campo de Transportadora - solo si requiere_transportadora es true */}
+                  {requiereTransportadora && (
+                    <div className="space-y-2">
+                      <Label>Transportadora *</Label>
+                      <Select
+                        value={despachoData.id_transportadora}
+                        onValueChange={(value) => setDespachoData(prev => ({ ...prev, id_transportadora: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar transportadora" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {transportadoras.map((transp) => (
+                            <SelectItem key={transp.id_transportadora} value={transp.id_transportadora.toString()}>
+                              {transp.nombre_transportadora}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Observaciones */}
           <Card>

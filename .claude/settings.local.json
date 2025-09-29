@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx supabase db remote:*)",
+      "Bash(del:*)",
+      "Bash(del TYPESCRIPT_TYPES_REFERENCE.md)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
