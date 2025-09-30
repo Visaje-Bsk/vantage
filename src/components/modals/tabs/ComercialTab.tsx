@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +12,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import EquipoSelector, { type EquipoOption } from "@/components/catalogs/EquipoSelector";
+import { ConfirmationDialog } from "@/components/modals/ConfirmationDialog";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type ClaseCobro = Database["public"]["Enums"]["clase_cobro"];
 type ServicioLine = {
   id_linea_detalle: number;
+  id_orden_detalle?: number; // Para tracking de registros existentes
   operadorId: string;
   planId: string;
   apnId: string;
@@ -29,15 +32,32 @@ type ServicioLine = {
 interface ComercialTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
+  onRequestClose?: () => void;
+  onTabChange?: (canChange: boolean) => void;
+  onUnsavedChangesChange?: (hasChanges: boolean) => void;
 }
 
-export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
+type ConfirmationType = "close" | "switchMode" | "deleteEquipo" | "deleteServicio" | null;
+
+export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange, onUnsavedChangesChange }: ComercialTabProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
 
   // Estados de modo edición
   const [isEditMode, setIsEditMode] = useState(false);
   const [isFieldsLocked, setIsFieldsLocked] = useState(false);
+
+  // Estados para control de cambios sin guardar
+  const [initialFormData, setInitialFormData] = useState<typeof formData | null>(null);
+  const [initialProductLines, setInitialProductLines] = useState<typeof productLines>([]);
+  const [initialServicioLines, setInitialServicioLines] = useState<typeof servicioLines>([]);
+  const [initialDespachoForm, setInitialDespachoForm] = useState<typeof despachoForm | null>(null);
+  const [initialSelectedComercial, setInitialSelectedComercial] = useState<string>("");
+
+  // Estados para confirmaciones
+  const [confirmationType, setConfirmationType] = useState<ConfirmationType>(null);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ id: number; type: "equipo" | "servicio" } | null>(null);
 
   // Usuarios asignables (excluye admin y comercial)
   const [asignables, setAsignables] = useState<Array<{ user_id: string; label: string; role: AppRole }>>([]);
@@ -67,18 +87,22 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
   });
 
   const [productLines, setProductLines] = useState([
-    { id_linea_detalle: 1, selectedEquipo: null as EquipoOption | null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }
+    { id_linea_detalle: 1, id_orden_detalle: undefined as number | undefined, selectedEquipo: null as EquipoOption | null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }
   ]);
 
   const [servicioLines, setServicioLines] = useState([
-    { id_linea_detalle: 1, 
-      operadorId: "", 
-      planId: "", 
-      apnId: "", 
-      permanencia: "", 
-      claseCobro: "", 
+    { id_linea_detalle: 1,
+      operadorId: "",
+      planId: "",
+      apnId: "",
+      permanencia: "",
+      claseCobro: "",
       valorMensual: ""  }
   ]);
+
+  // Rastrear IDs que serán eliminados (para mostrar confirmación)
+  const [deletedEquipoIds, setDeletedEquipoIds] = useState<number[]>([]);
+  const [deletedServicioIds, setDeletedServicioIds] = useState<number[]>([]);
 
   // Información de despacho (tabla despacho_orden)
   const [despachoOrdenId, setDespachoOrdenId] = useState<number | null>(null);
@@ -110,55 +134,69 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
     return formatterCOP.format(num);
   };
 
-  const loadDetalleOrden = async (opId: number) => {
+  const loaddetalle_orden = async (opId: number) => {
     try {
-      // 1) Fetch detalleorden with producto details
+      // 1) Fetch detalle_orden directly (no producto table)
       const { data: det, error: detErr } = await supabase
-        .from("detalleorden")
+        .from("detalle_orden")
         .select(`
           id_orden_detalle,
-          id_producto,
+          id_equipo,
+          id_linea_detalle,
+          id_servicio,
+          id_accesorio,
           cantidad,
           valor_unitario,
-          producto:producto (
-            id_producto,
-            tipo,
-            nombre_producto,
-            id_equipo,
-            id_linea_detalle
-          )
+          tipo_producto,
+          id_orden_pedido,
+          plantilla
         `)
         .eq("id_orden_pedido", opId)
         .order("id_orden_detalle", { ascending: true });
+
       if (detErr) throw detErr;
 
       const detalles = det ?? [];
 
       // Separate into equipment and service lines
-      const equipoDetalles = detalles.filter((d) => d.producto?.id_equipo);
-      const servicioDetalles = detalles.filter((d) => d.producto?.id_linea_detalle);
+      const equipoDetalles = detalles.filter((d) => d.id_equipo);
+      const servicioDetalles = detalles.filter((d) => d.id_linea_detalle);
 
       // 2) Fetch equipos for product lines
       const equipoIds = equipoDetalles
-        .map((d) => d.producto?.id_equipo)
+        .map((d) => d.id_equipo)
         .filter((v): v is number => typeof v === "number");
       const uniqueEquipoIds = Array.from(new Set(equipoIds));
-      let equiposById = new Map<number, { id_equipo: number; codigo: string | null; nombre_equipo: string | null; plantilla: string | null }>();
+
+      const equiposById = new Map<number, { id_equipo: number; codigo: string | null; nombre_equipo: string | null; plantilla: string | null }>();
       if (uniqueEquipoIds.length > 0) {
         const { data: equipos, error: eqErr } = await supabase
           .from("equipo")
-          .select("id_equipo, codigo, nombre_equipo, plantilla")
+          .select("id_equipo, codigo, nombre_equipo")
           .in("id_equipo", uniqueEquipoIds);
         if (eqErr) throw eqErr;
-        (equipos ?? []).forEach((e: any) => equiposById.set(e.id_equipo, e));
+        (equipos ?? []).forEach((e) => equiposById.set(e.id_equipo, e));
       }
 
       // 3) Fetch lineaservicio for service lines
       const lineaServicioIds = servicioDetalles
-        .map((d) => d.producto?.id_linea_detalle)
+        .map((d) => d.id_linea_detalle)
         .filter((v): v is number => typeof v === "number");
       const uniqueLineaIds = Array.from(new Set(lineaServicioIds));
-      let lineasServicioById = new Map<number, any>();
+
+      type LineaServicioJoined = {
+        id_linea_detalle: number;
+        id_operador: number | null;
+        id_plan: number | null;
+        id_apn: number | null;
+        clase_cobro: string | null;
+        permanencia: string | null;
+        operador?: { id_operador: number; nombre_operador: string } | null;
+        plan?: { id_plan: number; nombre_plan: string } | null;
+        apn?: { id_apn: number; apn: string } | null;
+      };
+
+      const lineasServicioById = new Map<number, LineaServicioJoined>();
       if (uniqueLineaIds.length > 0) {
         const { data: lineasServicio, error: lsErr } = await supabase
           .from("lineaservicio")
@@ -175,65 +213,156 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
           `)
           .in("id_linea_detalle", uniqueLineaIds);
         if (lsErr) throw lsErr;
-        (lineasServicio ?? []).forEach((ls: any) => {
-          if (ls.id_linea_detalle) {
-            lineasServicioById.set(ls.id_linea_detalle, ls);
+        (lineasServicio ?? []).forEach((ls) => {
+          const lsTyped = ls as unknown as LineaServicioJoined;
+          if (lsTyped.id_linea_detalle) {
+            lineasServicioById.set(lsTyped.id_linea_detalle, lsTyped);
           }
         });
       }
 
-      // 4) Map product lines (equipos)
+      // 4) Map product lines (equipos) - guardando también el id_orden_detalle para tracking
       if (equipoDetalles.length > 0) {
-        const productLinesMapped = equipoDetalles.map((d, idx) => {
-          const eq = d.producto?.id_equipo ? equiposById.get(d.producto.id_equipo) : undefined;
+        const productLinesMapped = equipoDetalles.map((d) => {
+          const eq = d.id_equipo ? equiposById.get(d.id_equipo) : undefined;
           const selectedEquipo = eq
             ? ({ id_equipo: eq.id_equipo, codigo: eq.codigo, nombre_equipo: eq.nombre_equipo } as EquipoOption)
             : null;
-          const hasPlantilla = Boolean(eq?.plantilla);
+
+          const detalleWithPlantilla = d as typeof d & { plantilla?: string | null };
+
           return {
-            id_linea_detalle: idx + 1,
+            id_linea_detalle: d.id_orden_detalle, // Usar id_orden_detalle como identificador único
+            id_orden_detalle: d.id_orden_detalle, // Guardar el ID para tracking
             selectedEquipo,
             cantidad: d.cantidad != null ? String(d.cantidad) : "",
             valorUnitario: d.valor_unitario != null ? String(d.valor_unitario) : "",
             claseCobro: "",
-            plantilla: hasPlantilla,
-            plantillaText: eq?.plantilla ?? "",
+            plantilla: Boolean(detalleWithPlantilla.plantilla), // plantilla ahora está en detalle_orden
+            plantillaText: detalleWithPlantilla.plantilla ?? "",
           };
         });
-        setProductLines(productLinesMapped.length > 0
-          ? productLinesMapped
-          : [{ id_linea_detalle: 1, selectedEquipo: null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }]);
+        setProductLines(productLinesMapped);
       } else {
-        setProductLines([{ id_linea_detalle: 1, selectedEquipo: null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }]);
+        setProductLines([{ id_linea_detalle: 1, id_orden_detalle: undefined, selectedEquipo: null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }]);
       }
 
-      // 5) Map service lines
+      // 5) Map service lines - guardando también el id_orden_detalle para tracking
       if (servicioDetalles.length > 0) {
-        const servicioLinesMapped = servicioDetalles.map((d, idx) => {
-          const ls = d.producto?.id_linea_detalle ? lineasServicioById.get(d.producto.id_linea_detalle) : undefined;
+        const servicioLinesMapped = servicioDetalles.map((d) => {
+          const ls = d.id_linea_detalle ? lineasServicioById.get(d.id_linea_detalle) : undefined;
           return {
-            id_linea_detalle: d.producto?.id_linea_detalle ?? idx + 1, // Use actual database ID if available
+            id_linea_detalle: d.id_linea_detalle ?? 0,
+            id_orden_detalle: d.id_orden_detalle, // Guardar el ID para tracking
             operadorId: ls?.id_operador != null ? String(ls.id_operador) : "",
             planId: ls?.id_plan != null ? String(ls.id_plan) : "",
             apnId: ls?.id_apn != null ? String(ls.id_apn) : "",
             permanencia: ls?.permanencia != null ? String(ls.permanencia) : "",
             claseCobro: ls?.clase_cobro ?? "",
             valorMensual: d.valor_unitario != null ? String(d.valor_unitario) : "",
-          } satisfies ServicioLine;
+          };
         });
-        setServicioLines(servicioLinesMapped.length > 0
-          ? servicioLinesMapped
-          : [{ id_linea_detalle: 1, operadorId: "", planId: "", apnId: "", permanencia: "", claseCobro: "", valorMensual: "" }]);
+        setServicioLines(servicioLinesMapped);
         setShowLineasDetalle(true);
       } else {
         setServicioLines([{ id_linea_detalle: 1, operadorId: "", planId: "", apnId: "", permanencia: "", claseCobro: "", valorMensual: "" }]);
       }
     } catch (e) {
-      console.error("Error loading detalleorden:", e);
+      console.error("Error loading detalle_orden:", e);
       // keep current lines on error
     }
   };
   const digitsOnly = (s: string) => s.replace(/[^0-9]/g, "");
+
+  // Validaciones
+  const validateQuantity = (value: string): { valid: boolean; error?: string } => {
+    if (!value) return { valid: false, error: "La cantidad es requerida" };
+    const num = Number(value);
+    if (isNaN(num)) return { valid: false, error: "Debe ser un número válido" };
+    if (!Number.isInteger(num)) return { valid: false, error: "La cantidad debe ser un número entero" };
+    if (num <= 0) return { valid: false, error: "La cantidad debe ser mayor a 0" };
+    if (num > 9999) return { valid: false, error: "La cantidad no puede superar 9999" };
+    return { valid: true };
+  };
+
+  const validateEmail = (email: string): { valid: boolean; error?: string } => {
+    if (!email) return { valid: true }; // Email es opcional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { valid: false, error: "Ingresa un correo electrónico válido" };
+    }
+    return { valid: true };
+  };
+
+  const validatePhone = (phone: string): { valid: boolean; error?: string } => {
+    if (!phone) return { valid: true }; // Teléfono es opcional
+    const digitsOnly = phone.replace(/[^0-9]/g, "");
+    if (digitsOnly.length < 7) {
+      return { valid: false, error: "El teléfono debe tener al menos 7 dígitos" };
+    }
+    if (digitsOnly.length > 15) {
+      return { valid: false, error: "El teléfono no puede tener más de 15 dígitos" };
+    }
+    return { valid: true };
+  };
+
+  // Estados para errores de validación
+  const [quantityErrors, setQuantityErrors] = useState<Record<number, string>>({});
+  const [emailError, setEmailError] = useState<string>("");
+  const [phoneError, setPhoneError] = useState<string>("");
+
+  // Detectar cambios sin guardar
+  const hasUnsavedChanges = useMemo(() => {
+    if (!isEditMode || !initialFormData) return false;
+
+    // Comparar formData
+    const formDataChanged = JSON.stringify(formData) !== JSON.stringify(initialFormData);
+
+    // Comparar productLines (excluir id_linea_detalle que es solo para UI)
+    const productLinesChanged = JSON.stringify(
+      productLines.map(({ id_linea_detalle, ...rest }) => rest)
+    ) !== JSON.stringify(
+      initialProductLines.map(({ id_linea_detalle, ...rest }) => rest)
+    );
+
+    // Comparar servicioLines
+    const servicioLinesChanged = JSON.stringify(
+      servicioLines.map(({ id_linea_detalle, ...rest }) => rest)
+    ) !== JSON.stringify(
+      initialServicioLines.map(({ id_linea_detalle, ...rest }) => rest)
+    );
+
+    // Comparar despachoForm
+    const despachoFormChanged = JSON.stringify(despachoForm) !== JSON.stringify(initialDespachoForm);
+
+    // Comparar selectedComercial
+    const comercialChanged = selectedComercial !== initialSelectedComercial;
+
+    // Verificar si hay elementos marcados para eliminar
+    const hasDeletedItems = deletedEquipoIds.length > 0 || deletedServicioIds.length > 0;
+
+    return formDataChanged || productLinesChanged || servicioLinesChanged ||
+           despachoFormChanged || comercialChanged || hasDeletedItems;
+  }, [
+    isEditMode,
+    formData,
+    initialFormData,
+    productLines,
+    initialProductLines,
+    servicioLines,
+    initialServicioLines,
+    despachoForm,
+    initialDespachoForm,
+    selectedComercial,
+    initialSelectedComercial,
+    deletedEquipoIds,
+    deletedServicioIds
+  ]);
+
+  // Notificar al padre cuando cambia el estado de cambios sin guardar
+  useEffect(() => {
+    onUnsavedChangesChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onUnsavedChangesChange]);
 
   useEffect(() => {
     // Carga inmediata de datos existentes de la orden
@@ -285,29 +414,56 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         .maybeSingle();
       if (despachoErr && despachoErr.code !== "PGRST116") throw despachoErr;
 
-      // Obtener ingeniero asignado (incluyendo comercial ahora)
+      // Obtener todos los responsables de la orden (excluyendo solo admin)
       const { data: resp, error: respErr } = await supabase
         .from("responsable_orden")
         .select(`
           user_id,
+          role,
           profiles!inner ( nombre, username )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
-        .maybeSingle();
-      if (respErr && respErr.code !== "PGRST116") throw respErr;
+        .neq("role", "admin" as AppRole);
+      if (respErr) throw respErr;
+
+      console.log("Responsables encontrados (todos excepto admin):", resp);
+
+      // Obtener el primer responsable (puede ser ingenieria, inventarios, produccion, etc.)
+      // Preferir ingenieria, luego otros roles técnicos, finalmente comercial
+      const rolesPriority: AppRole[] = ["ingenieria", "inventarios", "produccion", "logistica", "facturacion", "financiera", "comercial"];
+      const ingenieroAsignado = resp && resp.length > 0
+        ? resp.sort((a, b) => {
+            const priorityA = rolesPriority.indexOf(a.role as AppRole);
+            const priorityB = rolesPriority.indexOf(b.role as AppRole);
+            return priorityA - priorityB;
+          })[0]
+        : null;
+
+      console.log("Responsable seleccionado (por prioridad):", ingenieroAsignado);
 
       // Actualizar datos de visualización inmediata
+      const orderDataWithJoins = orderData as typeof orderData & {
+        cliente?: { nombre_cliente: string; nit: string } | null;
+        proyecto?: { nombre_proyecto: string } | null;
+      };
+      const ingenieroWithProfile = ingenieroAsignado as typeof ingenieroAsignado & {
+        profiles?: { nombre?: string; username?: string } | null;
+      };
+
+      const ingenieroNombre = ingenieroWithProfile?.profiles?.nombre || ingenieroWithProfile?.profiles?.username || "";
+      console.log("Nombre ingeniero calculado:", ingenieroNombre);
+
       setDisplayData({
-        cliente_nombre: (orderData as any).cliente?.nombre_cliente || "",
-        proyecto_nombre: (orderData as any).proyecto?.nombre_proyecto || "",
-        ingeniero_nombre: resp ? ((resp as any).profiles?.nombre || (resp as any).profiles?.username || "Sin nombre") : "",
+        cliente_nombre: orderDataWithJoins.cliente?.nombre_cliente || "",
+        proyecto_nombre: orderDataWithJoins.proyecto?.nombre_proyecto || "",
+        ingeniero_nombre: ingenieroNombre,
         orden_compra: orderData.orden_compra || "",
         observaciones: orderData.observaciones_orden || "",
       });
 
       // Verificar si los campos deben estar bloqueados (si ya hay ingeniero asignado)
-      setIsFieldsLocked(Boolean(resp));
-      setSelectedComercial(resp?.user_id as string || "");
+      setIsFieldsLocked(Boolean(ingenieroAsignado));
+      setSelectedComercial(ingenieroAsignado?.user_id as string || "");
 
       // Actualizar formData básico
       setFormData({
@@ -318,7 +474,7 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
       });
 
       // Si no hay nombre de proyecto en el join pero sí hay id_proyecto, cargar el proyecto
-      if (orderData.id_proyecto && !(orderData as any).proyecto?.nombre_proyecto) {
+      if (orderData.id_proyecto && !orderDataWithJoins.proyecto?.nombre_proyecto) {
         try {
           const { data: proyectoData, error: projErr } = await supabase
             .from("proyecto")
@@ -338,15 +494,20 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
 
       // Configurar datos de despacho existente
       if (despachoData) {
+        const despachoWithJoins = despachoData as typeof despachoData & {
+          direccion_despacho?: { direccion?: string; ciudad?: string } | null;
+          contacto_despacho?: { nombre_contacto?: string; telefono?: string; email?: string } | null;
+        };
+
         setDespachoOrdenId(despachoData.id_despacho_orden);
         setDespachoForm({
           id_tipo_despacho: despachoData.id_tipo_despacho?.toString() || "",
           id_transportadora: despachoData.id_transportadora?.toString() || "",
-          direccion: (despachoData as any).direccion_despacho?.direccion || "",
-          ciudad: (despachoData as any).direccion_despacho?.ciudad || "",
-          nombre_contacto: (despachoData as any).contacto_despacho?.nombre_contacto || "",
-          telefono_contacto: (despachoData as any).contacto_despacho?.telefono || "",
-          email_contacto: (despachoData as any).contacto_despacho?.email || "",
+          direccion: despachoWithJoins.direccion_despacho?.direccion || "",
+          ciudad: despachoWithJoins.direccion_despacho?.ciudad || "",
+          nombre_contacto: despachoWithJoins.contacto_despacho?.nombre_contacto || "",
+          telefono_contacto: despachoWithJoins.contacto_despacho?.telefono || "",
+          email_contacto: despachoWithJoins.contacto_despacho?.email || "",
           fecha_despacho: despachoData.fecha_despacho || "",
           observaciones: despachoData.observaciones || "",
         });
@@ -365,8 +526,23 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         });
       }
 
+      // Cargar catálogos necesarios para modo readonly (operadores, planes, apns, tipos despacho, transportadoras)
+      const [operadoresRes, planesRes, apnsRes, tiposDespachoRes, transportadorasRes] = await Promise.all([
+        supabase.from("operador").select("*").order("nombre_operador"),
+        supabase.from("plan").select("*").order("nombre_plan"),
+        supabase.from("apn").select("*").order("apn"),
+        supabase.from("tipo_despacho").select("*").order("nombre_tipo"),
+        supabase.from("transportadora").select("*").order("nombre_transportadora")
+      ]);
+
+      if (!operadoresRes.error) setOperadores(operadoresRes.data ?? []);
+      if (!planesRes.error) setPlanes(planesRes.data ?? []);
+      if (!apnsRes.error) setApns(apnsRes.data ?? []);
+      if (!tiposDespachoRes.error) setTiposDespacho(tiposDespachoRes.data ?? []);
+      if (!transportadorasRes.error) setTransportadoras(transportadorasRes.data ?? []);
+
       // Cargar detalle existente
-      await loadDetalleOrden(order.id_orden_pedido);
+      await loaddetalle_orden(order.id_orden_pedido);
 
       // Si hay cliente asignado, cargar proyectos para que estén disponibles inmediatamente
       if (orderData.id_cliente) {
@@ -449,6 +625,28 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         await loadProyectos(formData.id_cliente);
       }
 
+      // Cargar responsable asignado actual si no está ya establecido
+      if (!selectedComercial) {
+        const { data: respAsignados, error: respErr } = await supabase
+          .from("responsable_orden")
+          .select("user_id, role")
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .neq("role", "admin" as AppRole);
+
+        if (!respErr && respAsignados && respAsignados.length > 0) {
+          // Usar el mismo sistema de prioridades
+          const rolesPriority: AppRole[] = ["ingenieria", "inventarios", "produccion", "logistica", "facturacion", "financiera", "comercial"];
+          const responsableSeleccionado = respAsignados.sort((a, b) => {
+            const priorityA = rolesPriority.indexOf(a.role as AppRole);
+            const priorityB = rolesPriority.indexOf(b.role as AppRole);
+            return priorityA - priorityB;
+          })[0];
+
+          setSelectedComercial(responsableSeleccionado.user_id);
+          console.log("Responsable asignado cargado en modo edición:", responsableSeleccionado);
+        }
+      }
+
     } catch (error) {
       console.error("Error loading edit mode data:", error);
       toast.error("No se pudo cargar los datos para edición");
@@ -478,51 +676,151 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
 
   const handleEditToggle = () => {
     if (!isEditMode) {
-      loadEditModeData();
+      // Entrar en modo edición - capturar estado inicial
+      loadEditModeData().then(() => {
+        // Capturar snapshot del estado inicial
+        setInitialFormData({ ...formData });
+        setInitialProductLines(JSON.parse(JSON.stringify(productLines)));
+        setInitialServicioLines(JSON.parse(JSON.stringify(servicioLines)));
+        setInitialDespachoForm({ ...despachoForm });
+        setInitialSelectedComercial(selectedComercial);
+      });
+      setIsEditMode(true);
+    } else {
+      // Salir de modo edición - verificar cambios sin guardar
+      if (hasUnsavedChanges) {
+        setConfirmationType("switchMode");
+      } else {
+        setIsEditMode(false);
+      }
     }
-    setIsEditMode(!isEditMode);
   };
 
   const handleCancelEdit = () => {
+    if (hasUnsavedChanges) {
+      setConfirmationType("switchMode");
+    } else {
+      setIsEditMode(false);
+      loadInitialDisplayData();
+    }
+  };
+
+  const confirmDiscardChanges = () => {
     setIsEditMode(false);
-    // Restaurar datos originales
-    setFormData({
-      id_cliente: "",
-      id_proyecto: "",
-      observaciones_orden: order.observaciones_orden || "",
-      orden_compra: order.orden_compra || "",
-    });
+    // Limpiar IDs de elementos a eliminar
+    setDeletedEquipoIds([]);
+    setDeletedServicioIds([]);
+    // Limpiar errores de validación
+    setQuantityErrors({});
+    setEmailError("");
+    setPhoneError("");
+    // Recargar datos originales
     loadInitialDisplayData();
   };
 
-  // --- productos/servicios (igual que lo tenías) ---
+  // --- productos/servicios ---
   const addProductLine = () => {
     const newId = Math.max(...productLines.map(line => line.id_linea_detalle)) + 1;
-    setProductLines([...productLines, { id_linea_detalle: newId, selectedEquipo: null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }]);
+    setProductLines([...productLines, { id_linea_detalle: newId, id_orden_detalle: undefined, selectedEquipo: null, cantidad: "", valorUnitario: "", claseCobro: "", plantilla: false, plantillaText: "" }]);
   };
   const removeProductLine = (id: number) => {
-    if (productLines.length > 1) setProductLines(productLines.filter(line => line.id_linea_detalle !== id));
+    if (productLines.length > 1) {
+      const lineToRemove = productLines.find(line => line.id_linea_detalle === id);
+
+      // Si la línea tiene id_orden_detalle, significa que existe en BD y necesita confirmación
+      if (lineToRemove?.id_orden_detalle) {
+        setItemToDelete({ id, type: "equipo" });
+        setConfirmationType("deleteEquipo");
+      } else {
+        // Línea nueva, eliminar directamente
+        setProductLines(productLines.filter(line => line.id_linea_detalle !== id));
+      }
+    }
   };
-  const updateProductLine = (id: number, field: string, value: any) => {
+
+  const confirmDeleteEquipo = () => {
+    if (!itemToDelete || itemToDelete.type !== "equipo") return;
+
+    const lineToRemove = productLines.find(line => line.id_linea_detalle === itemToDelete.id);
+    if (lineToRemove?.id_orden_detalle) {
+      setDeletedEquipoIds(prev => [...prev, lineToRemove.id_orden_detalle!]);
+    }
+
+    setProductLines(productLines.filter(line => line.id_linea_detalle !== itemToDelete.id));
+    setItemToDelete(null);
+  };
+
+  const updateProductLine = (id: number, field: string, value: unknown) => {
     setProductLines(productLines.map(line => (line.id_linea_detalle === id ? { ...line, [field]: value } : line)));
   };
+
+  const handleQuantityChange = (id: number, value: string) => {
+    // Permitir solo números enteros
+    const cleanValue = value.replace(/[^0-9]/g, "");
+
+    // Actualizar el valor
+    updateProductLine(id, "cantidad", cleanValue);
+
+    // Validar si hay valor
+    if (cleanValue) {
+      const validation = validateQuantity(cleanValue);
+      if (!validation.valid && validation.error) {
+        setQuantityErrors(prev => ({ ...prev, [id]: validation.error! }));
+      } else {
+        setQuantityErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[id];
+          return newErrors;
+        });
+      }
+    } else {
+      setQuantityErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[id];
+        return newErrors;
+      });
+    }
+  };
+
   const addServicioLine = () => {
     const newId = servicioLines.length > 0 ? Math.max(...servicioLines.map(l => l.id_linea_detalle)) + 1 : 1;
-    setServicioLines([...servicioLines, { 
-      id_linea_detalle: newId, 
-      operadorId: "", 
-      planId: "", 
-      apnId: "", 
-      permanencia: "", 
-      claseCobro: "", 
+    setServicioLines([...servicioLines, {
+      id_linea_detalle: newId,
+      operadorId: "",
+      planId: "",
+      apnId: "",
+      permanencia: "",
+      claseCobro: "",
       valorMensual: "",
     }]);
     setShowLineasDetalle(true);
   };
+
   const removeServicioLine = (id: number) => {
     if (servicioLines.length > 1) {
-      setServicioLines(servicioLines.filter(line => line.id_linea_detalle !== id));
+      const lineToRemove = servicioLines.find(line => line.id_linea_detalle === id);
+
+      // Si la línea tiene id_orden_detalle, significa que existe en BD y necesita confirmación
+      if (lineToRemove?.id_orden_detalle) {
+        setItemToDelete({ id, type: "servicio" });
+        setConfirmationType("deleteServicio");
+      } else {
+        // Línea nueva, eliminar directamente
+        setServicioLines(servicioLines.filter(line => line.id_linea_detalle !== id));
+      }
     }
+  };
+
+  const confirmDeleteServicio = () => {
+    if (!itemToDelete || itemToDelete.type !== "servicio") return;
+
+    const lineToRemove = servicioLines.find(line => line.id_linea_detalle === itemToDelete.id);
+    if (lineToRemove?.id_orden_detalle) {
+      setDeletedServicioIds(prev => [...prev, lineToRemove.id_orden_detalle!]);
+    }
+
+    setServicioLines(servicioLines.filter(line => line.id_linea_detalle !== itemToDelete.id));
+    setItemToDelete(null);
   };
   const updateServicioLine = (id: number, field: string, value: string) => {
     setServicioLines(servicioLines.map(line => (line.id_linea_detalle === id ? { ...line, [field]: value } : line)));
@@ -592,6 +890,32 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
       return;
     }
 
+    // Validar errores de cantidad existentes
+    if (Object.keys(quantityErrors).length > 0) {
+      toast.error("Por favor corrige los errores de cantidad antes de guardar");
+      return;
+    }
+
+    // Validar email si tiene valor
+    if (despachoForm.email_contacto) {
+      const emailValidation = validateEmail(despachoForm.email_contacto);
+      if (!emailValidation.valid) {
+        toast.error("Por favor corrige el email antes de guardar");
+        setEmailError(emailValidation.error || "");
+        return;
+      }
+    }
+
+    // Validar teléfono si tiene valor
+    if (despachoForm.telefono_contacto) {
+      const phoneValidation = validatePhone(despachoForm.telefono_contacto);
+      if (!phoneValidation.valid) {
+        toast.error("Por favor corrige el teléfono antes de guardar");
+        setPhoneError(phoneValidation.error || "");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       // 0) Upsert de información de despacho
@@ -647,44 +971,42 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         .eq("id_orden_pedido", order.id_orden_pedido);
       if (updErr) throw updErr;
   
-      // 2) Asignar ingeniero en responsable_orden (solo uno, excluye admin/comercial)
+      // 2) Asignar ingeniero en responsable_orden
       if (selectedComercial) {
-        // elimina cualquier otro asignado que no sea admin/comercial, excepto el seleccionado
-        await supabase
-          .from("responsable_orden")
-          .delete()
-          .eq("id_orden_pedido", order.id_orden_pedido)
-          .neq("role", "comercial" as AppRole)
-          .neq("role", "admin" as AppRole)
-          .neq("user_id", selectedComercial);
-
         const selectedUser = asignables.find(u => u.user_id === selectedComercial);
         const selectedRole = selectedUser?.role ?? ("inventarios" as AppRole);
 
-        // upsert del seleccionado con su rol real
-        const { error: upsertErr } = await supabase
+        // Verificar si ya existe este usuario asignado
+        const { data: existingAssignment, error: checkErr } = await supabase
           .from("responsable_orden")
-          .upsert(
-            { id_orden_pedido: order.id_orden_pedido, user_id: selectedComercial, role: selectedRole },
-            { onConflict: "id_orden_pedido,user_id,role" }
-          );
-        if (upsertErr) throw upsertErr;
+          .select("user_id, role")
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .eq("user_id", selectedComercial)
+          .eq("role", selectedRole)
+          .maybeSingle();
+
+        if (checkErr && checkErr.code !== "PGRST116") throw checkErr;
+
+        // Si no existe, insertarlo
+        if (!existingAssignment) {
+          const { error: insertErr } = await supabase
+            .from("responsable_orden")
+            .insert({ id_orden_pedido: order.id_orden_pedido, user_id: selectedComercial, role: selectedRole });
+          if (insertErr) throw insertErr;
+        }
       }
   
-      // 3) Persistir detalle de la orden (equipos y servicios)
-      // Limpia detalle actual y vuelve a insertar según las líneas actuales
+      // 3) Persistir detalle de la orden con UPSERT inteligente
+      // Obtener IDs de detalle existentes para tracking
       const { data: detallePrevios, error: detallePreviosErr } = await supabase
-        .from("detalleorden")
-        .select("id_orden_detalle")
+        .from("detalle_orden")
+        .select("id_orden_detalle, id_equipo, id_linea_detalle")
         .eq("id_orden_pedido", order.id_orden_pedido);
       if (detallePreviosErr) throw detallePreviosErr;
 
-      if (detallePrevios && detallePrevios.length > 0) {
-        const idsPrevios = detallePrevios.map((d) => d.id_orden_detalle);
-        await supabase.from("detalleorden").delete().in("id_orden_detalle", idsPrevios);
-      }
+      const existingDetalleIds = new Set((detallePrevios ?? []).map(d => d.id_orden_detalle));
 
-      // 3a) Persistir productos para equipos - solo los que tienen equipo, cantidad y valor
+      // 3a) Procesar equipos
       const validProductLines = productLines.filter((l) =>
         l.selectedEquipo &&
         l.selectedEquipo.id_equipo &&
@@ -694,105 +1016,98 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         Number(l.valorUnitario) > 0
       );
 
-      const selectedEquipos = validProductLines.map((l) => l.selectedEquipo as EquipoOption);
+      // Separar líneas existentes vs nuevas
+      const equiposToUpdate = validProductLines.filter(l => l.id_orden_detalle && existingDetalleIds.has(l.id_orden_detalle));
+      const equiposToInsert = validProductLines.filter(l => !l.id_orden_detalle || !existingDetalleIds.has(l.id_orden_detalle));
 
-      if (selectedEquipos.length > 0) {
-        // Upsert productos con id_equipo
-        const productosEquipo = selectedEquipos.map((eq) => ({
-          id_equipo: eq.id_equipo,
-          id_linea_detalle: null,
-          tipo: "equipo" as Database["public"]["Enums"]["tipo_producto_enum"],
-          nombre_producto: eq.nombre_equipo ?? null,
-        } as Database["public"]["Tables"]["producto"]["Insert"]));
-
-        // Try to insert products (ignore conflicts for now)
-        let productosEquipoResult: any[] = [];
-        const { data: equipmentInsertResult, error: prodEqErr } = await supabase
-          .from("producto")
-          .insert(productosEquipo)
-          .select("id_producto");
-
-        // If there's a conflict, try to update existing products instead
-        if (prodEqErr && prodEqErr.code === '23505') { // Unique constraint violation
-          // Get existing products and update them
-          const equipoIds = selectedEquipos.map(eq => eq.id_equipo);
-          const { data: existingProducts, error: fetchErr } = await supabase
-            .from("producto")
-            .select("id_producto, id_equipo")
-            .in("id_equipo", equipoIds)
-            .eq("tipo", "equipo");
-
-          if (fetchErr) throw fetchErr;
-
-          // Update existing products
-          const updatePromises = productosEquipo.map(async (product) => {
-            const existing = existingProducts?.find(p => p.id_equipo === product.id_equipo);
-            if (existing) {
-              return supabase
-                .from("producto")
-                .update({
-                  nombre_producto: product.nombre_producto,
-                  tipo: product.tipo
-                })
-                .eq("id_producto", existing.id_producto);
-            }
-          });
-
-          await Promise.all(updatePromises);
-
-          // Get the updated products
-          const { data: updatedProducts, error: fetchUpdatedErr } = await supabase
-            .from("producto")
-            .select("id_producto, id_equipo")
-            .in("id_equipo", equipoIds)
-            .eq("tipo", "equipo");
-
-          if (fetchUpdatedErr) throw fetchUpdatedErr;
-          productosEquipoResult = updatedProducts ?? [];
-        } else if (prodEqErr) {
-          throw prodEqErr;
-        } else {
-          productosEquipoResult = equipmentInsertResult ?? [];
-        }
-
-        // Crear detalleorden para equipos
-        const detalleEquipoRows = validProductLines.map((line, idx) => ({
-          id_orden_pedido: order.id_orden_pedido,
-          id_producto: productosEquipoResult?.[idx]?.id_producto,
-          cantidad: Number(line.cantidad),
-          valor_unitario: Number(line.valorUnitario),
-          observaciones_detalle: null,
-        } satisfies Database["public"]["Tables"]["detalleorden"]["Insert"]));
-
-        if (detalleEquipoRows.length > 0) {
-          const { error: detEqErr } = await supabase.from("detalleorden").insert(detalleEquipoRows);
-          if (detEqErr) throw detEqErr;
-        }
-
-        // Update plantilla information in equipo table
-        for (const line of validProductLines) {
-          if (line.plantilla && line.plantillaText && line.selectedEquipo) {
-            const { error: plantillaErr } = await supabase
-              .from("equipo")
-              .update({ plantilla: line.plantillaText })
-              .eq("id_equipo", line.selectedEquipo.id_equipo);
-            if (plantillaErr) {
-              console.error("Error updating plantilla:", plantillaErr);
-              // Don't throw here, just log the error
-            }
-          }
+      // Actualizar equipos existentes
+      for (const line of equiposToUpdate) {
+        if (line.id_orden_detalle) {
+          const { error: updateErr } = await supabase
+            .from("detalle_orden")
+            .update({
+              cantidad: Number(line.cantidad),
+              valor_unitario: Number(line.valorUnitario),
+              plantilla: line.plantilla && line.plantillaText ? line.plantillaText : null,
+            })
+            .eq("id_orden_detalle", line.id_orden_detalle);
+          if (updateErr) throw updateErr;
         }
       }
 
-      // 4) Persistir productos y lineaservicio para servicios
-      const validServicios = servicioLines.filter(sl => 
+      // Insertar nuevos equipos
+      if (equiposToInsert.length > 0) {
+        const detalleEquipoRows: Database["public"]["Tables"]["detalle_orden"]["Insert"][] = equiposToInsert.map((line) => ({
+          id_orden_pedido: order.id_orden_pedido,
+          id_equipo: line.selectedEquipo!.id_equipo,
+          id_linea_detalle: null,
+          id_servicio: null,
+          id_accesorio: null,
+          cantidad: Number(line.cantidad),
+          valor_unitario: Number(line.valorUnitario),
+          tipo_producto: "equipo",
+          plantilla: line.plantilla && line.plantillaText ? line.plantillaText : null,
+        }));
+
+        const { error: detEqErr } = await supabase.from("detalle_orden").insert(detalleEquipoRows);
+        if (detEqErr) throw detEqErr;
+      }
+
+      // Eliminar equipos marcados para eliminación
+      if (deletedEquipoIds.length > 0) {
+        await supabase.from("detalle_orden").delete().in("id_orden_detalle", deletedEquipoIds);
+        // Limpiar lista después de eliminar
+        setDeletedEquipoIds([]);
+      }
+
+      // 4) Procesar servicios con UPSERT inteligente
+      const validServicios = servicioLines.filter(sl =>
         sl.operadorId && sl.planId && sl.apnId && sl.claseCobro && sl.valorMensual && sl.permanencia && Number(sl.permanencia) >= 1 && Number(sl.permanencia) <= 36
       );
 
-      if (validServicios.length > 0) {
-        // Crear lineaservicio primero
-        const lineasServicioRows = validServicios.map((sl) => ({
-          id_linea_detalle: sl.id_linea_detalle, // Use existing ID from UI state
+      // Separar servicios existentes vs nuevos
+      const serviciosToUpdate = validServicios.filter(sl => sl.id_orden_detalle && existingDetalleIds.has(sl.id_orden_detalle));
+      const serviciosToInsert = validServicios.filter(sl => !sl.id_orden_detalle || !existingDetalleIds.has(sl.id_orden_detalle));
+
+      // Actualizar servicios existentes
+      for (const sl of serviciosToUpdate) {
+        if (sl.id_orden_detalle && sl.id_linea_detalle) {
+          // Actualizar lineaservicio
+          await supabase
+            .from("lineaservicio")
+            .update({
+              id_operador: Number(sl.operadorId),
+              id_plan: Number(sl.planId),
+              id_apn: Number(sl.apnId),
+              clase_cobro: sl.claseCobro as ClaseCobro,
+              permanencia: String(sl.permanencia),
+            })
+            .eq("id_linea_detalle", sl.id_linea_detalle);
+
+          // Actualizar detalle_orden
+          await supabase
+            .from("detalle_orden")
+            .update({
+              valor_unitario: Number(sl.valorMensual),
+            })
+            .eq("id_orden_detalle", sl.id_orden_detalle);
+        }
+      }
+
+      // Insertar nuevos servicios
+      if (serviciosToInsert.length > 0) {
+        // Obtener el máximo id_linea_detalle para generar nuevos IDs
+        const { data: maxLineaData } = await supabase
+          .from("lineaservicio")
+          .select("id_linea_detalle")
+          .order("id_linea_detalle", { ascending: false })
+          .limit(1);
+
+        const nextLineaId = (maxLineaData && maxLineaData.length > 0) ? maxLineaData[0].id_linea_detalle + 1 : 1;
+
+        // Crear lineaservicio con IDs generados
+        const lineasServicioRows = serviciosToInsert.map((sl, idx) => ({
+          id_linea_detalle: nextLineaId + idx,
           id_operador: Number(sl.operadorId),
           id_plan: Number(sl.planId),
           id_apn: Number(sl.apnId),
@@ -800,119 +1115,53 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
           permanencia: String(sl.permanencia),
         } satisfies Database["public"]["Tables"]["lineaservicio"]["Insert"]));
 
-        // Try to insert lineaservicio (handle potential conflicts)
-        let lineasServicioResult: any[] = [];
-        const { data: insertResult, error: lsErr } = await supabase
+        const { data: insertedLineas, error: lsErr } = await supabase
           .from("lineaservicio")
-          .insert(lineasServicioRows as any)
+          .insert(lineasServicioRows)
           .select("id_linea_detalle");
 
-        // If there's a conflict, try to update existing records instead
-        if (lsErr && lsErr.code === '23505') { // Unique constraint violation
-          // Update existing lineaservicio records
-          const updatePromises = lineasServicioRows.map(async (linea) => {
-            return supabase
-              .from("lineaservicio")
-              .update({
-                id_operador: linea.id_operador,
-                id_plan: linea.id_plan,
-                id_apn: linea.id_apn,
-                clase_cobro: linea.clase_cobro,
-                permanencia: linea.permanencia
-              })
-              .eq("id_linea_detalle", linea.id_linea_detalle);
-          });
+        if (lsErr) throw lsErr;
 
-          await Promise.all(updatePromises);
-
-          // Get the updated lineaservicio records
-          const lineaIds = lineasServicioRows.map(l => l.id_linea_detalle);
-          const { data: updatedLineas, error: fetchUpdatedErr } = await supabase
-            .from("lineaservicio")
-            .select("id_linea_detalle")
-            .in("id_linea_detalle", lineaIds);
-
-          if (fetchUpdatedErr) throw fetchUpdatedErr;
-          lineasServicioResult = updatedLineas ?? [];
-        } else if (lsErr) {
-          throw lsErr;
-        } else {
-          lineasServicioResult = insertResult ?? [];
-        }
-
-        // Upsert productos con id_linea_detalle
-        const productosServicio = validServicios.map((sl, idx) => {
-          const matchedPlan = planes.find((plan) => plan.id_plan.toString() === sl.planId);
-          const descripcion = matchedPlan?.nombre_plan ? `Línea de servicio - ${matchedPlan.nombre_plan}` : "Línea de servicio";
-          return {
-            id_equipo: null,
-            id_linea_detalle: sl.id_linea_detalle, // Use existing ID directly
-            tipo: "linea_servicio" as Database["public"]["Enums"]["tipo_producto_enum"],
-            nombre_producto: descripcion ,
-          } as Database["public"]["Tables"]["producto"]["Insert"];
-        });
-
-        // Try to insert service products (handle potential conflicts)
-        let productosServicioResult: any[] = [];
-        const { data: serviceInsertResult, error: prodServErr } = await supabase
-          .from("producto")
-          .insert(productosServicio)
-          .select("id_producto");
-
-        // If there's a conflict, try to update existing products instead
-        if (prodServErr && prodServErr.code === '23505') { // Unique constraint violation
-          // Get existing products and update them
-          const lineaIds = validServicios.map(s => s.id_linea_detalle);
-          const { data: existingProducts, error: fetchErr } = await supabase
-            .from("producto")
-            .select("id_producto, id_linea_detalle")
-            .in("id_linea_detalle", lineaIds)
-            .eq("tipo", "linea_servicio");
-
-          if (fetchErr) throw fetchErr;
-
-          // Update existing products
-          const updatePromises = productosServicio.map(async (product) => {
-            const existing = existingProducts?.find(p => p.id_linea_detalle === product.id_linea_detalle);
-            if (existing) {
-              return supabase
-                .from("producto")
-                .update({
-                  nombre_producto: product.nombre_producto,
-                  tipo: product.tipo
-                })
-                .eq("id_producto", existing.id_producto);
-            }
-          });
-
-          await Promise.all(updatePromises);
-
-          // Get the updated products
-          const { data: updatedProducts, error: fetchUpdatedErr } = await supabase
-            .from("producto")
-            .select("id_producto, id_linea_detalle")
-            .in("id_linea_detalle", lineaIds)
-            .eq("tipo", "linea_servicio");
-
-          if (fetchUpdatedErr) throw fetchUpdatedErr;
-          productosServicioResult = updatedProducts ?? [];
-        } else if (prodServErr) {
-          throw prodServErr;
-        } else {
-          productosServicioResult = serviceInsertResult ?? [];
-        }
-
-        // Crear detalleorden para servicios
-        const detalleServicioRows = validServicios.map((sl, idx) => ({
+        // Crear detalle_orden para nuevos servicios
+        const detalleServicioRows = (insertedLineas ?? []).map((linea, idx) => ({
           id_orden_pedido: order.id_orden_pedido,
-          id_producto: productosServicioResult?.[idx]?.id_producto,
+          id_equipo: null,
+          id_linea_detalle: linea.id_linea_detalle,
+          id_servicio: null,
+          id_accesorio: null,
           cantidad: 1,
-          valor_unitario: Number(sl.valorMensual),
-          observaciones_detalle: null,
-        } satisfies Database["public"]["Tables"]["detalleorden"]["Insert"]));
+          valor_unitario: Number(serviciosToInsert[idx].valorMensual),
+          tipo_producto: "linea_servicio",
+        } satisfies Database["public"]["Tables"]["detalle_orden"]["Insert"]));
 
-        const { error: detServErr } = await supabase.from("detalleorden").insert(detalleServicioRows);
-        if (detServErr) throw detServErr;
+        if (detalleServicioRows.length > 0) {
+          const { error: detServErr } = await supabase.from("detalle_orden").insert(detalleServicioRows);
+          if (detServErr) throw detServErr;
+        }
+      }
+
+      // Eliminar servicios marcados para eliminación
+      if (deletedServicioIds.length > 0) {
+        // Obtener los id_linea_detalle asociados para eliminarlos también
+        const { data: detallesAEliminar } = await supabase
+          .from("detalle_orden")
+          .select("id_linea_detalle")
+          .in("id_orden_detalle", deletedServicioIds);
+
+        const lineaServicioIdsToDelete = (detallesAEliminar ?? [])
+          .filter(d => d.id_linea_detalle)
+          .map(d => d.id_linea_detalle!);
+
+        // Eliminar lineaservicio asociadas
+        if (lineaServicioIdsToDelete.length > 0) {
+          await supabase.from("lineaservicio").delete().in("id_linea_detalle", lineaServicioIdsToDelete);
+        }
+
+        // Eliminar detalle_orden
+        await supabase.from("detalle_orden").delete().in("id_orden_detalle", deletedServicioIds);
+
+        // Limpiar lista después de eliminar
+        setDeletedServicioIds([]);
       }
   
       // Actualizar UI local
@@ -920,7 +1169,7 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
         fecha_modificacion: new Date().toISOString(),
       });
 
-      await loadDetalleOrden(order.id_orden_pedido);
+      await loaddetalle_orden(order.id_orden_pedido);
 
       // Si se asignó un ingeniero, bloquear campos principales
       if (selectedComercial) {
@@ -929,6 +1178,18 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
 
       // Actualizar datos de visualización
       await loadInitialDisplayData();
+
+      // Actualizar estados iniciales después de guardar
+      setInitialFormData({ ...formData });
+      setInitialProductLines(JSON.parse(JSON.stringify(productLines)));
+      setInitialServicioLines(JSON.parse(JSON.stringify(servicioLines)));
+      setInitialDespachoForm({ ...despachoForm });
+      setInitialSelectedComercial(selectedComercial);
+
+      // Limpiar errores de validación
+      setQuantityErrors({});
+      setEmailError("");
+      setPhoneError("");
 
       // Salir del modo edición
       setIsEditMode(false);
@@ -1142,17 +1403,24 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                       Cantidad {line.selectedEquipo?.id_equipo && <span className="text-red-500">*</span>}
                     </Label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       placeholder="0"
                       value={line.cantidad}
-                      onChange={(e) => updateProductLine(line.id_linea_detalle, "cantidad", e.target.value)}
+                      onChange={(e) => handleQuantityChange(line.id_linea_detalle, e.target.value)}
                       className={
                         (line.selectedEquipo?.id_equipo && (!line.cantidad || Number(line.cantidad) <= 0)) ||
-                        (line.cantidad && !line.selectedEquipo?.id_equipo)
+                        (line.cantidad && !line.selectedEquipo?.id_equipo) ||
+                        quantityErrors[line.id_linea_detalle]
                           ? "border-red-300"
                           : ""
                       }
+                      min={1}
+                      max={9999}
                     />
+                    {quantityErrors[line.id_linea_detalle] && (
+                      <p className="text-xs text-red-500">{quantityErrors[line.id_linea_detalle]}</p>
+                    )}
                   </div>
                   <div className="space-y-2 col-span-6 md:col-span-2">
                     <Label>
@@ -1383,7 +1651,7 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                               </div>
                             </div>
                             {line.plantilla && line.plantillaText && (
-                              <div className="mt-2 text-xs">
+                              <div className="mt-2 p-2 bg-muted/50 rounded text-xs border-l-2 border-blue-500">
                                 <span className="font-medium">Plantilla:</span> {line.plantillaText}
                               </div>
                             )}
@@ -1404,21 +1672,28 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                         {servicioLines
                           .filter(line => line.operadorId)
                           .map((line, idx) => {
-                            const operador = operadores.find(op => op.id_operador.toString() === line.operadorId);
-                            const plan = planes.find(p => p.id_plan.toString() === line.planId);
-                            const apn = apns.find(a => a.id_apn.toString() === line.apnId);
+                            // En modo readonly, operadores/planes/apns pueden no estar cargados
+                            const operadorNombre = operadores.length > 0
+                              ? operadores.find(op => op.id_operador.toString() === line.operadorId)?.nombre_operador
+                              : null;
+                            const planNombre = planes.length > 0
+                              ? planes.find(p => p.id_plan.toString() === line.planId)?.nombre_plan
+                              : null;
+                            const apnNombre = apns.length > 0
+                              ? apns.find(a => a.id_apn.toString() === line.apnId)?.apn
+                              : null;
 
                             return (
                               <div key={idx} className="p-3 bg-muted/30 rounded-lg">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                                   <div>
-                                    <span className="font-medium">Operador:</span> {operador?.nombre_operador || line.operadorId}
+                                    <span className="font-medium">Operador:</span> {operadorNombre || `ID: ${line.operadorId}`}
                                   </div>
                                   <div>
-                                    <span className="font-medium">Plan:</span> {plan?.nombre_plan || line.planId}
+                                    <span className="font-medium">Plan:</span> {planNombre || `ID: ${line.planId}`}
                                   </div>
                                   <div>
-                                    <span className="font-medium">APN:</span> {apn?.apn || line.apnId}
+                                    <span className="font-medium">APN:</span> {apnNombre || `ID: ${line.apnId}`}
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm mt-2">
@@ -1532,10 +1807,24 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label>Teléfono</Label>
-                                  <Input
+                                  <PhoneInput
                                     value={despachoForm.telefono_contacto}
-                                    onChange={(e) => setDespachoForm(prev => ({ ...prev, telefono_contacto: e.target.value }))}
-                                    placeholder="Teléfono"
+                                    onChange={(value) => {
+                                      setDespachoForm(prev => ({ ...prev, telefono_contacto: value }));
+                                      // Validar en tiempo real
+                                      if (value) {
+                                        const validation = validatePhone(value);
+                                        setPhoneError(validation.error || "");
+                                      } else {
+                                        setPhoneError("");
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      const validation = validatePhone(despachoForm.telefono_contacto);
+                                      setPhoneError(validation.error || "");
+                                    }}
+                                    placeholder="320 242 2311"
+                                    error={phoneError}
                                   />
                                 </div>
                                 <div className="space-y-2">
@@ -1543,9 +1832,28 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
                                   <Input
                                     type="email"
                                     value={despachoForm.email_contacto}
-                                    onChange={(e) => setDespachoForm(prev => ({ ...prev, email_contacto: e.target.value }))}
-                                    placeholder="Email"
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      setDespachoForm(prev => ({ ...prev, email_contacto: value }));
+                                      // Validar en tiempo real
+                                      if (value) {
+                                        const validation = validateEmail(value);
+                                        setEmailError(validation.error || "");
+                                      } else {
+                                        setEmailError("");
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      // Validar al perder foco
+                                      const validation = validateEmail(e.target.value);
+                                      setEmailError(validation.error || "");
+                                    }}
+                                    placeholder="usuario@ejemplo.com"
+                                    className={emailError ? "border-red-300" : ""}
                                   />
+                                  {emailError && (
+                                    <p className="text-xs text-red-500">{emailError}</p>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1704,6 +2012,65 @@ export function ComercialTab({ order, onUpdateOrder }: ComercialTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de confirmación para cambios sin guardar al cambiar de modo */}
+      <ConfirmationDialog
+        open={confirmationType === "switchMode"}
+        onOpenChange={(open) => !open && setConfirmationType(null)}
+        title="Cambios sin guardar"
+        description="Tienes cambios sin guardar. ¿Deseas guardarlos antes de salir?"
+        confirmText="Guardar y salir"
+        cancelText="Cancelar"
+        showThirdOption
+        thirdOptionText="Salir sin guardar"
+        onConfirm={async () => {
+          await handleSave();
+        }}
+        onThirdOption={confirmDiscardChanges}
+        onCancel={() => setConfirmationType(null)}
+      />
+
+      {/* Modal de confirmación para eliminar equipo */}
+      <ConfirmationDialog
+        open={confirmationType === "deleteEquipo"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmationType(null);
+            setItemToDelete(null);
+          }
+        }}
+        title="Eliminar equipo"
+        description="¿Estás seguro de que deseas eliminar este equipo? Esta acción se completará al guardar los cambios."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
+        onConfirm={confirmDeleteEquipo}
+        onCancel={() => {
+          setConfirmationType(null);
+          setItemToDelete(null);
+        }}
+      />
+
+      {/* Modal de confirmación para eliminar servicio */}
+      <ConfirmationDialog
+        open={confirmationType === "deleteServicio"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmationType(null);
+            setItemToDelete(null);
+          }
+        }}
+        title="Eliminar línea de servicio"
+        description="¿Estás seguro de que deseas eliminar esta línea de servicio? Esta acción se completará al guardar los cambios."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="destructive"
+        onConfirm={confirmDeleteServicio}
+        onCancel={() => {
+          setConfirmationType(null);
+          setItemToDelete(null);
+        }}
+      />
     </div>
   );
 }

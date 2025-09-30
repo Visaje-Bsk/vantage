@@ -14,6 +14,7 @@ import { ProduccionTab } from "./tabs/ProduccionTab";
 import { LogisticaTab } from "./tabs/LogisticaTab";
 import { FacturacionTab } from "./tabs/FacturacionTab";
 import { FinancieraTab } from "./tabs/FinancieraTab";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -43,16 +44,18 @@ interface OrderModalProps {
   currentUserRole?: string;
 }
 
-export function OrderModal({ 
-  order, 
-  isOpen, 
-  onClose, 
+export function OrderModal({
+  order,
+  isOpen,
+  onClose,
   onUpdateOrder,
-  currentUserRole = "admin" 
+  currentUserRole = "admin"
 }: OrderModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<OrdenStageUI>("comercial");
   const [createdByName, setCreatedByName] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const uiTabFromFase = (fase: FaseOrdenDB): OrdenStageUI => {
     const entry = (Object.entries(UI_TO_FASE) as [OrdenStageUI, FaseOrdenDB][])
@@ -90,6 +93,23 @@ export function OrderModal({
 
   const isAdmin = (currentUserRole as AppRole) === "admin";
   const canUserEditFase = (fase: FaseOrdenDB) => isAdmin || (currentUserRole === REQUIRED_ROLE_BY_FASE[fase]);
+
+  const handleClose = (open: boolean) => {
+    if (!open && hasUnsavedChanges) {
+      // Si hay cambios sin guardar, mostrar confirmación
+      setShowCloseConfirm(true);
+      return;
+    }
+    if (!open) {
+      onClose();
+    }
+  };
+
+  const confirmClose = () => {
+    setHasUnsavedChanges(false);
+    setShowCloseConfirm(false);
+    onClose();
+  };
 
   const handleAdvanceStage = async () => {
     if (!order) return;
@@ -141,7 +161,7 @@ export function OrderModal({
   const estMeta = estatusBadge[order.estatus];
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="border-b pb-4">
           <div className="flex items-center justify-between">
@@ -220,7 +240,12 @@ export function OrderModal({
 
             <div className="overflow-y-auto max-h-[60vh] pr-2">
               <TabsContent value="comercial" className="mt-0">
-                <ComercialTab order={order} onUpdateOrder={onUpdateOrder} />
+                <ComercialTab
+                  order={order}
+                  onUpdateOrder={onUpdateOrder}
+                  onRequestClose={onClose}
+                  onUnsavedChangesChange={setHasUnsavedChanges}
+                />
               </TabsContent>
               
               <TabsContent value="inventarios" className="mt-0">
@@ -246,6 +271,19 @@ export function OrderModal({
           </Tabs>
         </div>
       </DialogContent>
+
+      {/* Modal de confirmación para cerrar con cambios sin guardar */}
+      <ConfirmationDialog
+        open={showCloseConfirm}
+        onOpenChange={setShowCloseConfirm}
+        title="Cambios sin guardar"
+        description="Tienes cambios sin guardar. ¿Estás seguro de que deseas cerrar sin guardar?"
+        confirmText="Cerrar sin guardar"
+        cancelText="Continuar editando"
+        variant="destructive"
+        onConfirm={confirmClose}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
     </Dialog>
   );
 }

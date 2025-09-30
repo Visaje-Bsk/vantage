@@ -295,12 +295,16 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
       // Create responsable_orden if a responsible is selected
       if (selectedComercial) {
+        // Obtener el rol real del usuario seleccionado
+        const usuarioSeleccionado = asignables.find(u => u.user_id === selectedComercial);
+        const rolUsuario = usuarioSeleccionado?.role || 'ingenieria' as AppRole;
+
         const { error: responsableError } = await supabase
           .from('responsable_orden')
           .insert({
             id_orden_pedido: orderId,
             user_id: selectedComercial,
-            role: 'comercial' as AppRole,
+            role: rolUsuario,
           });
 
         if (responsableError) {

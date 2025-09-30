@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -103,7 +103,7 @@ export type Database = {
         Insert: {
           email?: string | null
           es_principal?: boolean | null
-          id_contacto: number
+          id_contacto?: number
           id_direccion?: number | null
           nombre_contacto: string
           telefono?: string | null
@@ -141,7 +141,7 @@ export type Database = {
         Insert: {
           fecha_despacho?: string | null
           id_contacto?: number | null
-          id_despacho_orden: number
+          id_despacho_orden?: number
           id_direccion?: number | null
           id_orden_pedido: number
           id_tipo_despacho: number
@@ -198,45 +198,78 @@ export type Database = {
           },
         ]
       }
-      detalleorden: {
+      detalle_orden: {
         Row: {
           cantidad: number | null
+          id_accesorio: number | null
+          id_equipo: number | null
+          id_linea_detalle: number | null
           id_orden_detalle: number
-          id_orden_pedido: number
-          id_producto: number
-          observaciones_detalle: string | null
+          id_orden_pedido: number | null
+          id_servicio: number | null
+          plantilla: string | null
+          tipo_producto: string | null
           valor_unitario: number | null
         }
         Insert: {
           cantidad?: number | null
+          id_accesorio?: number | null
+          id_equipo?: number | null
+          id_linea_detalle?: number | null
           id_orden_detalle?: number
-          id_orden_pedido: number
-          id_producto: number
-          observaciones_detalle?: string | null
+          id_orden_pedido?: number | null
+          id_servicio?: number | null
+          plantilla?: string | null
+          tipo_producto?: string | null
           valor_unitario?: number | null
         }
         Update: {
           cantidad?: number | null
+          id_accesorio?: number | null
+          id_equipo?: number | null
+          id_linea_detalle?: number | null
           id_orden_detalle?: number
-          id_orden_pedido?: number
-          id_producto?: number
-          observaciones_detalle?: string | null
+          id_orden_pedido?: number | null
+          id_servicio?: number | null
+          plantilla?: string | null
+          tipo_producto?: string | null
           valor_unitario?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "detalleorden_id_orden_pedido_fkey"
+            foreignKeyName: "detalle_orden_id_accesorio_fkey"
+            columns: ["id_accesorio"]
+            isOneToOne: false
+            referencedRelation: "accesorio"
+            referencedColumns: ["id_accesorio"]
+          },
+          {
+            foreignKeyName: "detalle_orden_id_equipo_fkey"
+            columns: ["id_equipo"]
+            isOneToOne: false
+            referencedRelation: "equipo"
+            referencedColumns: ["id_equipo"]
+          },
+          {
+            foreignKeyName: "detalle_orden_id_linea_detalle_fkey"
+            columns: ["id_linea_detalle"]
+            isOneToOne: false
+            referencedRelation: "lineaservicio"
+            referencedColumns: ["id_linea_detalle"]
+          },
+          {
+            foreignKeyName: "detalle_orden_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: false
             referencedRelation: "ordenpedido"
             referencedColumns: ["id_orden_pedido"]
           },
           {
-            foreignKeyName: "detalleorden_id_producto_fkey"
-            columns: ["id_producto"]
+            foreignKeyName: "detalle_orden_id_servicio_fkey"
+            columns: ["id_servicio"]
             isOneToOne: false
-            referencedRelation: "producto"
-            referencedColumns: ["id_producto"]
+            referencedRelation: "servicio"
+            referencedColumns: ["id_servicio"]
           },
         ]
       }
@@ -256,7 +289,7 @@ export type Database = {
           ciudad?: string | null
           direccion: string
           id_cliente: number
-          id_direccion: number
+          id_direccion?: number
           latitud?: number | null
           longitud?: number | null
           nombre_direccion?: string | null
@@ -286,19 +319,16 @@ export type Database = {
           codigo: string
           id_equipo: number
           nombre_equipo: string | null
-          plantilla: string | null
         }
         Insert: {
           codigo: string
           id_equipo?: number
           nombre_equipo?: string | null
-          plantilla?: string | null
         }
         Update: {
           codigo?: string
           id_equipo?: number
           nombre_equipo?: string | null
-          plantilla?: string | null
         }
         Relationships: []
       }
@@ -895,7 +925,7 @@ export type Database = {
           requiere_transportadora: boolean | null
         }
         Insert: {
-          id_tipo_despacho: number
+          id_tipo_despacho?: number
           nombre_tipo: string
           requiere_direccion?: boolean | null
           requiere_transportadora?: boolean | null
@@ -1021,6 +1051,7 @@ export type Database = {
         | "logistica"
         | "facturacion"
         | "financiera"
+        | "ingenieria"
       clase_cobro: "mensual" | "anual"
       estado_orden_enum:
         | "borrador"
@@ -1184,6 +1215,7 @@ export const Constants = {
         "logistica",
         "facturacion",
         "financiera",
+        "ingenieria",
       ],
       clase_cobro: ["mensual", "anual"],
       estado_orden_enum: [
