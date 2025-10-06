@@ -4,10 +4,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { STAGE_UI, UI_TO_FASE, FASE_TO_UI, type OrdenStageUI, type FaseOrdenDB, estatusBadge, OrdenKanban} from "@/types/kanban";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  STAGE_UI, 
+  UI_TO_FASE, 
+  FASE_TO_UI, 
+  type OrdenStageUI, 
+  type FaseOrdenDB, 
+  estatusBadge, 
+  OrdenKanban
+} from "@/types/kanban";
 import type { Database } from "@/integrations/supabase/types";
 type AppRole = Database["public"]["Enums"]["app_role"];
-import { Building2, User, Package, Truck, Receipt, CreditCard, ArrowRight, Calendar } from "lucide-react";
+import { 
+  Building2, 
+  User, 
+  Calendar, 
+  ArrowRight,
+  FileText,
+  Tag,
+  Clock
+} from "lucide-react";
 import { ComercialTab } from "./tabs/ComercialTab";
 import { InventariosTab } from "./tabs/InventariosTab";
 import { ProduccionTab } from "./tabs/ProduccionTab";
@@ -17,7 +35,7 @@ import { FinancieraTab } from "./tabs/FinancieraTab";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
+import { cn } from "@/lib/utils";
 
 const NEXT_FASE: Record<OrdenStageUI, FaseOrdenDB | null> = {
   comercial: "inventarios",
@@ -36,6 +54,7 @@ const REQUIRED_ROLE_BY_FASE: Record<FaseOrdenDB, AppRole> = {
   facturacion: "facturacion",
   financiera: "financiera",
 };
+
 interface OrderModalProps {
   order: OrdenKanban | null;
   isOpen: boolean;
@@ -59,7 +78,7 @@ export function OrderModal({
 
   const uiTabFromFase = (fase: FaseOrdenDB): OrdenStageUI => {
     const entry = (Object.entries(UI_TO_FASE) as [OrdenStageUI, FaseOrdenDB][])
-    .find(([_, value]) => value === fase);
+      .find(([_, value]) => value === fase);
     return entry ? entry[0] : "comercial";
   };
 
@@ -92,17 +111,15 @@ export function OrderModal({
   }, [order?.created_by]);
 
   const isAdmin = (currentUserRole as AppRole) === "admin";
-  const canUserEditFase = (fase: FaseOrdenDB) => isAdmin || (currentUserRole === REQUIRED_ROLE_BY_FASE[fase]);
+  const canUserEditFase = (fase: FaseOrdenDB) => 
+    isAdmin || (currentUserRole === REQUIRED_ROLE_BY_FASE[fase]);
 
-  const handleClose = (open: boolean) => {
-    if (!open && hasUnsavedChanges) {
-      // Si hay cambios sin guardar, mostrar confirmación
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
       setShowCloseConfirm(true);
       return;
     }
-    if (!open) {
-      onClose();
-    }
+    onClose();
   };
 
   const confirmClose = () => {
@@ -160,130 +177,249 @@ export function OrderModal({
   const stageMeta = STAGE_UI[activeTab];
   const estMeta = estatusBadge[order.estatus];
 
+  // Calcular si la orden fue actualizada
+  const wasUpdated = order.fecha_modificacion && order.fecha_creacion && 
+    new Date(order.fecha_modificacion).getTime() !== new Date(order.fecha_creacion).getTime();
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="border-b pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <DialogTitle className="text-xl font-semibold">
-                Orden #{order.consecutivo || order.id_orden_pedido}
-              </DialogTitle>
-              <Badge className={`text-white ${stageMeta.color}`}>
-                {stageMeta.label}
-              </Badge>
-              <Badge className={estMeta.color}>
-                {estMeta.label}
-              </Badge>
-            </div>
-            
-            {NEXT_FASE[activeTab] && canUserEditFase(UI_TO_FASE[activeTab]) && (
-              <Button onClick={handleAdvanceStage} variant="default">
-                Avanzar a {STAGE_UI[uiTabFromFase(NEXT_FASE[activeTab] as FaseOrdenDB)].label}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Building2 className="w-4 h-4" />
-              <span>{order.nombre_cliente}</span>
-            </div>
-            {order.proyecto_nombre && (
-              <div>
-                Proyecto: {order.proyecto_nombre}
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+        <DialogContent 
+          className="max-w-6xl max-h-[95vh] overflow-hidden flex flex-col p-0 gap-0"
+          onPointerDownOutside={(e) => {
+            if (hasUnsavedChanges) {
+              e.preventDefault();
+              setShowCloseConfirm(true);
+            }
+          }}
+          onEscapeKeyDown={(e) => {
+            if (hasUnsavedChanges) {
+              e.preventDefault();
+              setShowCloseConfirm(true);
+            }
+          }}
+        >
+          {/* Header mejorado */}
+          <DialogHeader className="border-b bg-muted/30 px-6 py-5 space-y-4">
+            {/* Primera fila: Título, badges */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <DialogTitle className="text-2xl font-bold">
+                  Orden #{order.consecutivo || order.id_orden_pedido}
+                </DialogTitle>
+                <Badge 
+                  className={cn(
+                    "text-white font-medium px-3 py-1",
+                    stageMeta.color
+                  )}
+                >
+                  {stageMeta.label}
+                </Badge>
+                <Badge 
+                  className={cn(
+                    "font-medium px-3 py-1",
+                    estMeta.color
+                  )}
+                >
+                  {estMeta.label}
+                </Badge>
               </div>
-            )}
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              <span>
-                Actualizado: {order.fecha_modificacion ? 
-                  new Date(order.fecha_modificacion).toLocaleDateString('es-ES') : 
-                  'Sin fecha'
-                }
-              </span>
             </div>
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              <span>
-                Comercial: {createdByName || "Sin comercial"}
-              </span>
-            </div>
-            {order.nombre_tipo_servicio && (
-              <div className="flex items-center gap-1">
-                <span>
-                  Servicio: {order.nombre_tipo_servicio}
-                </span>
+
+            <Separator />
+
+            {/* Segunda fila: Información en grid responsive */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs text-muted-foreground font-medium">Cliente</span>
+                  <span className="font-semibold truncate">
+                    {order.nombre_cliente || "Sin asignar"}
+                  </span>
+                </div>
               </div>
-            )}
-          </div>
-        </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OrdenStageUI)}>
-            <TabsList className="grid w-full grid-cols-6 mb-4">
-              {Object.entries(STAGE_UI).map(([key, config]) => {
-                const Icon = STAGE_UI[key].icon ?? User;
-                return (
-                  <TabsTrigger 
-                    key={key} 
-                    value={key}
-                    className="flex items-center gap-2 text-xs px-2"
-                  >
-                    <Icon className="w-3 h-3" />
-                    <span className="hidden sm:inline">{config.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+              {order.proyecto_nombre && (
+                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs text-muted-foreground font-medium">Proyecto</span>
+                    <span className="font-semibold truncate">
+                      {order.proyecto_nombre}
+                    </span>
+                  </div>
+                </div>
+              )}
 
-            <div className="overflow-y-auto max-h-[60vh] pr-2">
-              <TabsContent value="comercial" className="mt-0">
-                <ComercialTab
-                  order={order}
-                  onUpdateOrder={onUpdateOrder}
-                  onRequestClose={onClose}
-                  onUnsavedChangesChange={setHasUnsavedChanges}
-                />
-              </TabsContent>
-              
-              <TabsContent value="inventarios" className="mt-0">
-                <InventariosTab order={order} onUpdateOrder={onUpdateOrder} />
-              </TabsContent>
-              
-              <TabsContent value="produccion" className="mt-0">
-                <ProduccionTab order={order} onUpdateOrder={onUpdateOrder} />
-              </TabsContent>
-              
-              <TabsContent value="logistica" className="mt-0">
-                <LogisticaTab order={order} onUpdateOrder={onUpdateOrder} />
-              </TabsContent>
-              
-              <TabsContent value="facturacion" className="mt-0">
-                <FacturacionTab order={order} onUpdateOrder={onUpdateOrder} />
-              </TabsContent>
-              
-              <TabsContent value="financiera" className="mt-0">
-                <FinancieraTab order={order} onUpdateOrder={onUpdateOrder} />
-              </TabsContent>
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs text-muted-foreground font-medium">Comercial</span>
+                  <span className="font-semibold truncate">
+                    {createdByName || "Sin asignar"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs text-muted-foreground font-medium">Creada</span>
+                  <span className="font-semibold">
+                    {order.fecha_creacion 
+                      ? new Date(order.fecha_creacion).toLocaleDateString('es-ES', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })
+                      : 'Sin fecha'
+                    }
+                  </span>
+                </div>
+              </div>
+
+              {wasUpdated && (
+                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                  <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs text-muted-foreground font-medium">Actualizada</span>
+                    <span className="font-semibold">
+                      {new Date(order.fecha_modificacion!).toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {order.nombre_tipo_servicio && (
+                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                  <Tag className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs text-muted-foreground font-medium">Servicio</span>
+                    <span className="font-semibold truncate">
+                      {order.nombre_tipo_servicio}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {order.orden_compra && (
+                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
+                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs text-muted-foreground font-medium">Orden de Compra</span>
+                    <span className="font-semibold truncate">
+                      {order.orden_compra}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          </Tabs>
-        </div>
-      </DialogContent>
+          </DialogHeader>
 
-      {/* Modal de confirmación para cerrar con cambios sin guardar */}
+          {/* Contenido con tabs FIJOS y contenido SCROLLEABLE */}
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={(value) => setActiveTab(value as OrdenStageUI)}
+              className="flex-1 flex flex-col overflow-hidden"
+            >
+              {/* Tabs FIJAS (no scrollean) */}
+              <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1 mx-6 mt-4 mb-2 h-auto p-1 bg-muted/50 shrink-0">
+                {Object.entries(STAGE_UI).map(([key, config]) => {
+                  const Icon = config.icon ?? User;
+                  const isActive = activeTab === key;
+                  return (
+                    <TabsTrigger 
+                      key={key} 
+                      value={key}
+                      className={cn(
+                        "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2",
+                        "px-2 py-2 sm:px-3 sm:py-2.5",
+                        "text-xs sm:text-sm font-medium",
+                        "transition-all duration-200",
+                        "data-[state=active]:bg-background data-[state=active]:shadow-sm",
+                        isActive && "ring-2 ring-primary/20"
+                      )}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate text-center sm:text-left">{config.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              {/* Contenido SCROLLEABLE - Igual al código original */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
+                <TabsContent value="comercial" className="mt-0">
+                  <ComercialTab
+                    order={order}
+                    onUpdateOrder={onUpdateOrder}
+                    onRequestClose={handleClose}
+                    onUnsavedChangesChange={setHasUnsavedChanges}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="inventarios" className="mt-0">
+                  <InventariosTab order={order} onUpdateOrder={onUpdateOrder} />
+                </TabsContent>
+                
+                <TabsContent value="produccion" className="mt-0">
+                  <ProduccionTab order={order} onUpdateOrder={onUpdateOrder} />
+                </TabsContent>
+                
+                <TabsContent value="logistica" className="mt-0">
+                  <LogisticaTab order={order} onUpdateOrder={onUpdateOrder} />
+                </TabsContent>
+                
+                <TabsContent value="facturacion" className="mt-0">
+                  <FacturacionTab order={order} onUpdateOrder={onUpdateOrder} />
+                </TabsContent>
+                
+                <TabsContent value="financiera" className="mt-0">
+                  <FinancieraTab order={order} onUpdateOrder={onUpdateOrder} />
+                </TabsContent>
+              </div>
+
+              {/* Footer con botón de avanzar - FIJO al fondo */}
+              {NEXT_FASE[activeTab] && canUserEditFase(UI_TO_FASE[activeTab]) && (
+                <div className="border-t bg-background px-6 py-4 shrink-0">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="text-sm text-muted-foreground">
+                      ¿Completaste todas las tareas de esta etapa?
+                    </div>
+                    <Button 
+                      onClick={handleAdvanceStage} 
+                      size="lg"
+                      className="gap-2 shadow-sm"
+                    >
+                      Avanzar a {STAGE_UI[uiTabFromFase(NEXT_FASE[activeTab] as FaseOrdenDB)].label}
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de confirmación */}
       <ConfirmationDialog
         open={showCloseConfirm}
         onOpenChange={setShowCloseConfirm}
         title="Cambios sin guardar"
-        description="Tienes cambios sin guardar. ¿Estás seguro de que deseas cerrar sin guardar?"
+        description="Tienes cambios sin guardar en esta orden. Si cierras ahora, perderás todos los cambios realizados."
         confirmText="Cerrar sin guardar"
         cancelText="Continuar editando"
         variant="destructive"
         onConfirm={confirmClose}
         onCancel={() => setShowCloseConfirm(false)}
       />
-    </Dialog>
+    </>
   );
 }
