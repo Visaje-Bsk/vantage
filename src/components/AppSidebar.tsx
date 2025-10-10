@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  ShoppingCart, 
-  Package, 
-  Truck, 
-  FileText, 
+import {
+  ShoppingCart,
+  Package,
+  Truck,
+  FileText,
   DollarSign,
   Settings,
   Plus,
@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronRight,
   User,
-  Clock
+  Clock,
+  Box
 } from 'lucide-react';
 import {
   Sidebar,
@@ -100,6 +101,12 @@ const menuItems: MenuItem[] = [
         roles: ['admin', 'financiera'],
       },
     ],
+  },
+  {
+    title: 'Productos',
+    icon: <Box className="w-4 h-4" />,
+    href: '/productos',
+    roles: ['admin', 'comercial', 'inventarios', 'produccion'],
   },
   {
     title: 'Catálogos',

@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Ordenes from "./pages/Ordenes";
+import Productos from "./pages/Productos";
 import Catalogos from "./pages/Catalogos";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
@@ -42,6 +43,7 @@ const App = () => {
                               <Route path="/" element={<Dashboard />} />
                               <Route path="/dashboard" element={<Dashboard />} />
                               <Route path="/ordenes" element={<Ordenes />} />
+                              <Route path="/productos" element={<Productos />} />
                               <Route path="/catalogos" element={<Catalogos />} />
                               <Route
                                 path="/admin"
