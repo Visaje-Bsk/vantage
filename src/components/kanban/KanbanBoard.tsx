@@ -3,27 +3,27 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Plus } from 'lucide-react';
 import { OrdenKanban, KanbanColumnType, OrdenStageUI, FaseOrdenDB, EstatusOrdenDB, UI_TO_FASE, STAGE_UI } from "@/types/kanban";
-import { Input } from "@/components/ui/input";
 import { OrderModal } from '../modals/OrderModal';
 import { OrderCard } from './OrderCard';
 import { NuevaOrdenModal } from './NuevaOrdenModal';
 
 interface KanbanBoardProps {
   onOrderClick: (order: OrdenKanban) => void;
+  searchTerm: string;
+  statusFilter: EstatusOrdenDB | 'all';
+  isNuevaOrdenModalOpen: boolean;
+  onNuevaOrdenModalChange: (open: boolean) => void;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, statusFilter, isNuevaOrdenModalOpen, onNuevaOrdenModalChange }) => {
   const { profile } = useAuth();
+  const [allOrders, setAllOrders] = useState<OrdenKanban[]>([]); // Mantener todas las órdenes originales
   const [columns, setColumns] = useState<KanbanColumnType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<OrdenKanban | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [isNuevaOrdenModalOpen, setIsNuevaOrdenModalOpen] = useState(false);
 
   const EMPTY_COLUMNS = useMemo<KanbanColumnType[]>(
     () => 
@@ -39,6 +39,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
 
   useEffect(() => {
     fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchOrders = async () => {
@@ -82,7 +83,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
         tipo_servicio: order.tipo_servicio?.siglas_tipo_servicio || order.tipo_servicio?.nombre_tipo_servicio,
       }));
 
-      applyIntoColumns(transformed, searchTerm);
+      setAllOrders(transformed); // Guardar todas las órdenes
+      applyIntoColumns(transformed);
     } catch (e) {
       console.error("Error fetching orders:", e);
     } finally {
@@ -90,20 +92,54 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
     }
   };
 
-  const applyIntoColumns = (allOrders: OrdenKanban[], term: string) => {
-    // 1) Filtrado por búsqueda
-    const filtered = term
+  const applyIntoColumns = (allOrders: OrdenKanban[]) => {
+    // 1) Filtrado por búsqueda (consecutivo, cliente, proyecto, fechas)
+    let filtered = searchTerm
       ? allOrders.filter((o) => {
-          const t = term.toLowerCase();
-          return (
-            (o.consecutivo_code?.toLowerCase() ?? o.consecutivo?.toLowerCase() ?? "").includes(t) ||
-            o.nombre_cliente.toLowerCase().includes(t) ||
-            (o.proyecto_nombre?.toLowerCase() ?? "").includes(t)
-          );
+          const t = searchTerm.toLowerCase();
+
+          // Buscar en consecutivo
+          const consecutivoMatch = (o.consecutivo_code?.toLowerCase() ?? o.consecutivo?.toLowerCase() ?? "").includes(t);
+
+          // Buscar en cliente
+          const clienteMatch = o.nombre_cliente.toLowerCase().includes(t);
+
+          // Buscar en proyecto
+          const proyectoMatch = (o.proyecto_nombre?.toLowerCase() ?? "").includes(t);
+
+          // Buscar en fechas (formato completo o parcial: "2024", "2024-07", "2024-07-20")
+          const fechaCreacionMatch = o.fecha_creacion?.includes(t) ?? false;
+          const fechaModificacionMatch = o.fecha_modificacion?.includes(t) ?? false;
+
+          // Buscar en fechas formateadas legibles (ej: "julio", "20 de julio")
+          let fechaFormateadaMatch = false;
+          if (o.fecha_creacion || o.fecha_modificacion) {
+            try {
+              const fecha = o.fecha_modificacion ?? o.fecha_creacion;
+              if (fecha) {
+                const fechaObj = new Date(fecha);
+                const fechaLegible = fechaObj.toLocaleDateString('es-ES', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                }).toLowerCase();
+                fechaFormateadaMatch = fechaLegible.includes(t);
+              }
+            } catch (e) {
+              // Ignorar errores de parseo de fecha
+            }
+          }
+
+          return consecutivoMatch || clienteMatch || proyectoMatch || fechaCreacionMatch || fechaModificacionMatch || fechaFormateadaMatch;
         })
       : allOrders;
 
-    // 2) Reparto por columnas UI a partir del estado DB
+    // 2) Filtrado por estatus
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((o) => o.estatus === statusFilter);
+    }
+
+    // 3) Reparto por columnas UI a partir del estado DB
     const nextCols = EMPTY_COLUMNS.map((col) => ({
       ...col,
       orders: filtered.filter((o) => o.fase === UI_TO_FASE[col.id]),
@@ -119,16 +155,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
   };
 
   const handleUpdateOrder = (orderId: number, updates: Partial<OrdenKanban>) => {
-    setColumns((prev) => {
-      const pool = prev.flatMap((col) => col.orders);
-      const idx = pool.findIndex((o) => o.id_orden_pedido === orderId);
-      if (idx >= 0) pool[idx] = { ...pool[idx], ...updates };
-      
-      const recalculated = EMPTY_COLUMNS.map((col) => ({
-        ...col,
-        orders: pool.filter((o) => o.fase === UI_TO_FASE[col.id]),
-      }));
-      return recalculated;
+    // Actualizar el estado de allOrders
+    setAllOrders((prev) => {
+      const updated = prev.map((o) =>
+        o.id_orden_pedido === orderId ? { ...o, ...updates } : o
+      );
+      // Re-aplicar filtros con las órdenes actualizadas
+      applyIntoColumns(updated);
+      return updated;
     });
   };
 
@@ -190,12 +224,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
     }
   };
 
-  // Re-fetch when search term changes
+  // Re-apply filters when search term or status filter changes
   useEffect(() => {
-    if (loading) return;
-    const flat = columns.flatMap((col) => col.orders);
-    applyIntoColumns(flat, searchTerm);
-  }, [searchTerm]);
+    if (loading || allOrders.length === 0) return;
+    applyIntoColumns(allOrders);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, statusFilter]);
 
   if (loading) {
     return (
@@ -205,46 +239,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
     );
   }
 
-  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-  };
-
-  // Verificar si el usuario puede crear órdenes
-  const canCreateOrders = profile?.role === 'comercial' || profile?.role === 'admin';
-
   return (
-    <div className="space-y-4">
-      {/* Header con búsqueda y botón Nueva Orden */}
-      <div className="flex items-center justify-between gap-4">
-        {/* Search Bar */}
-        <div className="relative max-w-md flex-1">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por consecutivo, cliente o proyecto..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="pl-10"
-          />
-        </div>
-
-        {/* Botón Nueva Orden */}
-        {canCreateOrders && (
-          <Button 
-            onClick={() => setIsNuevaOrdenModalOpen(true)}
-            className="flex items-center gap-2 whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Orden
-          </Button>
-        )}
-      </div>
-
+    <div className="h-full flex flex-col">
       {/* Kanban Board */}
-      <div className="overflow-x-auto pb-4">
-        <div className="flex space-x-4 min-w-max">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+        <div className="flex space-x-4 min-w-max h-full">
           {columns.map((column) => (
-            <div key={column.id} className="w-80 flex-shrink-0">
-              <Card className="h-full flex flex-col">
+            <div key={column.id} className="w-80 flex-shrink-0 h-full">
+              <Card className="h-full flex flex-col shadow-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-medium">
@@ -297,7 +299,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick }) => {
       {/* Modal para nueva orden */}
       <NuevaOrdenModal
         open={isNuevaOrdenModalOpen}
-        onOpenChange={setIsNuevaOrdenModalOpen}
+        onOpenChange={onNuevaOrdenModalChange}
         onOrderCreated={handleOrderCreated}
       />
     </div>

@@ -209,7 +209,12 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+    <Sidebar
+      side="left"
+      variant="floating"
+      collapsible="offcanvas"
+      className="bg-gradient-to-b from-slate-50/95 to-slate-100/95 dark:from-slate-900/95 dark:to-slate-800/95 backdrop-blur-md shadow-2xl"
+    >
       {/* Header con branding mejorado */}
       <SidebarHeader className="border-b border-slate-200 dark:border-slate-700 p-6">
         <div className="flex items-center space-x-3">
@@ -251,7 +256,7 @@ export function AppSidebar() {
                 <div className="flex items-center space-x-1 mt-1">
                   <Clock className="w-3 h-3 text-slate-400" />
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                    {formatTime()} • COL/PER
+                    {formatTime()} • COL
                   </p>
                 </div>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 capitalize truncate">
