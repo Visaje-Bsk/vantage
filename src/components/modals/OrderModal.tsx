@@ -150,7 +150,7 @@ export function OrderModal({
     };
 
     const { error } = await supabase
-      .from("ordenpedido")
+      .from("orden_pedido")
       .update(updates)
       .eq("id_orden_pedido", order.id_orden_pedido);
 

@@ -8,6 +8,7 @@ import { Calendar, User, Building2, Hash, Clock } from 'lucide-react';
 
 interface OrderCardProps {
   order: OrdenKanban;
+  columnColor?: string;
 }
 
 const formatDate = (dateString: string | null): string => {
@@ -28,10 +29,10 @@ const formatDateLong = (dateString: string | null): string => {
   });
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
+export const OrderCard: React.FC<OrderCardProps> = ({ order, columnColor }) => {
   const statusConfig = estatusBadge[order.estatus];
   const [createdByName, setCreatedByName] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const fetchCreatedByName = async () => {
       if (!order?.created_by) {
@@ -50,89 +51,67 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
       }
       setCreatedByName(data?.nombre ?? null);
     };
-  
+
     fetchCreatedByName();
   }, [order?.created_by]);
-  
+
   const accentColor = statusConfig?.color || '#6366f1';
-  
+
   return (
-    <Card className="group relative mb-3 overflow-hidden border-0 bg-white shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-      {/* Barra de color lateral */}
-      <div 
-        className="absolute left-0 top-0 w-1 h-full transition-all duration-300 group-hover:w-1.5"
+    <Card className="group relative overflow-hidden border border-border/40 bg-card hover:bg-card/80 shadow-md hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
+      {/* Barra superior coloreada */}
+      <div
+        className="absolute top-0 left-0 right-0 h-1 transition-all duration-300"
         style={{ backgroundColor: accentColor }}
       />
-      
-      <CardContent className="p-4 pl-6">
+
+      <CardContent className="p-4 pt-5">
         {/* Header con número de orden y badge */}
         <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Hash className="w-4 h-4 text-gray-400" />
-            <h3 className="font-semibold text-gray-900 text-sm">
-              {(order.consecutivo_code ?? order.consecutivo) || 'Sin consecutivo'}
-            </h3>
-          </div>
-          <Badge 
-            variant="secondary" 
-            className="text-xs font-medium px-2 py-1 border-0 text-white"
-            style={{ backgroundColor: accentColor }}
+          <h3 className="font-semibold text-success text-base">
+            #{(order.consecutivo_code ?? order.consecutivo) || 'Sin consecutivo'}
+          </h3>
+          <Badge
+            variant="secondary"
+            className="text-xs font-medium px-2.5 py-0.5 rounded-md border-0"
+            style={{
+              backgroundColor: accentColor,
+              color: 'white'
+            }}
           >
             {statusConfig?.label || order.estatus || 'Sin estado'}
           </Badge>
         </div>
 
         {/* Información principal */}
-        <div className="space-y-2 mb-4">
+        <div className="space-y-2.5">
           {/* Cliente */}
-          <div className="flex items-start gap-2">
-            <Building2 className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-gray-900 text-sm leading-tight">
-                {order.nombre_cliente || 'Sin cliente'}
+          <div>
+            <p className="font-semibold text-card-foreground text-sm leading-tight mb-1">
+              {order.nombre_cliente || 'Sin cliente'}
+            </p>
+            {order.proyecto_nombre && (
+              <p className="text-xs text-muted-foreground">
+                {order.proyecto_nombre}
               </p>
-              {order.proyecto_nombre && (
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {order.proyecto_nombre}
-                </p>
-              )}
-            </div>
+            )}
           </div>
-
-          {/* Comercial */}
-          {createdByName && (
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-gray-400" />
-              <div>
-                <span className="text-xs text-gray-500">Comercial: </span>
-                <span className="text-xs font-medium text-gray-700">
-                  {createdByName}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Footer con fecha */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+        {/* Footer con fecha y usuario */}
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/30">
           <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-gray-400" />
-            <span className="text-xs text-gray-500">
-              Actualizado
+            <div className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center">
+              <User className="w-3 h-3 text-muted-foreground" />
+            </div>
+            <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+              {createdByName || 'Sin asignar'}
             </span>
           </div>
-          <span className="text-xs font-medium text-gray-600">
-            {formatDateLong(order.fecha_modificacion)}
+          <span className="text-xs text-muted-foreground">
+            {formatDate(order.fecha_modificacion)}
           </span>
         </div>
-
-        {/* Efecto hover sutil */}
-        <div 
-          className="absolute inset-0 bg-gradient-to-r from-transparent to-transparent group-hover:to-blue-50/20 pointer-events-none transition-all duration-300"
-          style={{ 
-            background: `linear-gradient(135deg, transparent 0%, ${accentColor}05 100%)` 
-          }}
-        />
       </CardContent>
     </Card>
   );

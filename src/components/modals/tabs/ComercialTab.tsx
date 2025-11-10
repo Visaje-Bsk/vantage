@@ -101,7 +101,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     try {
       // Obtener datos básicos de la orden actual con joins mínimos
       const { data: orderData, error: ordErr } = await supabase
-        .from("ordenpedido")
+        .from("orden_pedido")
         .select(`
           *,
           cliente ( nombre_cliente, nit ),

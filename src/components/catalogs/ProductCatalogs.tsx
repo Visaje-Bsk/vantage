@@ -151,7 +151,7 @@ export default function ProductCatalogs() {
           query = supabase.from('equipo').select('*').order('id_equipo', { ascending: true });
           break;
         case 'lineaservicio':
-          query = supabase.from('lineaservicio').select('*').order('id_linea_detalle', { ascending: true });
+          query = supabase.from('linea_servicio').select('*').order('id_linea_detalle', { ascending: true });
           break;
         case 'servicio':
           query = supabase.from('servicio').select('*').order('id_servicio', { ascending: true });
@@ -205,7 +205,7 @@ export default function ProductCatalogs() {
           query = supabase.from('equipo').delete().eq('id_equipo', Number(id));
           break;
         case 'lineaservicio':
-          query = supabase.from('lineaservicio').delete().eq('id_linea_detalle', Number(id));
+          query = supabase.from('linea_servicio').delete().eq('id_linea_detalle', Number(id));
           break;
         case 'servicio':
           query = supabase.from('servicio').delete().eq('id_servicio', Number(id));
@@ -260,7 +260,7 @@ export default function ProductCatalogs() {
             result = await supabase.from('equipo').update(payload).eq('id_equipo', Number(idValue));
             break;
           case 'lineaservicio':
-            result = await supabase.from('lineaservicio').update(payload).eq('id_linea_detalle', Number(idValue));
+            result = await supabase.from('linea_servicio').update(payload).eq('id_linea_detalle', Number(idValue));
             break;
           case 'servicio':
             result = await supabase.from('servicio').update(payload).eq('id_servicio', Number(idValue));
@@ -278,7 +278,7 @@ export default function ProductCatalogs() {
             result = await supabase.from('equipo').insert([payload]);
             break;
           case 'lineaservicio':
-            result = await supabase.from('lineaservicio').insert([payload]);
+            result = await supabase.from('linea_servicio').insert([payload]);
             break;
           case 'servicio':
             result = await supabase.from('servicio').insert([payload]);

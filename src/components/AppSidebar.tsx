@@ -211,55 +211,55 @@ export function AppSidebar() {
   return (
     <Sidebar
       side="left"
-      variant="floating"
-      collapsible="offcanvas"
-      className="bg-gradient-to-b from-slate-50/95 to-slate-100/95 dark:from-slate-900/95 dark:to-slate-800/95 backdrop-blur-md shadow-2xl"
+      variant="sidebar"
+      collapsible="icon"
+      className="bg-sidebar border-r"
     >
       {/* Header con branding mejorado */}
-      <SidebarHeader className="border-b border-slate-200 dark:border-slate-700 p-6">
+      <SidebarHeader className="border-b p-6">
         <div className="flex items-center space-x-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow-lg">
-            <ShoppingCart className="w-5 h-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-md">
+            <ShoppingCart className="w-5 h-5 text-primary-foreground" />
           </div>
           {state === "collapsed" ? null : (
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Bismark</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Órdenes de Pedido</p>
+              <h1 className="text-xl font-bold text-sidebar-foreground">Bismark</h1>
+              <p className="text-xs text-muted-foreground font-medium">Órdenes de Pedido</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-4 py-6">
+      <SidebarContent className="px-4 py-6 ">
         {/* Información del usuario mejorada */}
         {state === "collapsed" ? null : profile && (
-          <div className="mb-8 p-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+          <div className="mb-8 p-4 bg-card rounded-xl shadow-sm border">
             <div className="flex items-center space-x-3">
-              <Avatar className="h-10 w-10 ring-2 ring-blue-100 dark:ring-blue-900">
+              <Avatar className="h-10 w-10 ring-2 ring-primary/20">
                 <AvatarImage src="/placeholder-avatar.jpg" alt={profile.nombre} />
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold">
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                   {getUserInitials(profile.nombre)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                  <p className="text-sm font-semibold text-card-foreground truncate">
                     {capitalize(profile.nombre)}
                   </p>
-                  <Badge 
-                    variant="secondary" 
+                  <Badge
+                    variant="secondary"
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${getRoleBadgeColor(profile.role || '')}`}
                   >
                     {capitalize(profile.role || '')}
                   </Badge>
                 </div>
                 <div className="flex items-center space-x-1 mt-1">
-                  <Clock className="w-3 h-3 text-slate-400" />
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  <Clock className="w-3 h-3 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground truncate">
                     {formatTime()} • COL
                   </p>
                 </div>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 capitalize truncate">
+                <p className="text-xs text-muted-foreground mt-0.5 capitalize truncate">
                   {formatDate()}
                 </p>
               </div>
@@ -269,7 +269,7 @@ export function AppSidebar() {
 
         {/* Menú de navegación mejorado */}
         <SidebarGroup>
-          <SidebarGroupLabel className="px-2 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          <SidebarGroupLabel className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Navegación
           </SidebarGroupLabel>
           <SidebarGroupContent className="mt-2">
@@ -285,14 +285,14 @@ export function AppSidebar() {
                         <SidebarMenuButton
                           className={`
                             w-full justify-between rounded-lg transition-all duration-200
-                            ${isGroupActive(item) 
-                              ? 'bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-900/20 dark:text-blue-300' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
+                            ${isGroupActive(item)
+                              ? 'bg-primary/10 text-primary shadow-sm'
+                              : 'hover:bg-sidebar-accent text-sidebar-foreground'
                             }
                           `}
                         >
                           <div className="flex items-center space-x-3">
-                            <div className={`p-1 rounded-md ${isGroupActive(item) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                            <div className={`p-1 rounded-md ${isGroupActive(item) ? 'text-primary' : 'text-muted-foreground'}`}>
                               {item.icon}
                             </div>
                             {state === "collapsed" ? null : (
@@ -308,7 +308,7 @@ export function AppSidebar() {
                       </CollapsibleTrigger>
                       {state === "collapsed" ? null : (
                         <CollapsibleContent className="mt-1">
-                          <SidebarMenuSub className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
+                          <SidebarMenuSub className="ml-4 pl-4 border-l-2 border-border">
                             {item.subItems
                               .filter(subItem => subItem.roles.includes(profile?.role || ''))
                               .map((subItem) => (
@@ -318,13 +318,13 @@ export function AppSidebar() {
                                       to={subItem.href || '#'}
                                       className={({ isActive }) =>
                                         `flex items-center space-x-3 px-3 py-2 rounded-md transition-all duration-200 ${
-                                          isActive 
-                                            ? 'bg-blue-50 text-blue-700 font-medium shadow-sm dark:bg-blue-900/20 dark:text-blue-300' 
-                                            : 'hover:bg-slate-50 dark:hover:bg-slate-700/30 text-slate-600 dark:text-slate-400'
+                                          isActive
+                                            ? 'bg-primary/10 text-primary font-medium shadow-sm'
+                                            : 'hover:bg-sidebar-accent text-sidebar-foreground'
                                         }`
                                       }
                                     >
-                                      <div className="text-slate-400 dark:text-slate-500">
+                                      <div className="text-muted-foreground">
                                         {subItem.icon}
                                       </div>
                                       <span className="text-sm">{subItem.title}</span>
@@ -342,14 +342,14 @@ export function AppSidebar() {
                         to={item.href || '#'}
                         className={({ isActive }) =>
                           `flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 ${
-                            isActive 
-                              ? 'bg-blue-50 text-blue-700 font-medium shadow-sm dark:bg-blue-900/20 dark:text-blue-300' 
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
+                            isActive
+                              ? 'bg-primary/10 text-primary font-medium shadow-sm'
+                              : 'hover:bg-sidebar-accent text-sidebar-foreground'
                           }`
                         }
                       >
                         <div className="flex items-center space-x-3">
-                          <div className={`p-1 rounded-md ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                          <div className={`p-1 rounded-md ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
                             {item.icon}
                           </div>
                           {state === "collapsed" ? null : (
@@ -367,15 +367,15 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer mejorado */}
-      <SidebarFooter className="border-t border-slate-200 dark:border-slate-700 p-4">
+      <SidebarFooter className="border-t p-4">
         <Button
           variant="ghost"
           onClick={signOut}
-          className="w-full justify-start text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 group"
+          className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-lg transition-all duration-200 group"
         >
-          <LogOut className="w-4 h-4 mr-3 group-hover:text-red-500 transition-colors duration-200" />
+          <LogOut className="w-4 h-4 mr-3 group-hover:text-destructive transition-colors duration-200" />
           {state === "collapsed" ? null : (
-            <span className="font-medium group-hover:text-red-600 dark:group-hover:text-red-400">
+            <span className="font-medium group-hover:text-destructive">
               Cerrar Sesión
             </span>
           )}

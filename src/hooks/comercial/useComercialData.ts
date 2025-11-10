@@ -1,11 +1,11 @@
 /**
  * useComercialData
  *
- * Hook para manejar la carga de datos desde Supabase para la pestaña comercial
- * Gestiona la carga de catálogos (clientes, proyectos, operadores, etc.) y datos de la orden
+ * Hook para manejar la carga de datos desde Supabase para la pestaï¿½a comercial
+ * Gestiona la carga de catï¿½logos (clientes, proyectos, operadores, etc.) y datos de la orden
  *
  * Responsabilidades:
- * - Cargar catálogos necesarios (clientes, proyectos, operadores, planes, apns, transportadoras, tipos despacho)
+ * - Cargar catï¿½logos necesarios (clientes, proyectos, operadores, planes, apns, transportadoras, tipos despacho)
  * - Cargar datos existentes de la orden
  * - Cargar detalles de orden (equipos y servicios)
  * - Cargar responsables asignados
@@ -28,7 +28,7 @@ import { EquipoOption } from "@/components/catalogs/EquipoSelector";
 type AppRole = Database["public"]["Enums"]["app_role"];
 
 export const useComercialData = (orderId: number) => {
-  // Cat álogos
+  // Cat ï¿½logos
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [operadores, setOperadores] = useState<Array<Database["public"]["Tables"]["operador"]["Row"]>>([]);
@@ -65,7 +65,7 @@ export const useComercialData = (orderId: number) => {
   }, []);
 
   /**
-   * Carga todos los catálogos necesarios para modo edición
+   * Carga todos los catï¿½logos necesarios para modo ediciï¿½n
    */
   const loadCatalogos = useCallback(async () => {
     try {
@@ -160,7 +160,7 @@ export const useComercialData = (orderId: number) => {
         (equipos ?? []).forEach((e) => equiposById.set(e.id_equipo, e));
       }
 
-      // 3) Cargar líneas de servicio
+      // 3) Cargar lï¿½neas de servicio
       const lineaServicioIds = servicioDetalles
         .map((d) => d.id_linea_detalle)
         .filter((v): v is number => typeof v === "number");
@@ -182,7 +182,7 @@ export const useComercialData = (orderId: number) => {
 
       if (uniqueLineaIds.length > 0) {
         const { data: lineasServicio, error: lsErr } = await supabase
-          .from("lineaservicio")
+          .from("linea_servicio")
           .select(`
             id_linea_detalle,
             id_operador,

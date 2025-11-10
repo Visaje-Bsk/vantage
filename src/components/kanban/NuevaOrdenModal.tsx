@@ -62,8 +62,7 @@ interface TipoDespacho {
 
 interface TipoServicio {
   id_tipo_servicio: number;
-  siglas_tipo_servicio: string;
-  nombre_tipo_servicio: string;
+  nombre_tipo_servicio: string | null;
 }
 
 interface Transportadora {
@@ -191,8 +190,8 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
       const [proyectosRes, clasesOrdenRes, tipoPagoRes, metodoDespachoRes, tiposServicioRes, transportadorasRes] = await Promise.all ([
         supabase.from('proyecto').select('*').order('nombre_proyecto'),
-        supabase.from('claseorden').select('*').order('tipo_orden'),
-        supabase.from('tipopago').select('*').order('forma_pago'),
+        supabase.from('clase_orden').select('*').order('tipo_orden'),
+        supabase.from('tipo_pago').select('*').order('forma_pago'),
         supabase.from('tipo_despacho').select('*').order('nombre_tipo'),
         supabase.from('tipo_servicio').select('*').order('nombre_tipo_servicio'),
         supabase.from('transportadora').select('*').order('nombre_transportadora')
@@ -284,7 +283,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       };
 
       const { data: order, error: orderError } = await supabase
-        .from('ordenpedido')
+        .from('orden_pedido')
         .insert(ordenData)
         .select('id_orden_pedido')
         .single();
@@ -381,7 +380,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
         // Update ordenpedido with id_despacho_orden
         const { error: updateError } = await supabase
-          .from('ordenpedido')
+          .from('orden_pedido')
           .update({ id_despacho_orden: despacho.id_despacho_orden })
           .eq('id_orden_pedido', orderId);
 

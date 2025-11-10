@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -11,6 +11,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -58,7 +83,7 @@ export type Database = {
           },
         ]
       }
-      claseorden: {
+      clase_orden: {
         Row: {
           id_clase_orden: number
           tipo_orden: string
@@ -137,6 +162,7 @@ export type Database = {
           id_transportadora: number | null
           numero_guia: string | null
           observaciones: string | null
+          valor_servicio_flete: number | null
         }
         Insert: {
           fecha_despacho?: string | null
@@ -148,6 +174,7 @@ export type Database = {
           id_transportadora?: number | null
           numero_guia?: string | null
           observaciones?: string | null
+          valor_servicio_flete?: number | null
         }
         Update: {
           fecha_despacho?: string | null
@@ -159,6 +186,7 @@ export type Database = {
           id_transportadora?: number | null
           numero_guia?: string | null
           observaciones?: string | null
+          valor_servicio_flete?: number | null
         }
         Relationships: [
           {
@@ -179,7 +207,7 @@ export type Database = {
             foreignKeyName: "despacho_orden_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: true
-            referencedRelation: "ordenpedido"
+            referencedRelation: "orden_pedido"
             referencedColumns: ["id_orden_pedido"]
           },
           {
@@ -208,7 +236,9 @@ export type Database = {
           id_orden_pedido: number | null
           id_servicio: number | null
           plantilla: string | null
-          tipo_producto: string | null
+          tipo_producto:
+            | Database["public"]["Enums"]["tipo_producto_enum"]
+            | null
           valor_unitario: number | null
         }
         Insert: {
@@ -220,7 +250,9 @@ export type Database = {
           id_orden_pedido?: number | null
           id_servicio?: number | null
           plantilla?: string | null
-          tipo_producto?: string | null
+          tipo_producto?:
+            | Database["public"]["Enums"]["tipo_producto_enum"]
+            | null
           valor_unitario?: number | null
         }
         Update: {
@@ -232,7 +264,9 @@ export type Database = {
           id_orden_pedido?: number | null
           id_servicio?: number | null
           plantilla?: string | null
-          tipo_producto?: string | null
+          tipo_producto?:
+            | Database["public"]["Enums"]["tipo_producto_enum"]
+            | null
           valor_unitario?: number | null
         }
         Relationships: [
@@ -254,14 +288,14 @@ export type Database = {
             foreignKeyName: "detalle_orden_id_linea_detalle_fkey"
             columns: ["id_linea_detalle"]
             isOneToOne: false
-            referencedRelation: "lineaservicio"
+            referencedRelation: "linea_servicio"
             referencedColumns: ["id_linea_detalle"]
           },
           {
             foreignKeyName: "detalle_orden_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: false
-            referencedRelation: "ordenpedido"
+            referencedRelation: "orden_pedido"
             referencedColumns: ["id_orden_pedido"]
           },
           {
@@ -336,45 +370,107 @@ export type Database = {
         Row: {
           estado_factura: string | null
           fecha_factura: string | null
+          fecha_trm: string | null
           id_factura: number
           id_orden_pedido: number
           id_tipo_pago: number | null
+          moneda_base: string | null
           numero_factura: string | null
+          trm_aplicada: number | null
         }
         Insert: {
           estado_factura?: string | null
           fecha_factura?: string | null
+          fecha_trm?: string | null
           id_factura?: number
           id_orden_pedido: number
           id_tipo_pago?: number | null
+          moneda_base?: string | null
           numero_factura?: string | null
+          trm_aplicada?: number | null
         }
         Update: {
           estado_factura?: string | null
           fecha_factura?: string | null
+          fecha_trm?: string | null
           id_factura?: number
           id_orden_pedido?: number
           id_tipo_pago?: number | null
+          moneda_base?: string | null
           numero_factura?: string | null
+          trm_aplicada?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "factura_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: false
-            referencedRelation: "ordenpedido"
+            referencedRelation: "orden_pedido"
             referencedColumns: ["id_orden_pedido"]
           },
           {
             foreignKeyName: "factura_id_tipo_pago_fkey"
             columns: ["id_tipo_pago"]
             isOneToOne: false
-            referencedRelation: "tipopago"
+            referencedRelation: "tipo_pago"
             referencedColumns: ["id_tipo_pago"]
           },
         ]
       }
-      lineaservicio: {
+      historial_orden: {
+        Row: {
+          accion_clave: string
+          actor_user_id: string
+          estatus_nuevo:
+            | Database["public"]["Enums"]["estatus_orden_enum"]
+            | null
+          fase_anterior: Database["public"]["Enums"]["fase_orden_enum"] | null
+          fase_nueva: Database["public"]["Enums"]["fase_orden_enum"]
+          id_historial: number
+          id_orden_pedido: number
+          observaciones: string | null
+          rol_actor: Database["public"]["Enums"]["app_role"]
+          timestamp_accion: string
+        }
+        Insert: {
+          accion_clave: string
+          actor_user_id: string
+          estatus_nuevo?:
+            | Database["public"]["Enums"]["estatus_orden_enum"]
+            | null
+          fase_anterior?: Database["public"]["Enums"]["fase_orden_enum"] | null
+          fase_nueva: Database["public"]["Enums"]["fase_orden_enum"]
+          id_historial?: never
+          id_orden_pedido: number
+          observaciones?: string | null
+          rol_actor: Database["public"]["Enums"]["app_role"]
+          timestamp_accion?: string
+        }
+        Update: {
+          accion_clave?: string
+          actor_user_id?: string
+          estatus_nuevo?:
+            | Database["public"]["Enums"]["estatus_orden_enum"]
+            | null
+          fase_anterior?: Database["public"]["Enums"]["fase_orden_enum"] | null
+          fase_nueva?: Database["public"]["Enums"]["fase_orden_enum"]
+          id_historial?: never
+          id_orden_pedido?: number
+          observaciones?: string | null
+          rol_actor?: Database["public"]["Enums"]["app_role"]
+          timestamp_accion?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historial_orden_id_orden_pedido_fkey"
+            columns: ["id_orden_pedido"]
+            isOneToOne: false
+            referencedRelation: "orden_pedido"
+            referencedColumns: ["id_orden_pedido"]
+          },
+        ]
+      }
+      linea_servicio: {
         Row: {
           clase_cobro: Database["public"]["Enums"]["clase_cobro"] | null
           id_apn: number
@@ -386,7 +482,7 @@ export type Database = {
         Insert: {
           clase_cobro?: Database["public"]["Enums"]["clase_cobro"] | null
           id_apn: number
-          id_linea_detalle: number
+          id_linea_detalle?: number
           id_operador: number
           id_plan: number
           permanencia?: string | null
@@ -456,7 +552,7 @@ export type Database = {
         }
         Relationships: []
       }
-      ordenpedido: {
+      orden_pedido: {
         Row: {
           consecutivo: number
           consecutivo_code: string | null
@@ -467,12 +563,14 @@ export type Database = {
           fecha_modificacion: string | null
           id_clase_orden: number | null
           id_cliente: number
+          id_ingeniero_asignado: string | null
           id_orden_pedido: number
           id_proyecto: number | null
           id_tipo_pago: number | null
           id_tipo_servicio: number | null
           observaciones_orden: string | null
           orden_compra: string | null
+          updated_by: string | null
         }
         Insert: {
           consecutivo?: number
@@ -484,12 +582,14 @@ export type Database = {
           fecha_modificacion?: string | null
           id_clase_orden?: number | null
           id_cliente: number
+          id_ingeniero_asignado?: string | null
           id_orden_pedido?: number
           id_proyecto?: number | null
           id_tipo_pago?: number | null
           id_tipo_servicio?: number | null
           observaciones_orden?: string | null
           orden_compra?: string | null
+          updated_by?: string | null
         }
         Update: {
           consecutivo?: number
@@ -501,19 +601,28 @@ export type Database = {
           fecha_modificacion?: string | null
           id_clase_orden?: number | null
           id_cliente?: number
+          id_ingeniero_asignado?: string | null
           id_orden_pedido?: number
           id_proyecto?: number | null
           id_tipo_pago?: number | null
           id_tipo_servicio?: number | null
           observaciones_orden?: string | null
           orden_compra?: string | null
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orden_pedido_id_ingeniero_asignado_fkey"
+            columns: ["id_ingeniero_asignado"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "ordenpedido_id_clase_orden_fkey"
             columns: ["id_clase_orden"]
             isOneToOne: false
-            referencedRelation: "claseorden"
+            referencedRelation: "clase_orden"
             referencedColumns: ["id_clase_orden"]
           },
           {
@@ -534,7 +643,7 @@ export type Database = {
             foreignKeyName: "ordenpedido_id_tipo_pago_fkey"
             columns: ["id_tipo_pago"]
             isOneToOne: false
-            referencedRelation: "tipopago"
+            referencedRelation: "tipo_pago"
             referencedColumns: ["id_tipo_pago"]
           },
           {
@@ -546,7 +655,7 @@ export type Database = {
           },
         ]
       }
-      ordenproduccion: {
+      orden_produccion: {
         Row: {
           estado_orden_produccion: string | null
           fecha_produccion: string | null
@@ -576,7 +685,7 @@ export type Database = {
             foreignKeyName: "ordenproduccion_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: false
-            referencedRelation: "ordenpedido"
+            referencedRelation: "orden_pedido"
             referencedColumns: ["id_orden_pedido"]
           },
         ]
@@ -678,7 +787,7 @@ export type Database = {
             foreignKeyName: "producto_id_linea_detalle_fkey"
             columns: ["id_linea_detalle"]
             isOneToOne: false
-            referencedRelation: "lineaservicio"
+            referencedRelation: "linea_servicio"
             referencedColumns: ["id_linea_detalle"]
           },
           {
@@ -817,7 +926,7 @@ export type Database = {
             foreignKeyName: "remision_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: false
-            referencedRelation: "ordenpedido"
+            referencedRelation: "orden_pedido"
             referencedColumns: ["id_orden_pedido"]
           },
         ]
@@ -843,7 +952,7 @@ export type Database = {
             foreignKeyName: "responsableorden_id_orden_pedido_fkey"
             columns: ["id_orden_pedido"]
             isOneToOne: false
-            referencedRelation: "ordenpedido"
+            referencedRelation: "orden_pedido"
             referencedColumns: ["id_orden_pedido"]
           },
           {
@@ -904,16 +1013,19 @@ export type Database = {
           codigo_servicio: string | null
           id_servicio: number
           nombre_servicio: string | null
+          ticon: number | null
         }
         Insert: {
           codigo_servicio?: string | null
           id_servicio?: number
           nombre_servicio?: string | null
+          ticon?: number | null
         }
         Update: {
           codigo_servicio?: string | null
           id_servicio?: number
           nombre_servicio?: string | null
+          ticon?: number | null
         }
         Relationships: []
       }
@@ -938,25 +1050,7 @@ export type Database = {
         }
         Relationships: []
       }
-      tipo_servicio: {
-        Row: {
-          id_tipo_servicio: number
-          nombre_tipo_servicio: string | null
-          siglas_tipo_servicio: string | null
-        }
-        Insert: {
-          id_tipo_servicio?: number
-          nombre_tipo_servicio?: string | null
-          siglas_tipo_servicio?: string | null
-        }
-        Update: {
-          id_tipo_servicio?: number
-          nombre_tipo_servicio?: string | null
-          siglas_tipo_servicio?: string | null
-        }
-        Relationships: []
-      }
-      tipopago: {
+      tipo_pago: {
         Row: {
           aprobado_cartera: boolean | null
           forma_pago: string
@@ -974,6 +1068,21 @@ export type Database = {
           forma_pago?: string
           id_tipo_pago?: number
           plazo?: string | null
+        }
+        Relationships: []
+      }
+      tipo_servicio: {
+        Row: {
+          id_tipo_servicio: number
+          nombre_tipo_servicio: string | null
+        }
+        Insert: {
+          id_tipo_servicio?: number
+          nombre_tipo_servicio?: string | null
+        }
+        Update: {
+          id_tipo_servicio?: number
+          nombre_tipo_servicio?: string | null
         }
         Relationships: []
       }
@@ -1003,10 +1112,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      auth_uid: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      auth_uid: { Args: never; Returns: string }
       can_change_estatus: {
         Args: {
           new_estatus: Database["public"]["Enums"]["estatus_orden_enum"]
@@ -1021,25 +1127,27 @@ export type Database = {
         }
         Returns: boolean
       }
-      can_update_orden: {
-        Args: { op_id: number }
-        Returns: boolean
-      }
-      has_permission: {
-        Args: { perm_code: string }
-        Returns: boolean
-      }
+      can_update_orden: { Args: { op_id: number }; Returns: boolean }
+      has_permission: { Args: { perm_code: string }; Returns: boolean }
       has_role: {
         Args: { r: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
-      is_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      next_monthly_num: {
-        Args: { _ts?: string }
-        Returns: number
+      is_admin: { Args: never; Returns: boolean }
+      next_monthly_num: { Args: { _ts?: string }; Returns: number }
+      upsert_comercial_tab: {
+        Args: {
+          p_deleted_equipos: number[]
+          p_deleted_servicios: number[]
+          p_despacho_data: Json
+          p_equipos: Json
+          p_orden_data: Json
+          p_orden_id: number
+          p_responsable_role: string
+          p_responsable_user_id: string
+          p_servicios: Json
+        }
+        Returns: Json
       }
     }
     Enums: {
@@ -1205,6 +1313,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: [

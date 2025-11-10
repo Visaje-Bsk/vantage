@@ -35,7 +35,7 @@ export function TipoPagoCatalog() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('tipopago')
+        .from('tipo_pago')
         .select('*')
         .order('forma_pago');
 
@@ -80,7 +80,7 @@ export function TipoPagoCatalog() {
       if (editingItem) {
         // Update
         const { error } = await supabase
-          .from('tipopago')
+          .from('tipo_pago')
           .update({
             forma_pago: formData.forma_pago.trim(),
             aprobado_cartera: formData.aprobado_cartera,
@@ -105,7 +105,7 @@ export function TipoPagoCatalog() {
       } else {
         // Create
         const { error } = await supabase
-          .from('tipopago')
+          .from('tipo_pago')
           .insert({
             forma_pago: formData.forma_pago.trim(),
             aprobado_cartera: formData.aprobado_cartera,
@@ -155,7 +155,7 @@ export function TipoPagoCatalog() {
   const handleDelete = async (id: number) => {
     try {
       const { error } = await supabase
-        .from('tipopago')
+        .from('tipo_pago')
         .delete()
         .eq('id_tipo_pago', id);
 

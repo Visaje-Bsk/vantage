@@ -45,13 +45,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
   const fetchOrders = async () => {
     try {
       const { data: ordersData, error } = await supabase
-        .from('ordenpedido')
+        .from('orden_pedido')
         .select(`
           *,
           cliente:cliente(nombre_cliente, nit),
           proyecto:proyecto(nombre_proyecto),
-          claseorden:claseorden(tipo_orden),
-          tipo_servicio:tipo_servicio(nombre_tipo_servicio, siglas_tipo_servicio),
+          clase_orden:clase_orden(tipo_orden),
+          tipo_servicio:tipo_servicio(nombre_tipo_servicio),
           detalles:detalle_orden(cantidad, valor_unitario)
         `)
         .order('fecha_modificacion', { ascending: false });
@@ -66,7 +66,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         consecutivo_code: order.consecutivo_code ?? null,
         consecutivo: (order.consecutivo_code ?? (order.consecutivo != null ? String(order.consecutivo) : null)),
         nombre_cliente: order.cliente?.nombre_cliente || 'Cliente no especificado',
-        tipo_orden: order.claseorden?.tipo_orden || 'Tipo no especificado',
+        tipo_orden: order.clase_orden?.tipo_orden || 'Tipo no especificado',
         fase: order.fase as FaseOrdenDB,
         estatus: order.estatus as EstatusOrdenDB,
         fecha_creacion: order.fecha_creacion,
@@ -80,7 +80,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         id_cliente: order.id_cliente,
         id_proyecto: order.id_proyecto,
         estado_orden: order.estatus, // Para compatibilidad con el modal
-        tipo_servicio: order.tipo_servicio?.siglas_tipo_servicio || order.tipo_servicio?.nombre_tipo_servicio,
+        tipo_servicio: order.tipo_servicio?.nombre_tipo_servicio,
       }));
 
       setAllOrders(transformed); // Guardar todas las órdenes
@@ -171,13 +171,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
     try {
       // Fetch the specific newly created order with all its relations
       const { data: newOrderData, error } = await supabase
-        .from('ordenpedido')
+        .from('orden_pedido')
         .select(`
           *,
           cliente:cliente(nombre_cliente, nit),
           proyecto:proyecto(nombre_proyecto),
-          claseorden:claseorden(tipo_orden),
-          tipo_servicio:tipo_servicio(nombre_tipo_servicio, siglas_tipo_servicio),
+          clase_orden:clase_orden(tipo_orden),
+          tipo_servicio:tipo_servicio(nombre_tipo_servicio),
           detalles:detalle_orden(cantidad, valor_unitario)
         `)
         .eq('id_orden_pedido', orderId)
@@ -240,48 +240,47 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-background">
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
-        <div className="flex space-x-4 min-w-max h-full">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+        <div className="flex gap-4 min-w-max h-full">
           {columns.map((column) => (
-            <div key={column.id} className="w-80 flex-shrink-0 h-full">
-              <Card className="h-full flex flex-col shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${column.color}`}></div>
-                        {column.title}
-                      </div>
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-xs">
+            <div key={column.id} className="w-[340px] flex-shrink-0 h-full">
+              {/* Header de columna estilo moderno */}
+              <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between mb-4 px-2">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    {column.title}
+                    <Badge
+                      variant="secondary"
+                      className="rounded-full h-6 min-w-[24px] px-2 bg-muted/50 text-foreground border-0"
+                    >
                       {column.orders.length}
                     </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{column.orders.length} órdenes</p>
-                </CardHeader>
-                
-                <ScrollArea className="flex-1">
-                  <div className="space-y-2 pr-2">
+                  </h3>
+                </div>
+
+                {/* Cards container con borde superior coloreado */}
+                <ScrollArea className="flex-1 pr-2">
+                  <div className="space-y-3">
                     {column.orders.map((order) => (
-                      <div 
-                        key={order.id_orden_pedido} 
+                      <div
+                        key={order.id_orden_pedido}
                         onClick={() => handleOrderClick(order)}
                         className="cursor-pointer"
                       >
-                        <OrderCard order={order} />
+                        <OrderCard order={order} columnColor={column.color} />
                       </div>
                     ))}
-                    
+
                     {column.orders.length === 0 && (
-                      <div className="text-center py-8 text-muted-foreground">
+                      <div className="text-center py-12 text-muted-foreground/50">
                         <div className="text-xs">Sin órdenes</div>
                       </div>
                     )}
                   </div>
                 </ScrollArea>
-              </Card>
+              </div>
             </div>
           ))}
         </div>

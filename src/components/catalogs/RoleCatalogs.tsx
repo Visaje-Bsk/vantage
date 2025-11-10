@@ -258,7 +258,7 @@ export default function RoleCatalogs() {
           query = supabase.from('metododespacho').select('*').order('id_metodo_despacho', { ascending: true });
           break;
         case 'tipopago':
-          query = supabase.from('tipopago').select('*').order('id_tipo_pago', { ascending: true });
+          query = supabase.from('tipo_pago').select('*').order('id_tipo_pago', { ascending: true });
           break;
         default:
           throw new Error(`Unknown table: ${table}`);
@@ -327,7 +327,7 @@ export default function RoleCatalogs() {
           query = supabase.from('metododespacho').delete().eq('id_metodo_despacho', Number(id));
           break;
         case 'tipopago':
-          query = supabase.from('tipopago').delete().eq('id_tipo_pago', Number(id));
+          query = supabase.from('tipo_pago').delete().eq('id_tipo_pago', Number(id));
           break;
         default:
           throw new Error(`Unknown table: ${config.table}`);
@@ -404,7 +404,7 @@ export default function RoleCatalogs() {
             result = await supabase.from('metododespacho').update(payload).eq('id_metodo_despacho', Number(idValue));
             break;
           case 'tipopago':
-            result = await supabase.from('tipopago').update(payload).eq('id_tipo_pago', Number(idValue));
+            result = await supabase.from('tipo_pago').update(payload).eq('id_tipo_pago', Number(idValue));
             break;
           default:
             throw new Error(`Unknown table: ${config.table}`);
@@ -437,7 +437,7 @@ export default function RoleCatalogs() {
             result = await supabase.from('metododespacho').insert([payload]);
             break;
           case 'tipopago':
-            result = await supabase.from('tipopago').insert([payload]);
+            result = await supabase.from('tipo_pago').insert([payload]);
             break;
           default:
             throw new Error(`Unknown table: ${config.table}`);
