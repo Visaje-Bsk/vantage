@@ -1,14 +1,14 @@
 /**
  * useComercialSave
  *
- * Hook para manejar el guardado de datos de la pestaña comercial
+ * Hook para manejar el guardado de datos de la pestaï¿½a comercial
  * Prepara los datos y ejecuta la llamada RPC a Supabase
  *
  * Responsabilidades:
  * - Preparar datos de orden, despacho, equipos y servicios
- * - Ejecutar llamada RPC atómica a la función upsert_comercial_tab
+ * - Ejecutar llamada RPC atï¿½mica a la funciï¿½n upsert_comercial_tab
  * - Manejar respuestas y errores
- * - Actualizar estados después del guardado exitoso
+ * - Actualizar estados despuï¿½s del guardado exitoso
  *
  * @example
  * const { saveComercialData, isSaving } = useComercialSave(orderId);
@@ -44,10 +44,10 @@ export const useComercialSave = (orderId: number) => {
 
   /**
    * Guarda todos los datos del formulario comercial
-   * Usa la función RPC upsert_comercial_tab para operación atómica
+   * Usa la funciï¿½n RPC upsert_comercial_tab para operaciï¿½n atï¿½mica
    *
    * @param params - Todos los datos a guardar
-   * @returns Resultado del RPC con despacho_id si se creó uno nuevo
+   * @returns Resultado del RPC con despacho_id si se creï¿½ uno nuevo
    */
   const saveComercialData = useCallback(
     async (params: SaveComercialDataParams): Promise<{ despacho_id?: number } | null> => {
@@ -87,11 +87,10 @@ export const useComercialSave = (orderId: number) => {
           nombre_contacto: despachoForm.nombre_contacto || "",
           telefono_contacto: despachoForm.telefono_contacto || "",
           email_contacto: despachoForm.email_contacto || "",
-          fecha_despacho: despachoForm.fecha_despacho || "",
           observaciones: despachoForm.observaciones || "",
         };
 
-        // 3. Preparar equipos válidos
+        // 3. Preparar equipos vï¿½lidos
         const validProductLines = productLines.filter(
           (l) =>
             l.selectedEquipo &&
@@ -110,7 +109,7 @@ export const useComercialSave = (orderId: number) => {
           plantilla: line.plantilla && line.plantillaText ? line.plantillaText : "",
         }));
 
-        // 4. Preparar servicios válidos
+        // 4. Preparar servicios vï¿½lidos
         const validServicios = serviceLines.filter(
           (sl) =>
             sl.operadorId &&
@@ -134,7 +133,7 @@ export const useComercialSave = (orderId: number) => {
           valor_mensual: sl.valorMensual,
         }));
 
-        // 5. Llamar a la función RPC atómica
+        // 5. Llamar a la funciï¿½n RPC atï¿½mica
         const { data: result, error: rpcError } = await supabase.rpc("upsert_comercial_tab", {
           p_orden_id: orderId,
           p_orden_data: ordenData,

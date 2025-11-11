@@ -100,6 +100,10 @@ export interface OrdenKanban {
     cantidad: number;
     valor_unitario: number;
     descripcion?: string;
+    equipo?: {
+      nombre_equipo: string;
+      codigo: string;
+    };
   }>;
   created_by?: string;
 

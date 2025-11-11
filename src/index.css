@@ -8,89 +8,85 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Sistema de diseño oscuro - Paleta corporativa (#003d42 base) */
+    /* Sistema de diseño claro - Paleta profesional y práctica */
 
-    /* Fondos - Teal oscuro corporativo */
-    --background: 185 100% 13%;      /* #003d42 - Fondo principal */
-    --foreground: 0 0% 95%;          /* Texto blanco/gris claro */
+    /* Fondos - Blanco hueso y blanco puro */
+    --background: 40 20% 97%;        /* Blanco hueso suave (#FAF9F7) */
+    --foreground: 0 0% 15%;          /* Texto negro grisáceo (#262626) */
 
-    --card: 185 50% 18%;             /* Cards en teal más claro que fondo */
-    --card-foreground: 0 0% 95%;     /* Texto claro en cards */
+    --card: 0 0% 100%;               /* Cards blanco puro */
+    --card-foreground: 0 0% 15%;     /* Texto oscuro en cards */
 
-    --popover: 185 50% 18%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
 
-    /* Primary - Teal claro (#65A4AF) */
-    --primary: 186 29% 54%;          /* #65A4AF del corporativo */
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 186 29% 64%;
-    --primary-light: 186 29% 25%;    /* Versión oscura para fondos */
+    /* Primary - Teal oscuro corporativo (#003d42) */
+    --primary: 185 100% 13%;         /* #003d42 - Títulos y elementos principales */
+    --primary-foreground: 0 0% 100%; /* Texto blanco sobre teal */
+    --primary-hover: 185 100% 18%;   /* Hover más claro */
+    --primary-light: 185 100% 95%;   /* Fondo suave para badges */
 
-    /* Secondary - Teal medio (#0097A7) */
-    --secondary: 186 100% 33%;       /* #0097A7 del corporativo */
+    /* Secondary - Teal medio (#65A4AF) */
+    --secondary: 186 29% 54%;        /* #65A4AF - Elementos secundarios */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 185 30% 25%;            /* Teal grisáceo oscuro */
-    --muted-foreground: 186 20% 70%; /* Texto gris claro con tono teal */
+    --muted: 0 0% 96%;               /* Gris muy claro para fondos */
+    --muted-foreground: 0 0% 45%;    /* Texto gris medio */
 
     /* Success - Verde oliva (#87A72A) */
-    --success: 72 61% 41%;           /* #87A72A del corporativo */
+    --success: 72 61% 41%;           /* #87A72A */
     --success-foreground: 0 0% 100%;
-    --success-light: 72 61% 25%;
+    --success-light: 72 61% 95%;     /* Fondo verde muy suave */
 
     /* Warning - Naranja (#FFAB40) */
-    --warning: 32 100% 63%;          /* #FFAB40 del corporativo */
-    --warning-foreground: 185 100% 13%;
-    --warning-light: 32 100% 30%;
+    --warning: 32 100% 63%;          /* #FFAB40 */
+    --warning-foreground: 0 0% 15%;
+    --warning-light: 32 100% 95%;    /* Fondo naranja muy suave */
 
     /* Destructive - Rojo */
     --destructive: 0 70% 55%;
     --destructive-foreground: 0 0% 100%;
-    --destructive-light: 0 70% 25%;
+    --destructive-light: 0 70% 95%;
 
-    /* Para navegadores basados en Webkit (Chrome, Edge, Safari) */
+    /* Accent - Cyan (#00CCDF) */
+    --accent: 186 100% 43%;          /* #00CCDF */
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 186 100% 95%;
+
+    /* Borders y inputs - Grises suaves */
+    --border: 0 0% 88%;              /* Borde gris claro (#E0E0E0) */
+    --input: 0 0% 100%;              /* Input blanco */
+    --ring: 185 100% 13%;            /* Ring en teal principal */
+
+    /* Shadows - Suaves y sutiles para tema claro */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -2px hsl(0 0% 0% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 10px 10px -5px hsl(0 0% 0% / 0.04);
+
+    /* Scrollbar claro y sutil */
     ::-webkit-scrollbar {
       width: 12px;
-      background: #21474a; /* Cambia este color para el fondo del scrollbar */
+      background: hsl(0 0% 96%);
     }
     ::-webkit-scrollbar-thumb {
-      background: #365e60; /* Cambia este color para el "pulgar" del scrollbar */
+      background: hsl(0 0% 80%);
       border-radius: 8px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #507e81;
-}
-
-    /* Accent - Cyan (#00CCDF) */
-    --accent: 186 100% 43%;          /* #00CCDF del corporativo */
-    --accent-foreground: 185 100% 13%;
-    --accent-light: 186 100% 25%;
-
-    /* Borders y inputs - Tonos teal oscuros */
-    --border: 185 40% 25%;           /* Bordes visibles pero sutiles */
-    --input: 185 50% 20%;            /* Input más oscuro */
-    --ring: 186 29% 54%;
-
-    /* Gradients - Tonos oscuros corporativos */
-    --gradient-primary: linear-gradient(135deg, hsl(186 29% 54%) 0%, hsl(72 61% 41%) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(185 50% 18%) 0%, hsl(185 40% 20%) 100%);
-
-    /* Shadows - Destacadas sobre fondo oscuro */
-    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.3);
-    --shadow-md: 0 4px 8px -2px hsl(0 0% 0% / 0.4), 0 2px 4px -1px hsl(0 0% 0% / 0.3);
-    --shadow-lg: 0 10px 20px -5px hsl(0 0% 0% / 0.5), 0 4px 8px -2px hsl(0 0% 0% / 0.3);
-    --shadow-xl: 0 20px 30px -8px hsl(0 0% 0% / 0.6), 0 10px 15px -5px hsl(0 0% 0% / 0.4);
+      background: hsl(0 0% 70%);
+    }
 
     --radius: 0.625rem;
 
-    /* Sidebar - Teal más oscuro (#003442) */
-    --sidebar-background: 197 100% 13%; /* #003442 más oscuro */
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 186 29% 54%;
+    /* Sidebar - Teal oscuro corporativo */
+    --sidebar-background: 185 100% 13%; /* #003d42 */
+    --sidebar-foreground: 0 0% 100%;    /* Texto blanco */
+    --sidebar-primary: 186 29% 54%;     /* Teal claro para highlights */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 185 60% 16%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 185 60% 20%;
+    --sidebar-accent: 185 100% 18%;     /* Hover más claro */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 185 100% 18%;
     --sidebar-ring: 186 29% 54%;
   }
 
@@ -154,5 +150,6 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 }

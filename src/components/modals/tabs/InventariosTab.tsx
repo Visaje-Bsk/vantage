@@ -1,202 +1,242 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrdenKanban } from "@/types/kanban";
-import { Package, CheckCircle, AlertCircle, User, Calendar, Wifi, Smartphone, Save } from "lucide-react";
+import { Package, CheckCircle2, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
 interface InventariosTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
 }
 
-export function InventariosTab({ order }: InventariosTabProps) {
-  const [formData, setFormData] = useState({
-    stockValidated: false,
-    assignedResponsible: "",
-    assignmentDate: "",
-    technicalObservations: "",
-    equipmentAssigned: "",
-    serviceAssigned: "",
-    simAssigned: "",
-    planAssigned: "",
-    apnAssigned: "",
-  });
+export function InventariosTab({ order, onUpdateOrder }: InventariosTabProps) {
+  const [stockValidado, setStockValidado] = useState(false);
+  const [observaciones, setObservaciones] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Simular carga inicial para mostrar skeleton
+  useEffect(() => {
+    const loadTabData = async () => {
+      setIsInitialLoading(true);
+
+      // Pequeño delay para mostrar el skeleton (mejor UX)
+      setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 300);
+    };
+
+    loadTabData();
+  }, [order.id_orden_pedido]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('orden_pedido')
+        .update({
+          stock_validado: stockValidado,
+          observaciones_inventarios: observaciones,
+          fecha_modificacion: new Date().toISOString(),
+        })
+        .eq('id_orden_pedido', order.id_orden_pedido);
+
+      if (error) throw error;
+
+      // Registrar en historial si se validó el stock
+      if (stockValidado) {
+        await supabase.from('historial_orden').insert({
+          id_orden_pedido: order.id_orden_pedido,
+          accion_clave: 'stock_validado',
+          fase_anterior: order.fase,
+          fase_nueva: order.fase,
+          observaciones: 'Stock validado y completo',
+        });
+      }
+
+      onUpdateOrder(order.id_orden_pedido, {
+        stock_validado: stockValidado,
+        observaciones_inventarios: observaciones,
+      });
+
+      alert('Cambios guardados exitosamente');
+    } catch (error) {
+      console.error('Error guardando cambios:', error);
+      alert('Error al guardar cambios');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAvanzarProduccion = async () => {
+    if (!stockValidado) {
+      alert('Debe validar el stock completo antes de avanzar a Producción');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('orden_pedido')
+        .update({
+          fase: 'produccion',
+          fecha_modificacion: new Date().toISOString(),
+        })
+        .eq('id_orden_pedido', order.id_orden_pedido);
+
+      if (error) throw error;
+
+      // Registrar avance en historial
+      await supabase.from('historial_orden').insert({
+        id_orden_pedido: order.id_orden_pedido,
+        accion_clave: 'avance_fase',
+        fase_anterior: 'inventarios',
+        fase_nueva: 'produccion',
+        observaciones: 'Stock validado. Orden enviada a Producción',
+      });
+
+      onUpdateOrder(order.id_orden_pedido, { fase: 'produccion' });
+      alert('Orden enviada a Producción exitosamente');
+    } catch (error) {
+      console.error('Error avanzando a Producción:', error);
+      alert('Error al avanzar a Producción');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Mostrar skeleton mientras carga
+  if (isInitialLoading) {
+    return <TabLoadingSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
+
+      {/* Productos de la orden */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Package className="w-5 h-5" />
-            Asignación de Inventarios y Servicios
-          </CardTitle>
+          <CardTitle className="text-base">Productos en la Orden</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Asignación de Equipos/Servicios */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h4 className="font-medium">Asignación de Equipos</h4>
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label>Equipos Asignados</Label>
-                  <Input 
-                    placeholder="Listar equipos asignados..."
-                    value={formData.equipmentAssigned}
-                    onChange={(e) => setFormData(prev => ({ ...prev, equipmentAssigned: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Servicios Asignados</Label>
-                  <Input 
-                    placeholder="Servicios asociados..."
-                    value={formData.serviceAssigned}
-                    onChange={(e) => setFormData(prev => ({ ...prev, serviceAssigned: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="font-medium">Validación de Stock</h4>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 p-3 border rounded-lg">
-                  <CheckCircle className={`w-5 h-5 ${formData.stockValidated ? 'text-success' : 'text-muted-foreground'}`} />
-                  <span className="text-sm">Disponibilidad Validada</span>
-                  <Badge variant={formData.stockValidated ? "default" : "outline"} className="ml-auto">
-                    {formData.stockValidated ? "Completado" : "Pendiente"}
-                  </Badge>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setFormData(prev => ({ ...prev, stockValidated: !prev.stockValidated }))}
-                >
-                  {formData.stockValidated ? "Desmarcar" : "Validar Stock"}
-                </Button>
-              </div>
-            </div>
+        <CardContent>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left p-3">Producto</th>
+                  <th className="text-left p-3">Código</th>
+                  <th className="text-right p-3">Cantidad</th>
+                  <th className="text-right p-3">Valor Unit.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order?.detalles?.map((detalle: any, idx: number) => (
+                  <tr key={idx} className="border-t">
+                    <td className="p-3">{detalle.equipo?.nombre_equipo || 'N/A'}</td>
+                    <td className="p-3">{detalle.equipo?.codigo || 'N/A'}</td>
+                    <td className="text-right p-3">{detalle.cantidad}</td>
+                    <td className="text-right p-3">
+                      ${detalle.valor_unitario?.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+                {(!order?.detalles || order.detalles.length === 0) && (
+                  <tr>
+                    <td colSpan={4} className="p-3 text-center text-muted-foreground">
+                      No hay productos registrados
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-
-          {/* Asignación Técnica */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Smartphone className="w-4 h-4" />
-                Asignación Técnica SIM/Plan/APN
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Wifi className="w-3 h-3" />
-                    SIM Asignado
-                  </Label>
-                  <Input 
-                    placeholder="Número de SIM"
-                    value={formData.simAssigned}
-                    onChange={(e) => setFormData(prev => ({ ...prev, simAssigned: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Plan Asignado</Label>
-                  <Select value={formData.planAssigned} onValueChange={(value) => setFormData(prev => ({ ...prev, planAssigned: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="basico">Plan Básico</SelectItem>
-                      <SelectItem value="premium">Plan Premium</SelectItem>
-                      <SelectItem value="empresarial">Plan Empresarial</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>APN Configurado</Label>
-                  <Input 
-                    placeholder="APN de conexión"
-                    value={formData.apnAssigned}
-                    onChange={(e) => setFormData(prev => ({ ...prev, apnAssigned: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Responsable y Fecha */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Responsable de Asignación
-              </h4>
-              <Select value={formData.assignedResponsible} onValueChange={(value) => setFormData(prev => ({ ...prev, assignedResponsible: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar responsable" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inv1">Inventarios - Juan Pérez</SelectItem>
-                  <SelectItem value="inv2">Inventarios - María García</SelectItem>
-                  <SelectItem value="tec1">Técnico - Carlos Ruiz</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Fecha de Asignación
-              </h4>
-              <Input 
-                type="datetime-local"
-                value={formData.assignmentDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, assignmentDate: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          {/* Observaciones y Bitácora */}
-          <div className="space-y-4">
-            <h4 className="font-medium">Observaciones Técnicas y Estado</h4>
-            <Textarea 
-              placeholder="Observaciones sobre el estado técnico, configuraciones especiales, novedades..."
-              rows={4}
-              value={formData.technicalObservations}
-              onChange={(e) => setFormData(prev => ({ ...prev, technicalObservations: e.target.value }))}
-            />
-          </div>
-
-          {/* Bitácora de Cambios */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Bitácora de Cambios y Novedades</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-                  <strong>15/01/2024 10:30:</strong> Asignación inicial de inventario - Juan Pérez
-                </div>
-                <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-                  <strong>15/01/2024 14:15:</strong> Validación de stock completada - María García
-                </div>
-                <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-                  <strong>16/01/2024 09:00:</strong> Configuración SIM actualizada - Carlos Ruiz
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Button variant="default" className="w-full">
-            <Save className="w-4 h-4 mr-2" />
-            Guardar Asignación de Inventarios
-          </Button>
         </CardContent>
       </Card>
+
+      {/* Checkbox de validación */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start space-x-3 p-4 border rounded-lg bg-muted/30">
+            <Checkbox
+              id="stock-validado"
+              checked={stockValidado}
+              onCheckedChange={(checked) => setStockValidado(checked as boolean)}
+              className="mt-1"
+            />
+            <div className="flex-1">
+              <Label
+                htmlFor="stock-validado"
+                className="text-base font-semibold cursor-pointer flex items-center gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Stock Completo y Validado
+              </Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Confirmo que he realizado el picking físico y que el stock del pedido está completo.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Observaciones */}
+      <div className="space-y-2">
+        <Label htmlFor="observaciones">Observaciones (Opcional)</Label>
+        <Textarea
+          id="observaciones"
+          placeholder="Agregue cualquier observación sobre el inventario..."
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+          rows={4}
+        />
+      </div>
+
+      {/* Validación visual */}
+      {!stockValidado && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Campo Obligatorio</AlertTitle>
+          <AlertDescription>
+            Validación de stock pendiente
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {stockValidado && (
+        <Alert className="border-success/50 bg-success/10">
+          <CheckCircle2 className="h-4 w-4 text-success" />
+          <AlertTitle className="text-success">Validación Completa</AlertTitle>
+          <AlertDescription className="text-success-foreground/80">
+            Stock validado correctamente
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Botones de acción */}
+      <div className="flex gap-3 justify-end pt-4 border-t">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          variant="outline"
+        >
+          Guardar Cambios
+        </Button>
+        <Button
+          onClick={handleAvanzarProduccion}
+          disabled={!stockValidado || saving}
+          className="bg-success hover:bg-success/90"
+        >
+          {stockValidado
+            ? '✓ Enviar a Producción'
+            : '⚠️ Validar Stock para Continuar'}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -213,10 +213,10 @@ export function AppSidebar() {
       side="left"
       variant="sidebar"
       collapsible="icon"
-      className="bg-sidebar border-r"
+      className="bg-sidebar border-r shadow-lg"
     >
       {/* Header con branding mejorado */}
-      <SidebarHeader className="border-b p-6">
+      <SidebarHeader className="border-b border-sidebar-border/50 p-6">
         <div className="flex items-center space-x-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-md">
             <ShoppingCart className="w-5 h-5 text-primary-foreground" />
@@ -224,42 +224,42 @@ export function AppSidebar() {
           {state === "collapsed" ? null : (
             <div className="flex flex-col">
               <h1 className="text-xl font-bold text-sidebar-foreground">Bismark</h1>
-              <p className="text-xs text-muted-foreground font-medium">Órdenes de Pedido</p>
+              <p className="text-xs text-sidebar-foreground/60 font-medium">Órdenes de Pedido</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-4 py-6 ">
+      <SidebarContent className="px-4 py-6">
         {/* Información del usuario mejorada */}
         {state === "collapsed" ? null : profile && (
-          <div className="mb-8 p-4 bg-card rounded-xl shadow-sm border">
+          <div className="mb-6 p-4 bg-white/10 rounded-xl border border-white/10">
             <div className="flex items-center space-x-3">
-              <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+              <Avatar className="h-10 w-10 ring-2 ring-white/20">
                 <AvatarImage src="/placeholder-avatar.jpg" alt={profile.nombre} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                <AvatarFallback className="bg-secondary text-white font-semibold">
                   {getUserInitials(profile.nombre)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2">
-                  <p className="text-sm font-semibold text-card-foreground truncate">
+                  <p className="text-sm font-semibold text-white truncate">
                     {capitalize(profile.nombre)}
                   </p>
                   <Badge
                     variant="secondary"
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${getRoleBadgeColor(profile.role || '')}`}
+                    className="text-xs px-2 py-0.5 rounded-full font-medium bg-white/20 text-white border-0"
                   >
                     {capitalize(profile.role || '')}
                   </Badge>
                 </div>
                 <div className="flex items-center space-x-1 mt-1">
-                  <Clock className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground truncate">
+                  <Clock className="w-3 h-3 text-white/60" />
+                  <p className="text-xs text-white/60 truncate">
                     {formatTime()} • COL
                   </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5 capitalize truncate">
+                <p className="text-xs text-white/50 mt-0.5 capitalize truncate">
                   {formatDate()}
                 </p>
               </div>
@@ -267,13 +267,13 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Menú de navegación mejorado */}
+        {/* Menú de navegación mejorado con tabs blancos */}
         <SidebarGroup>
-          <SidebarGroupLabel className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <SidebarGroupLabel className="px-3 py-2 text-xs font-semibold text-white uppercase tracking-wider mb-2">
             Navegación
           </SidebarGroupLabel>
           <SidebarGroupContent className="mt-2">
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-2">
               {userMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {item.subItems ? (
@@ -283,32 +283,26 @@ export function AppSidebar() {
                     >
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
-                          className={`
-                            w-full justify-between rounded-lg transition-all duration-200
-                            ${isGroupActive(item)
-                              ? 'bg-primary/10 text-primary shadow-sm'
-                              : 'hover:bg-sidebar-accent text-sidebar-foreground'
-                            }
-                          `}
+                          className="w-full justify-between rounded-lg transition-all duration-200 px-3 py-2.5 bg-white/90 text-gray-700 hover:bg-[#0097a7] hover:text-white hover:shadow-md"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className={`p-1 rounded-md ${isGroupActive(item) ? 'text-primary' : 'text-muted-foreground'}`}>
+                            <div className="text-gray-700">
                               {item.icon}
                             </div>
                             {state === "collapsed" ? null : (
-                              <span className="font-medium">{item.title}</span>
+                              <span className="font-medium text-sm text-current">{item.title}</span>
                             )}
                           </div>
                           {state === "collapsed" ? null : (
-                            <div className={`transition-transform duration-200 ${openGroups.includes(item.title) ? 'rotate-0' : '-rotate-90'}`}>
+                            <div className={`transition-transform duration-200 text-current ${openGroups.includes(item.title) ? 'rotate-0' : '-rotate-90'}`}>
                               <ChevronDown className="w-4 h-4" />
                             </div>
                           )}
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       {state === "collapsed" ? null : (
-                        <CollapsibleContent className="mt-1">
-                          <SidebarMenuSub className="ml-4 pl-4 border-l-2 border-border">
+                        <CollapsibleContent className="mt-2">
+                          <SidebarMenuSub className="ml-4 pl-3 space-y-1.5 border-l-2 border-white/20">
                             {item.subItems
                               .filter(subItem => subItem.roles.includes(profile?.role || ''))
                               .map((subItem) => (
@@ -317,17 +311,17 @@ export function AppSidebar() {
                                     <NavLink
                                       to={subItem.href || '#'}
                                       className={({ isActive }) =>
-                                        `flex items-center space-x-3 px-3 py-2 rounded-md transition-all duration-200 ${
+                                        `flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                                           isActive
-                                            ? 'bg-primary/10 text-primary font-medium shadow-sm'
-                                            : 'hover:bg-sidebar-accent text-sidebar-foreground'
+                                            ? 'bg-white text-primary font-semibold shadow-md border-l-4 border-secondary'
+                                            : 'bg-white/80 text-gray-600 hover:bg-[#0097a7] hover:text-white hover:shadow-md'
                                         }`
                                       }
                                     >
-                                      <div className="text-muted-foreground">
+                                      <div className="text-current">
                                         {subItem.icon}
                                       </div>
-                                      <span className="text-sm">{subItem.title}</span>
+                                      <span className="text-sm text-current">{subItem.title}</span>
                                     </NavLink>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
@@ -341,19 +335,19 @@ export function AppSidebar() {
                       <NavLink
                         to={item.href || '#'}
                         className={({ isActive }) =>
-                          `flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 ${
+                          `flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 ${
                             isActive
-                              ? 'bg-primary/10 text-primary font-medium shadow-sm'
-                              : 'hover:bg-sidebar-accent text-sidebar-foreground'
+                              ? 'bg-white text-white font-semibold shadow-md border-l-4 border-secondary'
+                              : 'bg-white/90 text-gray-700 hover:bg-[#0097a7] hover:text-white hover:shadow-md'
                           }`
                         }
                       >
                         <div className="flex items-center space-x-3">
-                          <div className={`p-1 rounded-md ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                          <div className="text-current">
                             {item.icon}
                           </div>
                           {state === "collapsed" ? null : (
-                            <span className="font-medium">{item.title}</span>
+                            <span className="font-medium text-sm text-current">{item.title}</span>
                           )}
                         </div>
                       </NavLink>
@@ -367,15 +361,15 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer mejorado */}
-      <SidebarFooter className="border-t p-4">
+      <SidebarFooter className="border-t border-sidebar-border/50 p-4">
         <Button
           variant="ghost"
           onClick={signOut}
-          className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-lg transition-all duration-200 group"
+          className="w-full justify-start bg-white/90 text-gray-700 hover:bg-destructive hover:text-white rounded-lg transition-all duration-200 group shadow-sm px-3 py-2.5"
         >
-          <LogOut className="w-4 h-4 mr-3 group-hover:text-destructive transition-colors duration-200" />
+          <LogOut className="w-4 h-4 mr-3 transition-colors duration-200" />
           {state === "collapsed" ? null : (
-            <span className="font-medium group-hover:text-destructive">
+            <span className="font-medium text-sm">
               Cerrar Sesión
             </span>
           )}

@@ -52,7 +52,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
           proyecto:proyecto(nombre_proyecto),
           clase_orden:clase_orden(tipo_orden),
           tipo_servicio:tipo_servicio(nombre_tipo_servicio),
-          detalles:detalle_orden(cantidad, valor_unitario)
+          detalles:detalle_orden(cantidad, valor_unitario, equipo:equipo(nombre_equipo, codigo))
         `)
         .order('fecha_modificacion', { ascending: false });
 
@@ -178,7 +178,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
           proyecto:proyecto(nombre_proyecto),
           clase_orden:clase_orden(tipo_orden),
           tipo_servicio:tipo_servicio(nombre_tipo_servicio),
-          detalles:detalle_orden(cantidad, valor_unitario)
+          detalles:detalle_orden(cantidad, valor_unitario, equipo:equipo(nombre_equipo, codigo))
         `)
         .eq('id_orden_pedido', orderId)
         .single();

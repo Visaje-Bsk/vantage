@@ -27,7 +27,6 @@ export interface DespachoFormData {
   nombre_contacto: string;
   telefono_contacto: string;
   email_contacto: string;
-  fecha_despacho: string;
   observaciones: string;
 }
 
@@ -40,7 +39,6 @@ const INITIAL_DESPACHO_FORM: DespachoFormData = {
   nombre_contacto: "",
   telefono_contacto: "",
   email_contacto: "",
-  fecha_despacho: "",
   observaciones: "",
 };
 
@@ -104,7 +102,6 @@ export const useDespachoForm = () => {
         despachoForm.nombre_contacto ||
         despachoForm.telefono_contacto ||
         despachoForm.email_contacto ||
-        despachoForm.fecha_despacho ||
         despachoForm.observaciones
     );
   }, [despachoForm]);

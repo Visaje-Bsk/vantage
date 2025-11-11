@@ -205,7 +205,6 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           nombre_contacto: despachoWithJoins.contacto_despacho?.nombre_contacto || "",
           telefono_contacto: despachoWithJoins.contacto_despacho?.telefono || "",
           email_contacto: despachoWithJoins.contacto_despacho?.email || "",
-          fecha_despacho: despachoData.fecha_despacho || "",
           observaciones: despachoData.observaciones || "",
         });
       } else {
@@ -1109,18 +1108,6 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                         </Select>
                       </div>
 
-                      {/* Fecha */}
-                      <div className="space-y-2">
-                        <Label>
-                          {requiereDireccion ? 'Fecha de Entrega Estimada' : 'Fecha de Recogida'}
-                        </Label>
-                        <Input
-                          type="date"
-                          value={despacho.despachoForm.fecha_despacho}
-                          onChange={(e) => despacho.updateField("fecha_despacho", e.target.value)}
-                        />
-                      </div>
-
                       {/* Campos de Dirección */}
                       {requiereDireccion && (
                         <>
@@ -1249,15 +1236,6 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                           <Label className="text-sm font-medium">Tipo de Despacho</Label>
                           <div className="p-2 bg-muted/30 rounded text-sm">
                             {tipoSeleccionado?.nombre_tipo || "Sin definir"}
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-sm font-medium">
-                            {requiereDireccion ? 'Fecha de Entrega' : 'Fecha de Recogida'}
-                          </Label>
-                          <div className="p-2 bg-muted/30 rounded text-sm">
-                            {despacho.despachoForm.fecha_despacho || "Sin definir"}
                           </div>
                         </div>
 
