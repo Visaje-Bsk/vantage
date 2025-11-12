@@ -70,25 +70,24 @@ export function useDashboardStats() {
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-      // Query para órdenes del mes
-      const { data: ordenesDelMes, error: ordersError } = await supabase
+      // Query para TODAS las órdenes (no solo del mes)
+      const { data: todasLasOrdenes, error: ordersError } = await supabase
         .from('orden_pedido')
-        .select('id_orden_pedido, estatus, fase, fecha_creacion')
-        .gte('fecha_creacion', firstDayOfMonth);
+        .select('id_orden_pedido, estatus, fase, fecha_creacion, fecha_modificacion');
 
       if (ordersError) throw ordersError;
 
       // Calcular métricas
-      const ordenes = ordenesDelMes || [];
+      const ordenes = todasLasOrdenes || [];
 
       // Órdenes activas: abierta o enviada
       const ordenesActivas = ordenes.filter(
         o => o.estatus === 'abierta' || o.estatus === 'enviada'
       ).length;
 
-      // Completadas hoy: cerradas hoy
+      // Completadas hoy: cerradas cuya última modificación fue hoy
       const completadasHoy = ordenes.filter(
-        o => o.estatus === 'cerrada' && o.fecha_creacion >= today
+        o => o.estatus === 'cerrada' && o.fecha_modificacion && o.fecha_modificacion >= today
       ).length;
 
       // Pendientes: borradores
@@ -119,11 +118,17 @@ export function useDashboardStats() {
       // Archivadas (cerradas + anuladas)
       const archivadas = cerradas + anuladas;
 
-      // Total del mes
-      const totalMes = ordenes.length;
+      // Total del mes (solo las creadas este mes)
+      const totalMes = ordenes.filter(
+        o => o.fecha_creacion >= firstDayOfMonth
+      ).length;
 
-      // Órdenes por fase
-      const ordenesPorFase = ordenes.reduce((acc, orden) => {
+      // Órdenes por fase (solo activas: no cerradas ni anuladas)
+      const ordenesActivasPorFase = ordenes.filter(
+        o => o.estatus !== 'cerrada' && o.estatus !== 'anulada'
+      );
+
+      const ordenesPorFase = ordenesActivasPorFase.reduce((acc, orden) => {
         acc[orden.fase] = (acc[orden.fase] || 0) + 1;
         return acc;
       }, {} as Record<FaseOrden, number>);
