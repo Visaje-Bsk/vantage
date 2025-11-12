@@ -26,11 +26,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
   const EMPTY_COLUMNS = useMemo<KanbanColumnType[]>(
-    () => 
+    () =>
       (Object.keys(STAGE_UI) as OrdenStageUI[]).map((key) => ({
         id: key,
         title: STAGE_UI[key].label,
         color: STAGE_UI[key].color,
+        bgColor: STAGE_UI[key].bgColor,
+        borderColor: STAGE_UI[key].borderColor,
         orders: [],
         description: "",
       })),
@@ -92,10 +94,18 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
     }
   };
 
+  // Función helper para determinar si una orden está activa (no archivada)
+  const isActiveOrder = (order: OrdenKanban): boolean => {
+    return order.estatus !== 'cerrada' && order.estatus !== 'anulada';
+  };
+
   const applyIntoColumns = (allOrders: OrdenKanban[]) => {
+    // 0) Filtrar solo órdenes activas (excluir cerradas y anuladas del Kanban)
+    const activeOrders = allOrders.filter(isActiveOrder);
+
     // 1) Filtrado por búsqueda (consecutivo, cliente, proyecto, fechas)
     let filtered = searchTerm
-      ? allOrders.filter((o) => {
+      ? activeOrders.filter((o) => {
           const t = searchTerm.toLowerCase();
 
           // Buscar en consecutivo
@@ -132,7 +142,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
 
           return consecutivoMatch || clienteMatch || proyectoMatch || fechaCreacionMatch || fechaModificacionMatch || fechaFormateadaMatch;
         })
-      : allOrders;
+      : activeOrders;
 
     // 2) Filtrado por estatus
     if (statusFilter !== 'all') {
@@ -248,19 +258,25 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
             <div key={column.id} className="w-[340px] flex-shrink-0 h-full">
               {/* Header de columna estilo moderno */}
               <div className="flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4 px-2">
-                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    {column.title}
+                {/* Panel header moderno con gradiente y sombra */}
+                <div className={`${column.bgColor} border-l-4 ${column.borderColor} rounded-lg shadow-sm mb-4 p-4`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`${column.color} rounded-lg px-3 py-1.5 shadow-sm`}>
+                        <h3 className="text-sm font-bold tracking-wide">
+                          {column.title}
+                        </h3>
+                      </div>
+                    </div>
                     <Badge
-                      variant="secondary"
-                      className="rounded-full h-6 min-w-[24px] px-2 bg-muted/50 text-foreground border-0"
+                      className={`${column.color} rounded-full h-7 min-w-[28px] px-2.5 font-semibold shadow-sm`}
                     >
                       {column.orders.length}
                     </Badge>
-                  </h3>
+                  </div>
                 </div>
 
-                {/* Cards container con borde superior coloreado */}
+                {/* Cards container */}
                 <ScrollArea className="flex-1 pr-2">
                   <div className="space-y-3">
                     {column.orders.map((order) => (

@@ -9,6 +9,7 @@ import CatalogManagement from '@/components/admin/CatalogManagement';
 import PermissionMatrix from '@/components/admin/PermissionMatrix';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface Profile {
   user_id: string;
@@ -143,8 +144,9 @@ export default function Admin() {
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4 justify-between">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger className="h-8 w-8 flex-shrink-0" />
               <Settings className="w-8 h-8 text-primary" />
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Panel de Administración</h1>

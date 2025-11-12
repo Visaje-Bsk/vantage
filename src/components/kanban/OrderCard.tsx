@@ -55,14 +55,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, columnColor }) => {
     fetchCreatedByName();
   }, [order?.created_by]);
 
-  const accentColor = statusConfig?.color || '#6366f1';
-
   return (
     <Card className="group relative overflow-hidden border border-border/40 bg-card hover:bg-card/80 shadow-md hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-      {/* Barra superior coloreada */}
+      {/* Barra superior coloreada según fase */}
       <div
-        className="absolute top-0 left-0 right-0 h-1 transition-all duration-300"
-        style={{ backgroundColor: accentColor }}
+        className={`absolute top-0 left-0 right-0 h-1.5 transition-all duration-300 ${columnColor || 'bg-primary'}`}
       />
 
       <CardContent className="p-4 pt-5">
@@ -72,12 +69,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, columnColor }) => {
             #{(order.consecutivo_code ?? order.consecutivo) || 'Sin consecutivo'}
           </h3>
           <Badge
-            variant="secondary"
-            className="text-xs font-medium px-2.5 py-0.5 rounded-md border-0"
-            style={{
-              backgroundColor: accentColor,
-              color: 'white'
-            }}
+            className={`text-xs font-medium px-2.5 py-0.5 rounded-md border-0 ${statusConfig?.color || 'bg-muted text-muted-foreground'}`}
           >
             {statusConfig?.label || order.estatus || 'Sin estado'}
           </Badge>

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import KanbanBoard from '@/components/kanban/KanbanBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Archive } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusFilter, StatusFilterValue } from '@/components/kanban/StatusFilter';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
   Select,
   SelectContent,
@@ -26,6 +28,9 @@ const Ordenes: React.FC = () => {
       {/* Header oscuro estilo Acme Inc. */}
       <div className="flex-none border-b border-border/40 bg-card/60 backdrop-blur-sm px-6 py-3.5 shadow-md">
         <div className="flex items-center gap-4">
+          {/* Botón toggle sidebar */}
+          <SidebarTrigger className="h-8 w-8 flex-shrink-0" />
+
           {/* Barra de búsqueda y navegación estilo tabs */}
           <div className="flex-1 flex items-center gap-3">
             <div className="relative w-full max-w-lg">

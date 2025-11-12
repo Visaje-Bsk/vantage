@@ -153,3 +153,19 @@ All colors MUST be HSL.
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 }
+
+@layer utilities {
+  /* Animación de progreso para barra de auto-cierre */
+  @keyframes progress {
+    from {
+      width: 0%;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  .animate-progress {
+    animation: progress 3s linear forwards;
+  }
+}

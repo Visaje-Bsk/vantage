@@ -11,7 +11,7 @@
  * - Última fase del flujo Kanban
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,9 +19,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrdenKanban } from "@/types/kanban";
-import { CreditCard, CheckCircle2, AlertCircle, FileCheck, Lock } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
+import { ConfirmationDialog } from "../ConfirmationDialog";
+import { SuccessModal } from "../SuccessModal";
+import { toast } from "sonner";
 
 interface FinancieraTabProps {
   order: OrdenKanban;
@@ -30,133 +32,61 @@ interface FinancieraTabProps {
 
 export function FinancieraTab({ order, onUpdateOrder }: FinancieraTabProps) {
   const [pagoConfirmado, setPagoConfirmado] = useState(false);
-  const [observacionesFinancieras, setObservacionesFinancieras] = useState("");
+  const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-
-  // Cargar datos iniciales del tab
-  useEffect(() => {
-    const loadTabData = async () => {
-      setIsInitialLoading(true);
-
-      try {
-        // Cargar datos financieros si existen
-        const { data: ordenData, error: ordenError } = await supabase
-          .from("orden_pedido")
-          .select("pago_confirmado, observaciones_financieras")
-          .eq("id_orden_pedido", order.id_orden_pedido)
-          .single();
-
-        if (!ordenError && ordenData) {
-          setPagoConfirmado(ordenData.pago_confirmado || false);
-          setObservacionesFinancieras(ordenData.observaciones_financieras || "");
-        }
-      } catch (error) {
-        console.error("Error cargando datos del tab:", error);
-      } finally {
-        setTimeout(() => {
-          setIsInitialLoading(false);
-        }, 300);
-      }
-    };
-
-    loadTabData();
-  }, [order.id_orden_pedido]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const canClose = pagoConfirmado;
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      // Actualizar datos financieros en orden_pedido
-      const { error } = await supabase
-        .from('orden_pedido')
-        .update({
-          pago_confirmado: pagoConfirmado,
-          observaciones_financieras: observacionesFinancieras,
-          fecha_modificacion: new Date().toISOString(),
-        })
-        .eq('id_orden_pedido', order.id_orden_pedido);
-
-      if (error) throw error;
-
-      // Registrar en historial
-      if (pagoConfirmado) {
-        await supabase.from('historial_orden').insert({
-          id_orden_pedido: order.id_orden_pedido,
-          accion_clave: 'pago_confirmado',
-          fase_anterior: order.fase,
-          fase_nueva: order.fase,
-          observaciones: 'Pago confirmado por Financiera',
-        });
-      }
-
-      onUpdateOrder(order.id_orden_pedido, {
-        pago_confirmado: pagoConfirmado,
-        observaciones_financieras: observacionesFinancieras,
-      });
-
-      alert('Cambios guardados exitosamente');
-    } catch (error) {
-      console.error('Error guardando cambios:', error);
-      alert('Error al guardar cambios');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCerrarOrden = async () => {
+  const handleCerrarOrden = () => {
     if (!canClose) {
-      alert('Debe confirmar el pago antes de cerrar la orden');
+      toast.error('Debe confirmar el pago antes de cerrar la orden');
       return;
     }
+    setShowConfirmDialog(true);
+  };
 
-    const confirmacion = confirm(
-      '¿Está seguro de cerrar esta orden?\n\nEsta acción marcará la orden como CERRADA.'
-    );
-
-    if (!confirmacion) return;
-
+  const handleConfirmCerrarOrden = async () => {
+    setShowConfirmDialog(false);
     setSaving(true);
+
     try {
-      // Guardar confirmación de pago
-      await supabase
+      // Cambiar estatus a cerrada
+      const { error: updateError } = await supabase
         .from('orden_pedido')
         .update({
-          pago_confirmado: pagoConfirmado,
-          observaciones_financieras: observacionesFinancieras,
           estatus: 'cerrada',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
 
-      // Registrar cierre en historial
+      if (updateError) throw updateError;
+
+      // Registrar cierre en historial con observaciones
       await supabase.from('historial_orden').insert({
         id_orden_pedido: order.id_orden_pedido,
         accion_clave: 'orden_cerrada',
         fase_anterior: 'financiera',
         fase_nueva: 'financiera',
-        observaciones: 'Orden cerrada definitivamente.',
+        observaciones: observaciones
+          ? `Orden cerrada definitivamente. Observaciones: ${observaciones}`
+          : 'Orden cerrada definitivamente. Pago confirmado.',
       });
 
       onUpdateOrder(order.id_orden_pedido, {
         estatus: 'cerrada',
-        pago_confirmado: true,
       });
 
-      alert('Orden cerrada exitosamente');
+      // Mostrar modal de éxito
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error cerrando orden:', error);
-      alert('Error al cerrar la orden');
+      toast.error('Error al cerrar la orden');
     } finally {
       setSaving(false);
     }
   };
-
-  // Mostrar skeleton mientras carga
-  if (isInitialLoading) {
-    return <TabLoadingSkeleton />;
-  }
 
   return (
     <div className="space-y-6">
@@ -195,11 +125,14 @@ export function FinancieraTab({ order, onUpdateOrder }: FinancieraTabProps) {
         <Label htmlFor="observaciones-financieras">Observaciones (Opcional)</Label>
         <Textarea
           id="observaciones-financieras"
-          placeholder="Detalles del pago, forma de pago, referencia bancaria..."
-          value={observacionesFinancieras}
-          onChange={(e) => setObservacionesFinancieras(e.target.value)}
+          placeholder="Detalles del pago, forma de pago, referencia bancaria, notas adicionales..."
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
           rows={4}
         />
+        <p className="text-xs text-muted-foreground">
+          Estas observaciones se guardarán en el historial de la orden
+        </p>
       </div>
 
       {/* Validación visual para cierre */}
@@ -226,22 +159,36 @@ export function FinancieraTab({ order, onUpdateOrder }: FinancieraTabProps) {
       {/* Botones de acción */}
       <div className="flex gap-3 justify-end pt-4 border-t">
         <Button
-          onClick={handleSave}
-          disabled={saving}
-          variant="outline"
-        >
-          Guardar Cambios
-        </Button>
-        <Button
           onClick={handleCerrarOrden}
           disabled={!canClose || saving}
           className="bg-success hover:bg-success/90"
         >
           {canClose
             ? 'Cerrar Orden'
-            : 'Confirmar Pago'}
+            : 'Confirmar Pago Primero'}
         </Button>
       </div>
+
+      {/* Modal de confirmación */}
+      <ConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmCerrarOrden}
+        title="¿Cerrar esta orden?"
+        description="Esta acción marcará la orden como CERRADA. Esta es la etapa final del flujo y la orden desaparecerá del tablero Kanban. Podrá consultarla en el historial."
+        confirmText="Sí, cerrar orden"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
+
+      {/* Modal de éxito */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="¡Orden Cerrada!"
+        message={`La orden #${order.consecutivo || order.id_orden_pedido} ha sido cerrada exitosamente. El proceso ha finalizado.`}
+        autoCloseDuration={3500}
+      />
     </div>
   );
 }

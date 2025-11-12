@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { 
   STAGE_UI, 
   UI_TO_FASE, 
@@ -17,14 +19,15 @@ import {
 } from "@/types/kanban";
 import type { Database } from "@/integrations/supabase/types";
 type AppRole = Database["public"]["Enums"]["app_role"];
-import { 
-  Building2, 
-  User, 
-  Calendar, 
+import {
+  Building2,
+  User,
+  Calendar,
   ArrowRight,
   FileText,
   Tag,
-  Clock
+  Clock,
+  XCircle
 } from "lucide-react";
 import { ComercialTab } from "./tabs/ComercialTab";
 import { InventariosTab } from "./tabs/InventariosTab";
@@ -75,6 +78,8 @@ export function OrderModal({
   const [createdByName, setCreatedByName] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showAnularConfirm, setShowAnularConfirm] = useState(false);
+  const [razonAnulacion, setRazonAnulacion] = useState("");
 
   const uiTabFromFase = (fase: FaseOrdenDB): OrdenStageUI => {
     const entry = (Object.entries(UI_TO_FASE) as [OrdenStageUI, FaseOrdenDB][])
@@ -128,6 +133,55 @@ export function OrderModal({
     onClose();
   };
 
+  const handleAnularOrden = async () => {
+    if (!order || !razonAnulacion.trim()) {
+      toast({
+        title: "Error",
+        description: "Debe proporcionar una razón para anular la orden",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Cambiar estatus a anulada
+      const { error: updateError } = await supabase
+        .from('orden_pedido')
+        .update({ estatus: 'anulada' })
+        .eq('id_orden_pedido', order.id_orden_pedido);
+
+      if (updateError) throw updateError;
+
+      // Registrar en historial
+      await supabase.from('historial_orden').insert({
+        id_orden_pedido: order.id_orden_pedido,
+        accion_clave: 'orden_anulada',
+        fase_anterior: order.fase,
+        fase_nueva: order.fase,
+        observaciones: `Orden anulada por admin. Razón: ${razonAnulacion}`,
+      });
+
+      onUpdateOrder(order.id_orden_pedido, { estatus: 'anulada' });
+
+      toast({
+        title: "Orden anulada",
+        description: "La orden ha sido anulada exitosamente",
+        variant: "default"
+      });
+
+      setShowAnularConfirm(false);
+      setRazonAnulacion("");
+      onClose();
+    } catch (error) {
+      console.error('Error anulando orden:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo anular la orden",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleAdvanceStage = async () => {
     if (!order) return;
     
@@ -174,11 +228,13 @@ export function OrderModal({
 
   if (!order) return null;
 
-  const stageMeta = STAGE_UI[activeTab];
+  // Usar la fase real de la orden (no el tab activo) para el badge
+  const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
+  const stageMeta = STAGE_UI[currentFaseUI];
   const estMeta = estatusBadge[order.estatus];
 
   // Calcular si la orden fue actualizada
-  const wasUpdated = order.fecha_modificacion && order.fecha_creacion && 
+  const wasUpdated = order.fecha_modificacion && order.fecha_creacion &&
     new Date(order.fecha_modificacion).getTime() !== new Date(order.fecha_creacion).getTime();
 
   return (
@@ -199,32 +255,44 @@ export function OrderModal({
             }
           }}
         >
-          {/* Header mejorado */}
-          <DialogHeader className="border-b bg-muted/30 px-6 py-5 space-y-4">
-            {/* Primera fila: Título, badges */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <DialogTitle className="text-2xl font-bold">
-                  Orden #{order.consecutivo || order.id_orden_pedido}
-                </DialogTitle>
-                <Badge 
-                  className={cn(
-                    "text-white font-medium px-3 py-1",
-                    stageMeta.color
-                  )}
-                >
-                  {stageMeta.label}
-                </Badge>
-                <Badge 
-                  className={cn(
-                    "font-medium px-3 py-1",
-                    estMeta.color
-                  )}
-                >
-                  {estMeta.label}
-                </Badge>
+          {/* Header mejorado con borde de fase */}
+          <div className={`border-l-8 ${stageMeta.borderColor}`}>
+            <DialogHeader className={`${stageMeta.bgColor} px-6 py-5 space-y-4`}>
+              {/* Primera fila: Título, badges */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <DialogTitle className="text-2xl font-bold">
+                    Orden #{order.consecutivo || order.id_orden_pedido}
+                  </DialogTitle>
+                  {/* Badge de fase con diseño moderno */}
+                  <div className={`${stageMeta.color} rounded-lg px-4 py-2 shadow-md`}>
+                    <span className="text-sm font-bold tracking-wide">
+                      {stageMeta.label}
+                    </span>
+                  </div>
+                  {/* Badge de estatus */}
+                  <Badge
+                    className={cn(
+                      "font-medium px-3 py-1.5 shadow-sm",
+                      estMeta.color
+                    )}
+                  >
+                    {estMeta.label}
+                  </Badge>
+                </div>
+                {/* Botón de anular (solo admin y órdenes no cerradas/anuladas) */}
+                {isAdmin && order.estatus !== 'cerrada' && order.estatus !== 'anulada' && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowAnularConfirm(true)}
+                    className="ml-auto"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Anular Orden
+                  </Button>
+                )}
               </div>
-            </div>
 
             <Separator />
 
@@ -319,7 +387,8 @@ export function OrderModal({
                 </div>
               )}
             </div>
-          </DialogHeader>
+            </DialogHeader>
+          </div>
 
           {/* Contenido con tabs FIJOS y contenido SCROLLEABLE */}
           <div className="flex-1 overflow-hidden flex flex-col">
@@ -408,7 +477,7 @@ export function OrderModal({
         </DialogContent>
       </Dialog>
 
-      {/* Modal de confirmación */}
+      {/* Modal de confirmación de cierre */}
       <ConfirmationDialog
         open={showCloseConfirm}
         onOpenChange={setShowCloseConfirm}
@@ -420,6 +489,49 @@ export function OrderModal({
         onConfirm={confirmClose}
         onCancel={() => setShowCloseConfirm(false)}
       />
+
+      {/* Modal de anulación de orden */}
+      <Dialog open={showAnularConfirm} onOpenChange={setShowAnularConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Anular Orden #{order?.consecutivo || order?.id_orden_pedido}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Esta acción cambiará el estatus de la orden a <strong>"anulada"</strong> y la orden desaparecerá del tablero Kanban.
+              Podrá consultarla en el historial de órdenes archivadas.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="razon-anulacion">
+                Razón de anulación <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="razon-anulacion"
+                placeholder="Explica por qué se está anulando esta orden..."
+                value={razonAnulacion}
+                onChange={(e) => setRazonAnulacion(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => {
+              setShowAnularConfirm(false);
+              setRazonAnulacion("");
+            }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleAnularOrden}
+              disabled={!razonAnulacion.trim()}
+            >
+              Sí, anular orden
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

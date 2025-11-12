@@ -11,6 +11,12 @@ interface DashboardStats {
   pendientes: number;
   totalMes: number;
   ordenesPorFase: Record<FaseOrden, number>;
+  // Nuevos contadores por estatus
+  facturadas: number;
+  enviadas: number;
+  cerradas: number;
+  anuladas: number;
+  archivadas: number; // cerradas + anuladas
   loading: boolean;
   error: Error | null;
 }
@@ -40,6 +46,11 @@ export function useDashboardStats() {
       facturacion: 0,
       financiera: 0,
     },
+    facturadas: 0,
+    enviadas: 0,
+    cerradas: 0,
+    anuladas: 0,
+    archivadas: 0,
     loading: true,
     error: null,
   });
@@ -84,6 +95,29 @@ export function useDashboardStats() {
       const pendientes = ordenes.filter(
         o => o.estatus === 'borrador'
       ).length;
+
+      // Facturadas
+      const facturadas = ordenes.filter(
+        o => o.estatus === 'facturada'
+      ).length;
+
+      // Enviadas
+      const enviadas = ordenes.filter(
+        o => o.estatus === 'enviada'
+      ).length;
+
+      // Cerradas
+      const cerradas = ordenes.filter(
+        o => o.estatus === 'cerrada'
+      ).length;
+
+      // Anuladas
+      const anuladas = ordenes.filter(
+        o => o.estatus === 'anulada'
+      ).length;
+
+      // Archivadas (cerradas + anuladas)
+      const archivadas = cerradas + anuladas;
 
       // Total del mes
       const totalMes = ordenes.length;
@@ -140,6 +174,11 @@ export function useDashboardStats() {
         pendientes,
         totalMes,
         ordenesPorFase,
+        facturadas,
+        enviadas,
+        cerradas,
+        anuladas,
+        archivadas,
         loading: false,
         error: null,
       });

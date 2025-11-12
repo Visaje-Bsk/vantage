@@ -209,11 +209,12 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
 
       if (remisionError) throw remisionError;
 
-      // Avanzar fase
+      // Avanzar fase y cambiar estatus a 'enviada'
       const { error } = await supabase
         .from('orden_pedido')
         .update({
           fase: 'facturacion',
+          estatus: 'enviada',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
@@ -226,11 +227,14 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
         accion_clave: 'avance_fase',
         fase_anterior: 'logistica',
         fase_nueva: 'facturacion',
-        observaciones: `RF-8 completado: Valor flete $${valorFlete}. Orden lista para facturación. Guía: ${numeroGuia}, Remisión: ${numeroRemision}`,
+        observaciones: `RF-8 completado: Valor flete $${valorFlete}. Orden DESPACHADA (estatus → enviada). Guía: ${numeroGuia}, Remisión: ${numeroRemision}`,
       });
 
-      onUpdateOrder(order.id_orden_pedido, { fase: 'facturacion' });
-      alert('Orden enviada a Facturación exitosamente');
+      onUpdateOrder(order.id_orden_pedido, {
+        fase: 'facturacion',
+        estatus: 'enviada'
+      });
+      alert('Orden despachada y enviada a Facturación exitosamente');
     } catch (error) {
       console.error('Error avanzando a Facturación:', error);
       alert('Error al avanzar a Facturación');

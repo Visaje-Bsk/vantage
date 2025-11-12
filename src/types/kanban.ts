@@ -41,14 +41,44 @@ export const faseDbToUi = (fase: FaseOrdenDB): OrdenStageUI => FASE_TO_UI[fase];
 /** Config visual por columna UI (label y color) */
 export const STAGE_UI: Record<
   OrdenStageUI,
-  { label: string; color: string }
+  { label: string; color: string; bgColor: string; borderColor: string; icon?: any }
 > = {
-  comercial: { label: "Comercial",                color: "bg-accent text-accent-foreground" },
-  inventarios: { label: "Inventarios", color: "bg-warning text-warning-foreground" },
-  produccion: { label: "Producción",              color: "bg-accent text-accent-foreground" },
-  logistica:  { label: "Logística",               color: "bg-success text-success-foreground" },
-  facturacion:{ label: "Facturación",             color: "bg-secondary text-secondary-foreground" },
-  financiera: { label: "Financiera",              color: "bg-primary text-primary-foreground" },
+  comercial: {
+    label: "Comercial",
+    color: "bg-red-500 text-white",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-500"
+  },
+  inventarios: {
+    label: "Inventarios",
+    color: "bg-yellow-500 text-white",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-500"
+  },
+  produccion: {
+    label: "Producción",
+    color: "bg-cyan-400 text-white",
+    bgColor: "bg-cyan-50",
+    borderColor: "border-cyan-400"
+  },
+  logistica: {
+    label: "Logística",
+    color: "bg-green-700 text-white",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-700"
+  },
+  facturacion: {
+    label: "Facturación",
+    color: "bg-blue-900 text-white",
+    bgColor: "bg-blue-50",
+    borderColor: "border-blue-900"
+  },
+  financiera: {
+    label: "Financiera",
+    color: "bg-purple-600 text-white",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-600"
+  },
 };
 
 /** Badge visual por estatus (ciclo de vida) */
@@ -117,6 +147,8 @@ export interface KanbanColumnType {
   title: string;
   description: string;
   color: string;
+  bgColor?: string;
+  borderColor?: string;
   orders: OrdenKanban[];
 }
 

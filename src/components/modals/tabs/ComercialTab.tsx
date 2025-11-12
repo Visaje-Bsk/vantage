@@ -485,9 +485,40 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       products.clearDeletedIds();
       services.clearDeletedIds();
 
+      // Verificar si la orden debe cambiar de estatus: borrador → abierta
+      // Condición: tiene cliente, ingeniero asignado y al menos un producto/servicio
+      const isOrderComplete =
+        form.formData.id_cliente &&
+        responsable.selectedResponsable &&
+        (products.productLines.some(line => line.selectedEquipo) ||
+         services.serviceLines.some(line => line.operadorId));
+
+      let newEstatus = order.estatus;
+      if (order.estatus === 'borrador' && isOrderComplete) {
+        // Cambiar estatus a 'abierta'
+        const { error: estatusError } = await supabase
+          .from('orden_pedido')
+          .update({ estatus: 'abierta' })
+          .eq('id_orden_pedido', order.id_orden_pedido);
+
+        if (!estatusError) {
+          newEstatus = 'abierta';
+          // Registrar en historial
+          await supabase.from('historial_orden').insert({
+            id_orden_pedido: order.id_orden_pedido,
+            accion_clave: 'estatus_actualizado',
+            fase_anterior: order.fase,
+            fase_nueva: order.fase,
+            observaciones: 'Orden completada y activada. Estatus cambiado de "borrador" a "abierta".',
+          });
+          toast.success('Orden activada correctamente');
+        }
+      }
+
       // Actualizar UI local
       onUpdateOrder(order.id_orden_pedido, {
         fecha_modificacion: new Date().toISOString(),
+        estatus: newEstatus,
       });
 
       // Recargar detalle

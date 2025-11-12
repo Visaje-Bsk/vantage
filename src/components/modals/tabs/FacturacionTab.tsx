@@ -145,11 +145,12 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
 
       if (facturaError) throw facturaError;
 
-      // Avanzar fase
+      // Avanzar fase y cambiar estatus a 'facturada'
       const { error } = await supabase
         .from('orden_pedido')
         .update({
           fase: 'financiera',
+          estatus: 'facturada',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
@@ -162,11 +163,14 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
         accion_clave: 'avance_fase',
         fase_anterior: 'facturacion',
         fase_nueva: 'financiera',
-        observaciones: `Facturación completada. Factura: ${numeroFactura} (${monedaBase}). Orden enviada a Financiera`,
+        observaciones: `Facturación completada. Factura: ${numeroFactura} (${monedaBase}). Orden FACTURADA (estatus → facturada).`,
       });
 
-      onUpdateOrder(order.id_orden_pedido, { fase: 'financiera' });
-      alert('Orden enviada a Financiera exitosamente');
+      onUpdateOrder(order.id_orden_pedido, {
+        fase: 'financiera',
+        estatus: 'facturada'
+      });
+      alert('Factura emitida y orden enviada a Financiera exitosamente');
     } catch (error) {
       console.error('Error avanzando a Financiera:', error);
       alert('Error al avanzar a Financiera');

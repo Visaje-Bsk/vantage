@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Link } from 'react-router-dom';
 import {
   TrendingUp,
   ShoppingCart,
@@ -13,7 +14,11 @@ import {
   Users,
   BarChart3,
   Activity,
-  RefreshCw
+  RefreshCw,
+  Send,
+  Receipt,
+  XCircle,
+  Archive
 } from 'lucide-react';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { Button } from '@/components/ui/button';
@@ -58,6 +63,11 @@ export default function Dashboard() {
     pendientes,
     totalMes,
     ordenesPorFase,
+    facturadas,
+    enviadas,
+    cerradas,
+    anuladas,
+    archivadas,
     actividadReciente,
     loading,
     error,
@@ -214,6 +224,56 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Resumen por Estatus */}
+      <Card className="border-0 shadow-md">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            Resumen por Estatus
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="flex flex-col items-center justify-center p-4 bg-blue-500/5 rounded-lg border border-blue-500/20">
+                <Send className="w-5 h-5 text-blue-500 mb-2" />
+                <span className="text-xs text-muted-foreground mb-1">Enviadas</span>
+                <span className="text-xl font-bold text-blue-500">{enviadas}</span>
+              </div>
+              <div className="flex flex-col items-center justify-center p-4 bg-purple-500/5 rounded-lg border border-purple-500/20">
+                <Receipt className="w-5 h-5 text-purple-500 mb-2" />
+                <span className="text-xs text-muted-foreground mb-1">Facturadas</span>
+                <span className="text-xl font-bold text-purple-500">{facturadas}</span>
+              </div>
+              <div className="flex flex-col items-center justify-center p-4 bg-success/5 rounded-lg border border-success/20">
+                <CheckCircle className="w-5 h-5 text-success mb-2" />
+                <span className="text-xs text-muted-foreground mb-1">Cerradas</span>
+                <span className="text-xl font-bold text-success">{cerradas}</span>
+              </div>
+              <div className="flex flex-col items-center justify-center p-4 bg-destructive/5 rounded-lg border border-destructive/20">
+                <XCircle className="w-5 h-5 text-destructive mb-2" />
+                <span className="text-xs text-muted-foreground mb-1">Anuladas</span>
+                <span className="text-xl font-bold text-destructive">{anuladas}</span>
+              </div>
+              <Link to="/ordenes/historial" className="transition-transform hover:scale-105">
+                <div className="flex flex-col items-center justify-center p-4 bg-muted/50 rounded-lg border border-muted hover:bg-muted/70 cursor-pointer">
+                  <Archive className="w-5 h-5 text-muted-foreground mb-2" />
+                  <span className="text-xs text-muted-foreground mb-1">Archivadas</span>
+                  <span className="text-xl font-bold text-foreground">{archivadas}</span>
+                  <span className="text-[10px] text-muted-foreground mt-1">Ver historial →</span>
+                </div>
+              </Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Resumen por Fase */}
       <Card className="border-0 shadow-md">

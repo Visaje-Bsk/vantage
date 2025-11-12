@@ -280,6 +280,9 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
         id_tipo_servicio: formData.id_tipo_servicio ? parseInt(formData.id_tipo_servicio) : null,
         orden_compra: formData.orden_compra || null,
         observaciones_orden: formData.observaciones_orden || null,
+        // Establecer estatus y fase inicial
+        estatus: 'borrador' as const,
+        fase: 'comercial' as const,
       };
 
       const { data: order, error: orderError } = await supabase
