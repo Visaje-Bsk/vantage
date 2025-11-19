@@ -47,19 +47,19 @@ export const STAGE_UI: Record<
     label: "Comercial",
     color: "bg-red-500 text-white",
     bgColor: "bg-red-50",
-    borderColor: "border-red-500"
+    borderColor: "border-red-700"
   },
   inventarios: {
     label: "Inventarios",
     color: "bg-yellow-500 text-white",
     bgColor: "bg-yellow-50",
-    borderColor: "border-yellow-500"
+    borderColor: "border-yellow-600"
   },
   produccion: {
     label: "Producción",
     color: "bg-cyan-400 text-white",
     bgColor: "bg-cyan-50",
-    borderColor: "border-cyan-400"
+    borderColor: "border-cyan-500"
   },
   logistica: {
     label: "Logística",
@@ -75,9 +75,9 @@ export const STAGE_UI: Record<
   },
   financiera: {
     label: "Financiera",
-    color: "bg-purple-600 text-white",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-600"
+    color: "bg-yellow-600 text-white",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-500"
   },
 };
 

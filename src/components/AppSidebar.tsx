@@ -27,6 +27,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface MenuItem {
   title: string;
@@ -117,8 +127,14 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const { formatDate, formatTime } = useDateTime();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const currentPath = location.pathname;
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(false);
+    signOut();
+  };
 
   // Función para determinar si un link está activo
   const isLinkActive = (href: string) => {
@@ -254,7 +270,7 @@ export function AppSidebar() {
         <SidebarTrigger className={`${state === "collapsed" ? "w-12 h-12 p-0" : "w-full h-10"} bg-white/90 text-gray-700 hover:bg-primary hover:text-white rounded-lg transition-all duration-200 shadow-sm flex items-center justify-center`} />
         <Button
           variant="ghost"
-          onClick={signOut}
+          onClick={() => setShowLogoutConfirm(true)}
           className={`${state === "collapsed" ? "w-12 h-12 p-0" : "w-full py-2.5 px-3 justify-start"} bg-white/90 text-gray-700 hover:bg-destructive hover:text-white rounded-lg transition-all duration-200 group shadow-sm flex items-center justify-center`}
         >
           <LogOut className={`${state === "collapsed" ? "w-5 h-5" : "w-4 h-4"} transition-colors duration-200 ${state === "collapsed" ? "" : "mr-3"}`} />
@@ -265,6 +281,27 @@ export function AppSidebar() {
           )}
         </Button>
       </SidebarFooter>
+
+      {/* Modal de confirmación de logout */}
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sesión?</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro que deseas cerrar sesión? Tendrás que volver a iniciar sesión para acceder al sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Sí, cerrar sesión
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }

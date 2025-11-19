@@ -847,7 +847,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 </div>
               ))}
                   <Button variant="outline" size="sm" onClick={handleAddProductLine}>
-                    <Plus className="w-4 h-4 mr-2" /> Agregar Línea
+                    <Plus className="w-4 h-4 mr-2" /> Agregar Equipo
                   </Button>
 
                   <CardHeader

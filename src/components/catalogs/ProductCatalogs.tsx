@@ -45,10 +45,9 @@ const productCatalogConfigs: CatalogConfig[] = [
     table: 'lineaservicio',
     icon: <Settings className="w-5 h-5" />,
     fields: [
-      { key: 'id_linea_detalle', label: 'ID', type: 'number' },
-      { key: 'id_operador', label: 'Operador ID', type: 'number' },
-      { key: 'id_plan', label: 'Plan ID', type: 'number' },
-      { key: 'id_apn', label: 'APN ID', type: 'number' },
+      { key: 'operador_nombre', label: 'Operador', type: 'text' },
+      { key: 'plan_nombre', label: 'Plan', type: 'text' },
+      { key: 'apn_nombre', label: 'APN', type: 'text' },
       { key: 'clase_cobro', label: 'Clase de Cobro', type: 'text' },
       { key: 'permanencia', label: 'Permanencia', type: 'text' }
     ],
@@ -57,8 +56,8 @@ const productCatalogConfigs: CatalogConfig[] = [
       { key: 'id_plan', label: 'Plan', type: 'select', required: true, options: [] },
       { key: 'id_apn', label: 'APN', type: 'select', required: true, options: [] },
       { key: 'clase_cobro', label: 'Clase de Cobro', type: 'select', required: false, options: [
-        { value: 'prepago', label: 'Prepago' },
-        { value: 'pospago', label: 'Pospago' }
+        { value: 'mensual', label: 'Mensual' },
+        { value: 'anual', label: 'Anual' }
       ]},
       { key: 'permanencia', label: 'Permanencia', type: 'text', required: false }
     ],
@@ -134,10 +133,45 @@ export default function ProductCatalogs() {
   });
 
   useEffect(() => {
+    // Cargar catálogos relacionados necesarios para los formularios
+    loadRelatedCatalogs();
+
+    // Cargar catálogos visibles
     visibleCatalogs.forEach(config => {
       loadCatalogData(config.key, config.table);
     });
   }, [visibleCatalogs.length]);
+
+  const loadRelatedCatalogs = async () => {
+    try {
+      // Cargar operadores para el select
+      const { data: operadores } = await supabase
+        .from('operador')
+        .select('*')
+        .order('nombre_operador', { ascending: true });
+
+      // Cargar planes para el select
+      const { data: planes } = await supabase
+        .from('plan')
+        .select('*')
+        .order('nombre_plan', { ascending: true });
+
+      // Cargar APNs para el select
+      const { data: apns } = await supabase
+        .from('apn')
+        .select('*')
+        .order('apn', { ascending: true });
+
+      setCatalogData(prev => ({
+        ...prev,
+        operador: operadores || [],
+        plan: planes || [],
+        apn: apns || []
+      }));
+    } catch (error) {
+      console.error('Error loading related catalogs:', error);
+    }
+  };
 
   const loadCatalogData = async (key: string, table: string) => {
     setLoading(prev => ({ ...prev, [key]: true }));
@@ -151,7 +185,15 @@ export default function ProductCatalogs() {
           query = supabase.from('equipo').select('*').order('id_equipo', { ascending: true });
           break;
         case 'lineaservicio':
-          query = supabase.from('linea_servicio').select('*').order('id_linea_detalle', { ascending: true });
+          query = supabase
+            .from('linea_servicio')
+            .select(`
+              *,
+              operador:id_operador(nombre_operador),
+              plan:id_plan(nombre_plan),
+              apn:id_apn(apn)
+            `)
+            .order('id_linea_detalle', { ascending: true });
           break;
         case 'servicio':
           query = supabase.from('servicio').select('*').order('id_servicio', { ascending: true });
@@ -166,7 +208,18 @@ export default function ProductCatalogs() {
       const { data, error } = await query;
       if (error) throw error;
 
-      setCatalogData(prev => ({ ...prev, [key]: data || [] }));
+      // Transform lineaservicio data to flatten nested objects
+      let transformedData = data;
+      if (table === 'lineaservicio' && data) {
+        transformedData = data.map((item: any) => ({
+          ...item,
+          operador_nombre: item.operador?.nombre_operador || 'N/A',
+          plan_nombre: item.plan?.nombre_plan || 'N/A',
+          apn_nombre: item.apn?.apn || 'N/A'
+        }));
+      }
+
+      setCatalogData(prev => ({ ...prev, [key]: transformedData || [] }));
     } catch (error) {
       console.error(`Error loading ${key}:`, error);
       toast.error(`Error cargando ${key}`);

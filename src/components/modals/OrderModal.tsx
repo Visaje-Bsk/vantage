@@ -184,14 +184,17 @@ export function OrderModal({
 
   const handleAdvanceStage = async () => {
     if (!order) return;
-    
-    const nextFase = NEXT_FASE[activeTab];
+
+    // Usar la fase REAL de la orden, no el tab activo
+    const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
+    const nextFase = NEXT_FASE[currentFaseUI];
     if (!nextFase) return;
-    
-    if (!canUserEditFase(UI_TO_FASE[activeTab])) {
+
+    // Validar permisos sobre la fase ACTUAL de la orden
+    if (!canUserEditFase(order.fase as FaseOrdenDB)) {
       toast({
         title: "Acceso denegado",
-        description: "No tienes permiso para avanzar a esta etapa.",
+        description: "No tienes permiso para avanzar esta orden desde su fase actual.",
         variant: "destructive"
       });
       return;
@@ -258,35 +261,33 @@ export function OrderModal({
           {/* Header mejorado con borde de fase */}
           <div className={`border-l-8 ${stageMeta.borderColor}`}>
             <DialogHeader className={`${stageMeta.bgColor} px-6 py-5 space-y-4`}>
-              {/* Primera fila: Título, badges */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <DialogTitle className="text-2xl font-bold">
-                    Orden #{order.consecutivo || order.id_orden_pedido}
-                  </DialogTitle>
-                  {/* Badge de fase con diseño moderno */}
-                  <div className={`${stageMeta.color} rounded-lg px-4 py-2 shadow-md`}>
-                    <span className="text-sm font-bold tracking-wide">
-                      {stageMeta.label}
-                    </span>
-                  </div>
-                  {/* Badge de estatus */}
-                  <Badge
-                    className={cn(
-                      "font-medium px-3 py-1.5 shadow-sm",
-                      estMeta.color
-                    )}
-                  >
-                    {estMeta.label}
-                  </Badge>
+              {/* Primera fila: Título, badges y botón anular */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <DialogTitle className="text-2xl font-bold">
+                  Orden #{order.consecutivo || order.id_orden_pedido}
+                </DialogTitle>
+                {/* Badge de fase con diseño moderno */}
+                <div className={`${stageMeta.color} rounded-lg px-4 py-2 shadow-md`}>
+                  <span className="text-sm font-bold tracking-wide">
+                    {stageMeta.label}
+                  </span>
                 </div>
+                {/* Badge de estatus */}
+                <Badge
+                  className={cn(
+                    "font-medium px-3 py-1.5 shadow-sm",
+                    estMeta.color
+                  )}
+                >
+                  {estMeta.label}
+                </Badge>
                 {/* Botón de anular (solo admin y órdenes no cerradas/anuladas) */}
                 {isAdmin && order.estatus !== 'cerrada' && order.estatus !== 'anulada' && (
                   <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => setShowAnularConfirm(true)}
-                    className="ml-auto"
+                    className="ml-2"
                   >
                     <XCircle className="w-4 h-4 mr-2" />
                     Anular Orden
@@ -422,9 +423,9 @@ export function OrderModal({
                 })}
               </TabsList>
 
-              {/* Contenido SCROLLEABLE - Igual al código original */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
-                <TabsContent value="comercial" className="mt-0">
+              {/* Contenido SCROLLEABLE con fondo gris */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 bg-black/10 border-radius ">
+                <TabsContent value="comercial" className="mt-4">
                   <ComercialTab
                     order={order}
                     onUpdateOrder={onUpdateOrder}
@@ -432,46 +433,52 @@ export function OrderModal({
                     onUnsavedChangesChange={setHasUnsavedChanges}
                   />
                 </TabsContent>
-                
-                <TabsContent value="inventarios" className="mt-0">
+
+                <TabsContent value="inventarios" className="mt-4">
                   <InventariosTab order={order} onUpdateOrder={onUpdateOrder} />
                 </TabsContent>
-                
-                <TabsContent value="produccion" className="mt-0">
+
+                <TabsContent value="produccion" className="mt-4">
                   <ProduccionTab order={order} onUpdateOrder={onUpdateOrder} />
                 </TabsContent>
-                
-                <TabsContent value="logistica" className="mt-0">
+
+                <TabsContent value="logistica" className="mt-4">
                   <LogisticaTab order={order} onUpdateOrder={onUpdateOrder} />
                 </TabsContent>
-                
-                <TabsContent value="facturacion" className="mt-0">
+
+                <TabsContent value="facturacion" className="mt-4">
                   <FacturacionTab order={order} onUpdateOrder={onUpdateOrder} />
                 </TabsContent>
                 
-                <TabsContent value="financiera" className="mt-0">
+                <TabsContent value="financiera" className="mt-4">
                   <FinancieraTab order={order} onUpdateOrder={onUpdateOrder} />
                 </TabsContent>
               </div>
 
-              {/* Footer con botón de avanzar - FIJO al fondo */}
-              {NEXT_FASE[activeTab] && canUserEditFase(UI_TO_FASE[activeTab]) && (
-                <div className="border-t bg-background px-6 py-4 shrink-0">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="text-sm text-muted-foreground">
-                      ¿Completaste todas las tareas de esta etapa?
+              {/* Footer con botón de avanzar - FIJO al fondo - USA FASE REAL DE LA ORDEN */}
+              {(() => {
+                const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
+                const nextFase = NEXT_FASE[currentFaseUI];
+                const canAdvance = nextFase && canUserEditFase(order.fase as FaseOrdenDB);
+
+                return canAdvance ? (
+                  <div className="border-t bg-background px-6 py-4 shrink-0">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="text-sm text-muted-foreground">
+                        ¿Completaste todas las tareas de <strong>{STAGE_UI[currentFaseUI].label}</strong>?
+                      </div>
+                      <Button
+                        onClick={handleAdvanceStage}
+                        size="lg"
+                        className="gap-2 shadow-sm"
+                      >
+                        Avanzar a {STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}
+                        <ArrowRight className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button 
-                      onClick={handleAdvanceStage} 
-                      size="lg"
-                      className="gap-2 shadow-sm"
-                    >
-                      Avanzar a {STAGE_UI[uiTabFromFase(NEXT_FASE[activeTab] as FaseOrdenDB)].label}
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
             </Tabs>
           </div>
         </DialogContent>

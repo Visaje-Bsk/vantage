@@ -97,7 +97,20 @@ export default function GenericCatalogList({
 
   const renderCellValue = (value: any, field: CatalogField) => {
     if (value === null || value === undefined) return '-';
-    
+
+    // Clase de cobro con badge
+    if (field.key === 'clase_cobro' && value) {
+      const colorMap: Record<string, 'default' | 'secondary'> = {
+        'mensual': 'default',
+        'anual': 'secondary'
+      };
+      return (
+        <Badge variant={colorMap[value] || 'outline'}>
+          {value.charAt(0).toUpperCase() + value.slice(1)}
+        </Badge>
+      );
+    }
+
     switch (field.type) {
       case 'boolean':
         return (

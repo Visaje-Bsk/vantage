@@ -250,6 +250,29 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Remisión - Arriba de la información de despacho */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Remisión
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="numero-remision" className="flex items-center gap-2">
+              Número de Remisión <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="numero-remision"
+              placeholder="REM-2024-001234"
+              value={numeroRemision}
+              onChange={(e) => setNumeroRemision(e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Despacho y Flete */}
       <Card>
         <CardHeader>
@@ -342,29 +365,6 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
               value={observacionesLogistica}
               onChange={(e) => setObservacionesLogistica(e.target.value)}
               rows={3}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Remisión */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Remisión
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="numero-remision" className="flex items-center gap-2">
-              Número de Remisión <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="numero-remision"
-              placeholder="REM-2024-001234"
-              value={numeroRemision}
-              onChange={(e) => setNumeroRemision(e.target.value)}
             />
           </div>
         </CardContent>

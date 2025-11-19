@@ -107,11 +107,11 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
     telefono_contacto: '',
     email_contacto: '',
     id_transportadora: '',
-    fecha_entrega: '',
   });
 
   const [selectedComercial, setSelectedComercial] = useState<string>('');
-  
+  const [comerciales, setComerciales] = useState<Array<{ user_id: string; label: string; role: AppRole }>>([]);
+  const [selectedComercialAdicional, setSelectedComercialAdicional] = useState<string>('');
 
   // Money formatter
   const formatterCOP = new Intl.NumberFormat('es-CO', {
@@ -155,9 +155,9 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       telefono_contacto: '',
       email_contacto: '',
       id_transportadora: '',
-      fecha_entrega: '',
     });
     setSelectedComercial('');
+    setSelectedComercialAdicional('');
   };
 
   const loadInitialData = async () => {
@@ -182,6 +182,23 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
       setAsignables(
         (comercialesData ?? []).map((u: ProfileRow) => ({
+          user_id: u.user_id,
+          label: u.nombre ?? u.username ?? '(sin nombre)',
+          role: u.role as AppRole,
+        }))
+      );
+
+      // Cargar comerciales para asignar comercial adicional
+      const { data: comercialesListData, error: comListErr } = await supabase
+        .from('profiles')
+        .select('user_id, nombre, username, role')
+        .eq('role', 'comercial' as AppRole)
+        .order('nombre', { ascending: true, nullsFirst: false })
+        .order('username', { ascending: true });
+      if (comListErr) throw comListErr;
+
+      setComerciales(
+        (comercialesListData ?? []).map((u: ProfileRow) => ({
           user_id: u.user_id,
           label: u.nombre ?? u.username ?? '(sin nombre)',
           role: u.role as AppRole,
@@ -315,6 +332,22 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
         }
       }
 
+      // Create comercial adicional if selected
+      if (selectedComercialAdicional) {
+        const { error: comercialAdicionalError } = await supabase
+          .from('responsable_orden')
+          .insert({
+            id_orden_pedido: orderId,
+            user_id: selectedComercialAdicional,
+            role: 'comercial' as AppRole,
+          });
+
+        if (comercialAdicionalError) {
+          console.error('Error creating comercial adicional:', comercialAdicionalError);
+          // Don't fail the entire operation, just log the error
+        }
+      }
+
       // Create dispatch information if tipo_despacho is selected
       if (formData.id_tipo_despacho) {
         const tipoSeleccionado = tiposDespacho.find(t => t.id_tipo_despacho.toString() === formData.id_tipo_despacho);
@@ -371,7 +404,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
             id_direccion: id_direccion,
             id_contacto: id_contacto,
             id_transportadora: despachoData.id_transportadora ? parseInt(despachoData.id_transportadora) : null,
-            fecha_despacho: despachoData.fecha_entrega || null,
+            fecha_despacho: null, // Se diligencia en la etapa de logística
           })
           .select('id_despacho_orden')
           .single();
@@ -460,20 +493,38 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Ingeniero asignado</Label>
-                <Select value={selectedComercial} onValueChange={setSelectedComercial}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar usuario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {asignables.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Ingeniero asignado</Label>
+                  <Select value={selectedComercial} onValueChange={setSelectedComercial}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar usuario" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {asignables.map((u) => (
+                        <SelectItem key={u.user_id} value={u.user_id}>
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Comercial adicional</Label>
+                  <Select value={selectedComercialAdicional} onValueChange={setSelectedComercialAdicional}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar comercial (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {comerciales.map((u) => (
+                        <SelectItem key={u.user_id} value={u.user_id}>
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -602,23 +653,6 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Fecha de Entrega/Despacho - SIEMPRE se muestra */}
-                  <div className="space-y-2">
-                    <Label>
-                      {requiereDireccion ? 'Fecha de Entrega Estimada' : 'Fecha de Recogida'}
-                    </Label>
-                    <Input
-                      type="date"
-                      value={despachoData.fecha_entrega}
-                      onChange={(e) => setDespachoData(prev => ({ ...prev, fecha_entrega: e.target.value }))}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {requiereDireccion
-                        ? 'Fecha estimada en la que se realizará la entrega'
-                        : 'Fecha acordada para que el cliente recoja el pedido'
-                      }
-                    </p>
-                  </div>
                   {/* Campos de Dirección - solo si requiere_direccion es true */}
                   {requiereDireccion && (
                     <>
