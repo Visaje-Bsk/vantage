@@ -38,9 +38,6 @@ type EstadoValidacionPago = "cupo" | "cancelado" | "mora" | "na" | "ok" | "";
 type MedioPago = "no_aplica" | "debito_ach_pse" | "efectivo" | "consignacion_bancaria" |
   "transferencia_debito_interbancario" | "transferencia_debito_bancaria" |
   "tarjeta_credito" | "tarjeta_debito" | "giro_referenciado" | "otro" | "";
-type CondicionesPago = "backup" | "contado" | "credito_15_dias" | "credito_20_dias" |
-  "credito_30_dias" | "credito_60_dias" | "credito_90_dias" | "credito_express" |
-  "garantia" | "legalizacion" | "prestamo" | "reposicion" | "";
 type PagoFlete = "no_aplica" | "pago_contraentrega" | "paga_bismark_factura_cliente" | "flete_costo_negocio" | "";
 
 // Interfaz para el tipo de pago del catálogo
@@ -73,21 +70,6 @@ const MEDIO_PAGO_OPTIONS: { value: MedioPago; label: string }[] = [
   { value: "otro", label: "ZZZ-Otro" },
 ];
 
-const CONDICIONES_PAGO_OPTIONS: { value: CondicionesPago; label: string }[] = [
-  { value: "backup", label: "Backup" },
-  { value: "contado", label: "Contado" },
-  { value: "credito_15_dias", label: "Crédito 15 Días" },
-  { value: "credito_20_dias", label: "Crédito 20 Días" },
-  { value: "credito_30_dias", label: "Crédito 30 Días" },
-  { value: "credito_60_dias", label: "Crédito 60 Días" },
-  { value: "credito_90_dias", label: "Crédito 90 Días" },
-  { value: "credito_express", label: "Crédito Express" },
-  { value: "garantia", label: "Garantía" },
-  { value: "legalizacion", label: "Legalización" },
-  { value: "prestamo", label: "Préstamo" },
-  { value: "reposicion", label: "Reposición" },
-];
-
 const PAGO_FLETE_OPTIONS: { value: PagoFlete; label: string }[] = [
   { value: "no_aplica", label: "No Aplica" },
   { value: "pago_contraentrega", label: "Pago Contraentrega" },
@@ -104,7 +86,7 @@ interface FinancieraTabProps {
 interface FinancieraInitialState {
   estadoValidacionPago: EstadoValidacionPago;
   medioPago: MedioPago;
-  condicionesPago: CondicionesPago;
+  idTipoPago: string;
   pagoFlete: PagoFlete;
   observaciones: string;
 }
@@ -112,43 +94,62 @@ interface FinancieraInitialState {
 export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: FinancieraTabProps) {
   const [estadoValidacionPago, setEstadoValidacionPago] = useState<EstadoValidacionPago>("");
   const [medioPago, setMedioPago] = useState<MedioPago>("");
-  const [condicionesPago, setCondicionesPago] = useState<CondicionesPago>("");
+  const [idTipoPago, setIdTipoPago] = useState<string>("");
   const [pagoFlete, setPagoFlete] = useState<PagoFlete>("");
   const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
+  // Catálogo de tipos de pago
+  const [tiposPago, setTiposPago] = useState<TipoPago[]>([]);
+
   // Estado inicial para detectar cambios
   const [initialState, setInitialState] = useState<FinancieraInitialState | null>(null);
 
-  // Cargar datos iniciales
+  // Cargar catálogo de tipos de pago
+  useEffect(() => {
+    const loadTiposPago = async () => {
+      const { data, error } = await supabase
+        .from("tipo_pago")
+        .select("id_tipo_pago, forma_pago, plazo, aprobado_cartera")
+        .order("id_tipo_pago", { ascending: true });
+
+      if (!error && data) {
+        setTiposPago(data);
+      }
+    };
+
+    loadTiposPago();
+  }, []);
+
+  // Cargar datos iniciales de la orden
   useEffect(() => {
     const loadTabData = async () => {
       setIsInitialLoading(true);
       try {
         const { data: ordenData, error } = await supabase
           .from("orden_pedido")
-          .select("estatus, observaciones_orden")
+          .select("estado_validacion_pago, medio_pago, id_tipo_pago, pago_flete, observaciones_financieras")
           .eq("id_orden_pedido", order.id_orden_pedido)
           .single();
 
         if (!error && ordenData) {
-          const loadedEstado = ordenData.estatus === 'facturada' ? 'confirmado' : '';
-          const loadedMedio = "";
-          const loadedCondiciones = "";
-          const loadedPagoFlete = "";
-          const loadedObservaciones = ordenData.observaciones_orden || "";
+          const loadedEstado = (ordenData.estado_validacion_pago || "") as EstadoValidacionPago;
+          const loadedMedio = (ordenData.medio_pago || "") as MedioPago;
+          const loadedIdTipoPago = ordenData.id_tipo_pago ? String(ordenData.id_tipo_pago) : "";
+          const loadedPagoFlete = (ordenData.pago_flete || "") as PagoFlete;
+          const loadedObservaciones = ordenData.observaciones_financieras || "";
 
           setEstadoValidacionPago(loadedEstado);
           setMedioPago(loadedMedio);
-          setCondicionesPago(loadedCondiciones);
+          setIdTipoPago(loadedIdTipoPago);
           setPagoFlete(loadedPagoFlete);
           setObservaciones(loadedObservaciones);
 
           setInitialState({
             estadoValidacionPago: loadedEstado,
             medioPago: loadedMedio,
-            condicionesPago: loadedCondiciones,
+            idTipoPago: loadedIdTipoPago,
             pagoFlete: loadedPagoFlete,
             observaciones: loadedObservaciones,
           });
@@ -156,7 +157,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
           setInitialState({
             estadoValidacionPago: "",
             medioPago: "",
-            condicionesPago: "",
+            idTipoPago: "",
             pagoFlete: "",
             observaciones: "",
           });
@@ -166,7 +167,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
         setInitialState({
           estadoValidacionPago: "",
           medioPago: "",
-          condicionesPago: "",
+          idTipoPago: "",
           pagoFlete: "",
           observaciones: "",
         });
@@ -185,22 +186,22 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
     const hasChanges =
       estadoValidacionPago !== initialState.estadoValidacionPago ||
       medioPago !== initialState.medioPago ||
-      condicionesPago !== initialState.condicionesPago ||
+      idTipoPago !== initialState.idTipoPago ||
       pagoFlete !== initialState.pagoFlete ||
       observaciones !== initialState.observaciones;
 
     onDirtyChange?.(hasChanges);
-  }, [estadoValidacionPago, medioPago, condicionesPago, pagoFlete, observaciones, initialState, onDirtyChange]);
+  }, [estadoValidacionPago, medioPago, idTipoPago, pagoFlete, observaciones, initialState, onDirtyChange]);
 
   // Solo puede avanzar si el estado de validación es OK o N/A
   const canAdvance = estadoValidacionPago === "ok" || estadoValidacionPago === "na";
 
   // Validación de campos obligatorios para guardar
-  const canSave = estadoValidacionPago !== "" && medioPago !== "" && condicionesPago !== "";
+  const canSave = estadoValidacionPago !== "" && medioPago !== "" && idTipoPago !== "";
 
   const handleSave = async () => {
     if (!canSave) {
-      toast.error('Complete los campos obligatorios: Estado de validación, Medio de pago y Condiciones de pago');
+      toast.error('Complete los campos obligatorios: Estado de validación, Medio de pago y Tipo de pago');
       return;
     }
 
@@ -211,7 +212,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
         .update({
           estado_validacion_pago: estadoValidacionPago || null,
           medio_pago: medioPago || null,
-          condiciones_pago: condicionesPago || null,
+          id_tipo_pago: idTipoPago ? parseInt(idTipoPago) : null,
           pago_flete: pagoFlete || null,
           observaciones_financieras: observaciones,
           fecha_modificacion: new Date().toISOString(),
@@ -223,7 +224,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
       setInitialState({
         estadoValidacionPago,
         medioPago,
-        condicionesPago,
+        idTipoPago,
         pagoFlete,
         observaciones,
       });
@@ -256,7 +257,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
         .update({
           estado_validacion_pago: estadoValidacionPago || null,
           medio_pago: medioPago || null,
-          condiciones_pago: condicionesPago || null,
+          id_tipo_pago: idTipoPago ? parseInt(idTipoPago) : null,
           pago_flete: pagoFlete || null,
           observaciones_financieras: observaciones,
           fase: 'facturacion',
@@ -269,7 +270,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
       setInitialState({
         estadoValidacionPago,
         medioPago,
-        condicionesPago,
+        idTipoPago,
         pagoFlete,
         observaciones,
       });
@@ -357,30 +358,30 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
         </CardContent>
       </Card>
 
-      {/* Condiciones de Pago */}
+      {/* Tipo de Pago */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Condiciones de Pago
+            <Banknote className="h-4 w-4" />
+            Tipo de Pago
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="condiciones-pago" className="flex items-center gap-2">
-              Condiciones de Pago <span className="text-destructive">*</span>
+            <Label htmlFor="tipo-pago" className="flex items-center gap-2">
+              Tipo de Pago <span className="text-destructive">*</span>
             </Label>
             <Select
-              value={condicionesPago}
-              onValueChange={(value) => setCondicionesPago(value as CondicionesPago)}
+              value={idTipoPago}
+              onValueChange={(value) => setIdTipoPago(value)}
             >
-              <SelectTrigger id="condiciones-pago">
-                <SelectValue placeholder="Seleccionar condiciones" />
+              <SelectTrigger id="tipo-pago">
+                <SelectValue placeholder="Seleccionar tipo de pago" />
               </SelectTrigger>
               <SelectContent>
-                {CONDICIONES_PAGO_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                {tiposPago.map((tipo) => (
+                  <SelectItem key={tipo.id_tipo_pago} value={String(tipo.id_tipo_pago)}>
+                    {tipo.forma_pago}{tipo.plazo ? ` (${tipo.plazo})` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -448,7 +449,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Campos Obligatorios</AlertTitle>
           <AlertDescription>
-            Complete: Estado de validación, Medio de pago y Condiciones de pago
+            Complete: Estado de validación, Medio de pago y Tipo de pago
           </AlertDescription>
         </Alert>
       )}

@@ -6,9 +6,8 @@
  */
 
 import React from 'react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import { ValidationError, ValidationSeverity } from '@/types/dataGates';
 import { cn } from '@/lib/utils';
 
@@ -20,7 +19,7 @@ interface DataGateAlertProps {
 }
 
 /**
- * Componente principal de alerta
+ * Componente principal de alerta - Diseño compacto y moderno
  */
 export const DataGateAlert: React.FC<DataGateAlertProps> = ({
   errors,
@@ -28,17 +27,9 @@ export const DataGateAlert: React.FC<DataGateAlertProps> = ({
   phaseName,
   className,
 }) => {
-  // Si puede avanzar, mostrar mensaje de éxito
-  if (canAdvance) {
-    return (
-      <Alert className={cn('border-success/50 bg-success/10', className)}>
-        <CheckCircle2 className="h-5 w-5 text-success" />
-        <AlertTitle className="text-success">Fase {phaseName} Completa</AlertTitle>
-        <AlertDescription className="text-success-foreground/80">
-          ✓ Todos los campos obligatorios están completos. Puede avanzar a la siguiente fase.
-        </AlertDescription>
-      </Alert>
-    );
+  // Si no hay errores y puede avanzar, no mostrar nada (más limpio)
+  if (canAdvance && errors.length === 0) {
+    return null;
   }
 
   // Agrupar errores por severidad
@@ -46,75 +37,62 @@ export const DataGateAlert: React.FC<DataGateAlertProps> = ({
   const regularErrors = errors.filter(e => e.severity === 'error');
   const warnings = errors.filter(e => e.severity === 'warning');
 
+  const allRequiredErrors = [...criticalErrors, ...regularErrors];
+
+  // Si no hay errores, no mostrar nada
+  if (allRequiredErrors.length === 0 && warnings.length === 0) {
+    return null;
+  }
+
   return (
-    <div className={cn('space-y-3', className)}>
-      {/* Errores Críticos */}
-      {criticalErrors.length > 0 && (
-        <Alert variant="destructive" className="border-destructive bg-destructive/10">
-          <XCircle className="h-5 w-5" />
-          <AlertTitle className="flex items-center gap-2">
-            Campos Críticos Faltantes
-            <Badge variant="destructive" className="text-xs">
-              {criticalErrors.length}
-            </Badge>
-          </AlertTitle>
-          <AlertDescription>
-            <p className="mb-2 text-sm">
-              Los siguientes campos son <strong>OBLIGATORIOS</strong> para avanzar:
+    <div className={cn('mb-4', className)}>
+      {/* Errores requeridos - Diseño compacto tipo banner */}
+      {allRequiredErrors.length > 0 && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Campos requeridos para continuar:
             </p>
-            <ul className="list-disc pl-5 space-y-1">
-              {criticalErrors.map((error, idx) => (
-                <li key={idx} className="text-sm">
-                  <strong>{error.message}</strong>
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Errores Regulares */}
-      {regularErrors.length > 0 && (
-        <Alert className="border-warning/50 bg-warning/10">
-          <AlertCircle className="h-5 w-5 text-warning" />
-          <AlertTitle className="flex items-center gap-2 text-warning">
-            Campos Obligatorios Faltantes
-            <Badge variant="secondary" className="text-xs bg-warning/20 text-warning">
-              {regularErrors.length}
-            </Badge>
-          </AlertTitle>
-          <AlertDescription className="text-warning-foreground/80">
-            <ul className="list-disc pl-5 space-y-1">
-              {regularErrors.map((error, idx) => (
-                <li key={idx} className="text-sm">
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {allRequiredErrors.map((error, idx) => (
+                <Badge
+                  key={idx}
+                  variant="outline"
+                  className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700"
+                >
                   {error.message}
-                </li>
+                </Badge>
               ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* Advertencias */}
+      {/* Advertencias - Solo si hay */}
       {warnings.length > 0 && (
-        <Alert className="border-muted bg-muted/30">
-          <AlertTriangle className="h-5 w-5 text-muted-foreground" />
-          <AlertTitle className="flex items-center gap-2 text-muted-foreground">
-            Advertencias
-            <Badge variant="outline" className="text-xs">
-              {warnings.length}
-            </Badge>
-          </AlertTitle>
-          <AlertDescription className="text-muted-foreground">
-            <ul className="list-disc pl-5 space-y-1">
+        <div className={cn(
+          "flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700",
+          allRequiredErrors.length > 0 && "mt-2"
+        )}>
+          <AlertTriangle className="h-4 w-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              Sugerencias:
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
               {warnings.map((error, idx) => (
-                <li key={idx} className="text-sm">
+                <Badge
+                  key={idx}
+                  variant="outline"
+                  className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600"
+                >
                   {error.message}
-                </li>
+                </Badge>
               ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

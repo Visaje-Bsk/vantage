@@ -23,6 +23,11 @@ import { Settings, CheckCircle2, AlertCircle, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
+// Data Gates
+import { useDataGateValidation } from "@/hooks/useDataGateValidation";
+import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
+import type { FaseOrdenDB } from "@/types/kanban";
+
 interface ProduccionTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
@@ -37,6 +42,17 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
 
   // Estado inicial para detectar cambios
   const [initialState, setInitialState] = useState<{ observaciones: string; numeroProduccion: string } | null>(null);
+
+  // Hooks de Data Gates
+  const dataGateValidation = useDataGateValidation({
+    order: {
+      ...order,
+      observaciones_produccion: observaciones,
+      numero_produccion: numeroProduccion,
+    },
+    currentPhase: 'produccion' as FaseOrdenDB,
+  });
+
 
   // Detectar cambios comparando con estado inicial
   useEffect(() => {
@@ -187,6 +203,13 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
             Orden de Producción
           </CardTitle>
         </CardHeader>
+        
+        {/* Data Gates Validation */}
+        <DataGateAlert 
+          errors={dataGateValidation.errors}
+          canAdvance={dataGateValidation.canAdvance}
+          phaseName="Producción"
+        />
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="numero-produccion" className="flex items-center gap-2">
@@ -241,7 +264,7 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
       <div className="flex gap-3 justify-end pt-4 border-t">
         <Button
           onClick={handleSave}
-          disabled={saving || !canAdvance}
+          disabled={saving}
           variant="outline"
         >
           Guardar Cambios
@@ -251,9 +274,7 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
           disabled={!canAdvance || saving}
           className="bg-success hover:bg-success/90"
         >
-          {canAdvance
-            ? '✓ Enviar a Financiera'
-            : '⚠️ Completar Campos Obligatorios'}
+          {canAdvance ? 'Enviar a Financiera' : 'Completar Campos'}
         </Button>
       </div>
     </div>

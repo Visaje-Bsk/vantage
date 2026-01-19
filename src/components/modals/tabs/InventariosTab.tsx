@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
 // Data Gates
-import { useDataGateValidation, useDataGateStatus } from "@/hooks/useDataGateValidation";
+import { useDataGateValidation } from "@/hooks/useDataGateValidation";
 import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
 import type { FaseOrdenDB } from "@/types/kanban";
 
@@ -40,14 +40,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
     currentPhase: 'inventarios' as FaseOrdenDB,
   });
 
-  const dataGateStatus = useDataGateStatus({
-    order: {
-      ...order,
-      stock_validado: stockValidado,
-      observaciones_inventarios: observaciones,
-    },
-    currentPhase: 'inventarios' as FaseOrdenDB,
-  });
 
   // Detectar cambios comparando con estado inicial
   useEffect(() => {
@@ -292,13 +284,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
 
       {/* Botones de acción */}
       <div className="flex gap-3 justify-end pt-4 border-t">
-        {/* Indicador de estado Data Gate */}
-        <DataGateStatus 
-          canAdvance={dataGateValidation.canAdvance}
-          errorCount={dataGateValidation.errors.length}
-          className="text-xs mb-3"
-        />
-        
         <Button
           onClick={handleSave}
           disabled={saving}
@@ -312,8 +297,8 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
           className="bg-success hover:bg-success/90"
         >
           {stockValidado
-            ? '✓ Enviar a Producción'
-            : '⚠️ Validar Stock para Continuar'}
+            ? 'Enviar a Producción'
+            : 'Validar Stock para Continuar'}
         </Button>
       </div>
     </div>
