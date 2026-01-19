@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OrdenKanban } from "@/types/kanban";
-import { Truck, DollarSign, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { Truck, DollarSign, FileText, CheckCircle2, AlertCircle, Calendar, ClipboardList } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 import { ConfirmationDialog } from "../ConfirmationDialog";
@@ -47,6 +47,8 @@ interface LogisticaInitialState {
   fechaDespacho: string;
   observacionesLogistica: string;
   numeroRemision: string;
+  fechaEntregaCliente: string;
+  observacionesProceso: string;
 }
 
 export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaTabProps) {
@@ -59,6 +61,10 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
 
   // Estado para remision
   const [numeroRemision, setNumeroRemision] = useState("");
+
+  // Nuevos campos obligatorios
+  const [fechaEntregaCliente, setFechaEntregaCliente] = useState("");
+  const [observacionesProceso, setObservacionesProceso] = useState("");
 
   // Estado para transportadoras
   const [transportadoras, setTransportadoras] = useState<
@@ -83,10 +89,12 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       idTransportadora !== initialState.idTransportadora ||
       fechaDespacho !== initialState.fechaDespacho ||
       observacionesLogistica !== initialState.observacionesLogistica ||
-      numeroRemision !== initialState.numeroRemision;
+      numeroRemision !== initialState.numeroRemision ||
+      fechaEntregaCliente !== initialState.fechaEntregaCliente ||
+      observacionesProceso !== initialState.observacionesProceso;
 
     onDirtyChange?.(hasChanges);
-  }, [valorFlete, numeroGuia, idTransportadora, fechaDespacho, observacionesLogistica, numeroRemision, initialState, onDirtyChange]);
+  }, [valorFlete, numeroGuia, idTransportadora, fechaDespacho, observacionesLogistica, numeroRemision, fechaEntregaCliente, observacionesProceso, initialState, onDirtyChange]);
 
   // Cargar datos iniciales del tab
   useEffect(() => {
@@ -113,6 +121,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         let loadedFechaDespacho = "";
         let loadedObservacionesLogistica = "";
         let loadedNumeroRemision = "";
+        let loadedFechaEntregaCliente = "";
+        let loadedObservacionesProceso = "";
 
         // Cargar datos de despacho_orden si existen
         const { data: despachoData, error: despachoError } = await supabase
@@ -127,12 +137,16 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           loadedIdTransportadora = despachoData.id_transportadora?.toString() || "";
           loadedFechaDespacho = despachoData.fecha_despacho || "";
           loadedObservacionesLogistica = despachoData.observaciones_logistica || "";
+          loadedFechaEntregaCliente = despachoData.fecha_entrega_cliente || "";
+          loadedObservacionesProceso = despachoData.observaciones_proceso || "";
 
           setValorFlete(loadedValorFlete);
           setNumeroGuia(loadedNumeroGuia);
           setIdTransportadora(loadedIdTransportadora);
           setFechaDespacho(loadedFechaDespacho);
           setObservacionesLogistica(loadedObservacionesLogistica);
+          setFechaEntregaCliente(loadedFechaEntregaCliente);
+          setObservacionesProceso(loadedObservacionesProceso);
         }
 
         // Cargar datos de remisión si existen
@@ -155,6 +169,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           fechaDespacho: loadedFechaDespacho,
           observacionesLogistica: loadedObservacionesLogistica,
           numeroRemision: loadedNumeroRemision,
+          fechaEntregaCliente: loadedFechaEntregaCliente,
+          observacionesProceso: loadedObservacionesProceso,
         });
       } catch (error) {
         console.error("Error cargando datos del tab:", error);
@@ -166,6 +182,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           fechaDespacho: "",
           observacionesLogistica: "",
           numeroRemision: "",
+          fechaEntregaCliente: "",
+          observacionesProceso: "",
         });
       } finally {
         // Pequeño delay para mostrar el skeleton (mejor UX)
@@ -178,12 +196,14 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
     loadTabData();
   }, [order.id_orden_pedido]);
 
-  // RF-8 CRITICAL: valor_servicio_flete es OBLIGATORIO para cerrar
+  // RF-8 CRITICAL: Todos los campos obligatorios para cerrar
   const canClose =
     valorFlete.trim() !== "" &&
     numeroGuia.trim() !== "" &&
     idTransportadora.trim() !== "" &&
-    numeroRemision.trim() !== "";
+    numeroRemision.trim() !== "" &&
+    fechaEntregaCliente.trim() !== "" &&
+    observacionesProceso.trim() !== "";
 
   const handleSave = async () => {
     setSaving(true);
@@ -198,6 +218,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           id_transportadora: parseInt(idTransportadora) || null,
           fecha_despacho: fechaDespacho || new Date().toISOString(),
           observaciones_logistica: observacionesLogistica,
+          fecha_entrega_cliente: fechaEntregaCliente || null,
+          observaciones_proceso: observacionesProceso,
         }, {
           onConflict: 'id_orden_pedido'
         });
@@ -231,6 +253,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         fechaDespacho,
         observacionesLogistica,
         numeroRemision,
+        fechaEntregaCliente,
+        observacionesProceso,
       });
 
       toast.success('Cambios guardados exitosamente');
@@ -265,6 +289,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           id_transportadora: parseInt(idTransportadora) || null,
           fecha_despacho: fechaDespacho || new Date().toISOString(),
           observaciones_logistica: observacionesLogistica,
+          fecha_entrega_cliente: fechaEntregaCliente || null,
+          observaciones_proceso: observacionesProceso,
         }, {
           onConflict: 'id_orden_pedido'
         });
@@ -302,6 +328,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         fechaDespacho,
         observacionesLogistica,
         numeroRemision,
+        fechaEntregaCliente,
+        observacionesProceso,
       });
 
       onUpdateOrder(order.id_orden_pedido, {
@@ -441,6 +469,51 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
               onChange={(e) => setObservacionesLogistica(e.target.value)}
               rows={3}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Entrega al Cliente */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Entrega al Cliente
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Fecha de Entrega al Cliente */}
+          <div className="space-y-2">
+            <Label htmlFor="fecha-entrega-cliente" className="flex items-center gap-2">
+              Fecha de Entrega al Cliente <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="fecha-entrega-cliente"
+              type="datetime-local"
+              value={fechaEntregaCliente}
+              onChange={(e) => setFechaEntregaCliente(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Fecha y hora real en que el cliente recibió el pedido
+            </p>
+          </div>
+
+          {/* Observaciones del Proceso */}
+          <div className="space-y-2">
+            <Label htmlFor="observaciones-proceso" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Observaciones del Proceso <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="observaciones-proceso"
+              placeholder="Resumen del proceso de entrega, incidencias, confirmación de recepción..."
+              value={observacionesProceso}
+              onChange={(e) => setObservacionesProceso(e.target.value)}
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              Documento obligatorio de cierre del proceso completo
+            </p>
           </div>
         </CardContent>
       </Card>

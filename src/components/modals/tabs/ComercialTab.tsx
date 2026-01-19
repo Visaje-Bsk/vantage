@@ -119,7 +119,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           tipo_despacho ( nombre_tipo, requiere_direccion, requiere_transportadora ),
           transportadora ( nombre_transportadora ),
           direccion_despacho ( direccion, ciudad ),
-          contacto_despacho ( nombre_contacto, telefono, email )
+          contacto_despacho ( nombre_contacto, telefono, email, email2, email3 )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
         .maybeSingle();
@@ -198,7 +198,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       if (despachoData) {
         const despachoWithJoins = despachoData as typeof despachoData & {
           direccion_despacho?: { direccion?: string; ciudad?: string } | null;
-          contacto_despacho?: { nombre_contacto?: string; telefono?: string; email?: string } | null;
+          contacto_despacho?: { nombre_contacto?: string; telefono?: string; email?: string; email2?: string; email3?: string } | null;
         };
 
         despacho.setDespachoOrdenId(despachoData.id_despacho_orden);
@@ -210,6 +210,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           nombre_contacto: despachoWithJoins.contacto_despacho?.nombre_contacto || "",
           telefono_contacto: despachoWithJoins.contacto_despacho?.telefono || "",
           email_contacto: despachoWithJoins.contacto_despacho?.email || "",
+          email_contacto2: despachoWithJoins.contacto_despacho?.email2 || "",
+          email_contacto3: despachoWithJoins.contacto_despacho?.email3 || "",
           observaciones: despachoData.observaciones || "",
         });
       } else {
@@ -444,15 +446,24 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       return;
     }
 
-    // Validar email si tiene valor
-    if (despacho.despachoForm.email_contacto) {
-      const emailValidation = validation.validateEmail(despacho.despachoForm.email_contacto);
-      if (!emailValidation.valid) {
-        toast.error("Por favor corrige el email antes de guardar");
-        validation.setEmailError(emailValidation.error || "");
-        return;
+    // Validar emails si tienen valor
+    const emailsToValidate = [
+      { value: despacho.despachoForm.email_contacto, field: "email_contacto" },
+      { value: despacho.despachoForm.email_contacto2, field: "email_contacto2" },
+      { value: despacho.despachoForm.email_contacto3, field: "email_contacto3" },
+    ];
+
+    for (const { value, field } of emailsToValidate) {
+      if (value) {
+        const emailValidation = validation.validateEmail(value);
+        if (!emailValidation.valid) {
+          toast.error(`Por favor corrige el ${field === "email_contacto" ? "email principal" : field === "email_contacto2" ? "email secundario" : "email terciario"} antes de guardar`);
+          validation.setEmailError(emailValidation.error || "");
+          return;
+        }
       }
     }
+    validation.setEmailError("");
 
     // Validar teléfono si tiene valor
     if (despacho.despachoForm.telefono_contacto) {
@@ -1205,7 +1216,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label>Email</Label>
+                                  <Label>Email Principal</Label>
                                   <Input
                                     type="email"
                                     value={despacho.despachoForm.email_contacto}
@@ -1229,6 +1240,27 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                                   {validation.emailError && (
                                     <p className="text-xs text-red-500">{validation.emailError}</p>
                                   )}
+                                </div>
+                              </div>
+                              {/* Emails adicionales */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Email Secundario (opcional)</Label>
+                                  <Input
+                                    type="email"
+                                    value={despacho.despachoForm.email_contacto2}
+                                    onChange={(e) => despacho.updateField("email_contacto2", e.target.value)}
+                                    placeholder="usuario2@ejemplo.com"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Email Terciario (opcional)</Label>
+                                  <Input
+                                    type="email"
+                                    value={despacho.despachoForm.email_contacto3}
+                                    onChange={(e) => despacho.updateField("email_contacto3", e.target.value)}
+                                    placeholder="usuario3@ejemplo.com"
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -1316,13 +1348,34 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                                   )}
                                   {despacho.despachoForm.email_contacto && (
                                     <div className="space-y-1">
-                                      <Label className="text-sm font-medium">Email</Label>
+                                      <Label className="text-sm font-medium">Email Principal</Label>
                                       <div className="p-2 bg-muted/30 rounded text-sm">
                                         {despacho.despachoForm.email_contacto}
                                       </div>
                                     </div>
                                   )}
                                 </div>
+                                {/* Emails adicionales en readonly */}
+                                {(despacho.despachoForm.email_contacto2 || despacho.despachoForm.email_contacto3) && (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {despacho.despachoForm.email_contacto2 && (
+                                      <div className="space-y-1">
+                                        <Label className="text-sm font-medium">Email Secundario</Label>
+                                        <div className="p-2 bg-muted/30 rounded text-sm">
+                                          {despacho.despachoForm.email_contacto2}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {despacho.despachoForm.email_contacto3 && (
+                                      <div className="space-y-1">
+                                        <Label className="text-sm font-medium">Email Terciario</Label>
+                                        <div className="p-2 bg-muted/30 rounded text-sm">
+                                          {despacho.despachoForm.email_contacto3}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </>

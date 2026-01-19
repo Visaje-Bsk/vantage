@@ -92,6 +92,8 @@ export const useComercialSave = (orderId: number) => {
           nombre_contacto: despachoForm.nombre_contacto || "",
           telefono_contacto: despachoForm.telefono_contacto || "",
           email_contacto: despachoForm.email_contacto || "",
+          email_contacto2: despachoForm.email_contacto2 || "",
+          email_contacto3: despachoForm.email_contacto3 || "",
           observaciones: despachoForm.observaciones || "",
         };
 
