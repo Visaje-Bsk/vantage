@@ -136,9 +136,9 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           loadedNumeroGuia = despachoData.numero_guia || "";
           loadedIdTransportadora = despachoData.id_transportadora?.toString() || "";
           loadedFechaDespacho = despachoData.fecha_despacho || "";
-          loadedObservacionesLogistica = despachoData.observaciones_logistica || "";
-          loadedFechaEntregaCliente = despachoData.fecha_entrega_cliente || "";
-          loadedObservacionesProceso = despachoData.observaciones_proceso || "";
+          loadedObservacionesLogistica = despachoData.observaciones || "";
+          loadedFechaEntregaCliente = "";
+          loadedObservacionesProceso = "";
 
           setValorFlete(loadedValorFlete);
           setNumeroGuia(loadedNumeroGuia);
@@ -213,13 +213,12 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         .from('despacho_orden')
         .upsert({
           id_orden_pedido: order.id_orden_pedido,
+          id_tipo_despacho: 1, // Valor por defecto, debería venir de un selector
           valor_servicio_flete: parseFloat(valorFlete) || 0,
           numero_guia: numeroGuia,
           id_transportadora: parseInt(idTransportadora) || null,
           fecha_despacho: fechaDespacho || new Date().toISOString(),
-          observaciones_logistica: observacionesLogistica,
-          fecha_entrega_cliente: fechaEntregaCliente || null,
-          observaciones_proceso: observacionesProceso,
+          observaciones: observacionesLogistica,
         }, {
           onConflict: 'id_orden_pedido'
         });
@@ -274,26 +273,25 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
     setShowConfirmDialog(true);
   };
 
-  const handleConfirmCerrarOrden = async () => {
+  const handleConfirmAvanzarFacturacion = async () => {
     setShowConfirmDialog(false);
     setSaving(true);
 
     try {
-      // Primero guardar todos los datos
-      const { error: despachoError } = await supabase
-        .from('despacho_orden')
-        .upsert({
-          id_orden_pedido: order.id_orden_pedido,
-          valor_servicio_flete: parseFloat(valorFlete) || 0,
-          numero_guia: numeroGuia,
-          id_transportadora: parseInt(idTransportadora) || null,
-          fecha_despacho: fechaDespacho || new Date().toISOString(),
-          observaciones_logistica: observacionesLogistica,
-          fecha_entrega_cliente: fechaEntregaCliente || null,
-          observaciones_proceso: observacionesProceso,
-        }, {
-          onConflict: 'id_orden_pedido'
-        });
+        // Primero guardar todos los datos
+        const { error: despachoError } = await supabase
+          .from('despacho_orden')
+         .upsert({
+           id_orden_pedido: order.id_orden_pedido,
+           id_tipo_despacho: 1, // Valor por defecto, debería venir de un selector
+           valor_servicio_flete: parseFloat(valorFlete) || 0,
+           numero_guia: numeroGuia,
+           id_transportadora: parseInt(idTransportadora) || null,
+           fecha_despacho: fechaDespacho || new Date().toISOString(),
+           observaciones: observacionesLogistica,
+         }, {
+           onConflict: 'id_orden_pedido'
+         });
 
       if (despachoError) throw despachoError;
 
@@ -309,11 +307,12 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
 
       if (remisionError) throw remisionError;
 
-      // Cambiar estatus a cerrada (fase final)
+      // Avanzar fase a Facturacion y cambiar estatus a 'enviada'
       const { error: updateError } = await supabase
         .from('orden_pedido')
         .update({
-          estatus: 'cerrada',
+          fase: 'facturacion',
+          estatus: 'enviada',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
@@ -333,14 +332,15 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       });
 
       onUpdateOrder(order.id_orden_pedido, {
-        estatus: 'cerrada',
+        fase: "facturacion",
+        estatus: "enviada",
       });
 
       // Mostrar modal de éxito
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error cerrando orden:', error);
-      toast.error('Error al cerrar la orden');
+      toast.error('Error al enviar orden a Facturación');
     } finally {
       setSaving(false);
     }
@@ -563,10 +563,10 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       <ConfirmationDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
-        onConfirm={handleConfirmCerrarOrden}
-        title="¿Cerrar esta orden?"
-        description="Esta acción marcará la orden como CERRADA. Esta es la etapa final del flujo y la orden desaparecerá del tablero Kanban. Podrá consultarla en el historial."
-        confirmText="Sí, cerrar orden"
+        onConfirm={handleConfirmAvanzarFacturacion}
+        title="¿Enviar orden a Facturación?"
+        description="Esta acción enviará la orden a Facturación con estatus 'ENVIADA'. Podrá continuar editando los datos de facturación en la siguiente fase."
+        confirmText="Sí, enviar a Facturación"
         cancelText="Cancelar"
         variant="destructive"
       />

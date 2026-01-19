@@ -20,15 +20,19 @@ export interface ComercialFormData {
   id_proyecto: string;
   observaciones_orden: string;
   orden_compra: string;
+  id_clase_orden?: string;
+  id_tipo_servicio?: string;
 }
 
 export const useComercialForm = (order: OrdenKanban) => {
   // Estado del formulario con valores iniciales de la orden
   const [formData, setFormData] = useState<ComercialFormData>({
-    id_cliente: "",
-    id_proyecto: "",
+    id_cliente: order.id_cliente?.toString() || "",
+    id_proyecto: order.id_proyecto?.toString() || "",
     observaciones_orden: order.observaciones_orden || "",
     orden_compra: order.orden_compra || "",
+    id_clase_orden: order.id_clase_orden?.toString(),
+    id_tipo_servicio: order.id_tipo_servicio?.toString() || "",
   });
 
   /**

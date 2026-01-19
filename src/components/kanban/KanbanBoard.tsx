@@ -205,7 +205,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         consecutivo_code: newOrderData.consecutivo_code ?? null,
         consecutivo: (newOrderData.consecutivo_code ?? (newOrderData.consecutivo != null ? String(newOrderData.consecutivo) : null)),
         nombre_cliente: newOrderData.cliente?.nombre_cliente || 'Cliente no especificado',
-        tipo_orden: newOrderData.claseorden?.tipo_orden || 'Tipo no especificado',
+        tipo_orden: newOrderData.clase_orden?.tipo_orden || 'Tipo no especificado',
         fase: newOrderData.fase as FaseOrdenDB,
         estatus: newOrderData.estatus as EstatusOrdenDB,
         fecha_creacion: newOrderData.fecha_creacion,
@@ -213,12 +213,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         observaciones_orden: newOrderData.observaciones_orden,
         proyecto_nombre: newOrderData.proyecto?.nombre_proyecto,
         nombre_tipo_servicio: newOrderData.tipo_servicio?.nombre_tipo_servicio,
-        detalles: newOrderData.detalles,
-        created_by: newOrderData.created_by,
-        id_cliente: newOrderData.id_cliente,
-        id_proyecto: newOrderData.id_proyecto,
-        estado_orden: newOrderData.estatus,
-        tipo_servicio: newOrderData.tipo_servicio?.siglas_tipo_servicio || newOrderData.tipo_servicio?.nombre_tipo_servicio,
+         detalles: newOrderData.detalles,
+         created_by: newOrderData.created_by,
       };
 
       // Refrescar todas las órdenes del kanban

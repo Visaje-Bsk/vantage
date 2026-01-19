@@ -42,6 +42,11 @@ import { useComercialDisplay } from "@/hooks/comercial/useComercialDisplay";
 import { useUnsavedChanges } from "@/hooks/comercial/useUnsavedChanges";
 import { useComercialSave } from "@/hooks/comercial/useComercialSave";
 
+// Data Gates
+import { useDataGateValidation, useDataGateStatus } from "@/hooks/useDataGateValidation";
+import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
+import type { FaseOrdenDB } from "@/types/kanban";
+
 type AppRole = Database["public"]["Enums"]["app_role"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type ClaseCobro = Database["public"]["Enums"]["clase_cobro"];
@@ -76,6 +81,29 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
   // Hooks de validación
   const validation = useComercialValidation();
+
+  // Hooks de Data Gates
+  const dataGateValidation = useDataGateValidation({
+    order: {
+      ...order,
+      // Agregar datos del formulario para validación
+      id_cliente: form.formData.id_cliente || order.id_cliente,
+      id_tipo_servicio: order.id_tipo_servicio,
+      id_ingeniero_asignado: responsable.selectedResponsable || null,
+    },
+    currentPhase: 'comercial' as FaseOrdenDB,
+  });
+
+  const dataGateStatus = useDataGateStatus({
+    order: {
+      ...order,
+      id_cliente: form.formData.id_cliente,
+      id_clase_orden: form.formData.id_clase_orden,
+      id_tipo_servicio: form.formData.id_tipo_servicio,
+      id_ingeniero_asignado: responsable.selectedResponsable || null,
+    },
+    currentPhase: 'comercial' as FaseOrdenDB,
+  });
 
   // Hook de guardado
   const { saveComercialData, isSaving } = useComercialSave(order.id_orden_pedido);
@@ -641,6 +669,14 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
             </div>
           </CardTitle>
         </CardHeader>
+        
+        {/* Data Gates Validation */}
+        <DataGateAlert 
+          errors={dataGateValidation.errors}
+          canAdvance={dataGateValidation.canAdvance}
+          phaseName="Comercial"
+        />
+        
         <CardContent className="space-y-6">
           {!editMode.isEditMode ? (
             // ==================== MODO READONLY ====================
@@ -1424,10 +1460,17 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           </div>
 
           {editMode.isEditMode && (
-            <Button onClick={handleSave} disabled={isSaving} variant="default" className="w-full">
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? "Guardando..." : "Guardar Información Comercial"}
-            </Button>
+            <div className="flex items-center justify-between gap-3">
+              <DataGateAlert 
+                errors={dataGateValidation.errors}
+                canAdvance={dataGateValidation.canAdvance}
+                phaseName="Comercial"
+              />
+              <Button onClick={handleSave} disabled={isSaving || !dataGateValidation.canAdvance} variant="default" className="w-full">
+                <Save className="w-4 h-4 mr-2" />
+                {isSaving ? "Guardando..." : "Guardar Información Comercial"}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -19,9 +19,9 @@ type FaseOrdenDB =
   | "comercial"
   | "inventarios"
   | "produccion"
-  | "logistica"
-  | "facturacion"
   | "financiera"
+  | "facturacion"
+  | "logistica"
 ```
 
 ## Problema Identificado

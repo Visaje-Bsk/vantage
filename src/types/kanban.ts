@@ -11,7 +11,7 @@ export type OrdenStageUI =
   | "comercial"
   | "inventarios"
   | "produccion"
-  | "financiera"    // Nuevo orden: financiera viene después de producción
+  | "financiera"    // financiera viene después de producción
   | "facturacion"   // facturación viene después de financiera
   | "logistica";    // logística es la fase final
 
@@ -126,6 +126,14 @@ export interface OrdenKanban {
   orden_compra?: string | null;
   proyecto_nombre?: string;
   nombre_tipo_servicio?: string | null;
+  
+  // Campos adicionales para Data Gates
+  id_cliente?: number;
+  id_clase_orden?: number;
+  id_tipo_servicio?: number;
+  id_ingeniero_asignado?: string | null;
+  id_tipo_despacho?: number | null;
+
   detalles?: Array<{
     cantidad: number;
     valor_unitario: number;

@@ -10,6 +10,11 @@ import { Package, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
+// Data Gates
+import { useDataGateValidation, useDataGateStatus } from "@/hooks/useDataGateValidation";
+import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
+import type { FaseOrdenDB } from "@/types/kanban";
+
 interface InventariosTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
@@ -24,6 +29,25 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
 
   // Estado inicial para detectar cambios
   const [initialState, setInitialState] = useState<{ stockValidado: boolean; observaciones: string } | null>(null);
+
+  // Hooks de Data Gates
+  const dataGateValidation = useDataGateValidation({
+    order: {
+      ...order,
+      stock_validado: stockValidado,
+      observaciones_inventarios: observaciones,
+    },
+    currentPhase: 'inventarios' as FaseOrdenDB,
+  });
+
+  const dataGateStatus = useDataGateStatus({
+    order: {
+      ...order,
+      stock_validado: stockValidado,
+      observaciones_inventarios: observaciones,
+    },
+    currentPhase: 'inventarios' as FaseOrdenDB,
+  });
 
   // Detectar cambios comparando con estado inicial
   useEffect(() => {
@@ -45,13 +69,13 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
         // Cargar datos existentes de la orden
         const { data, error } = await supabase
           .from("orden_pedido")
-          .select("stock_validado, observaciones_inventarios")
+          .select("estatus, observaciones_orden")
           .eq("id_orden_pedido", order.id_orden_pedido)
           .single();
 
         if (!error && data) {
-          const loadedStockValidado = data.stock_validado ?? false;
-          const loadedObservaciones = data.observaciones_inventarios ?? "";
+          const loadedStockValidado = data.estatus === 'abierta';
+          const loadedObservaciones = data.observaciones_orden ?? "";
 
           setStockValidado(loadedStockValidado);
           setObservaciones(loadedObservaciones);
@@ -160,6 +184,12 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
 
   return (
     <div className="space-y-6">
+      {/* Data Gates Validation */}
+      <DataGateAlert 
+        errors={dataGateValidation.errors}
+        canAdvance={dataGateValidation.canAdvance}
+        phaseName="Inventarios"
+      />
 
       {/* Productos de la orden */}
       <Card>
@@ -262,6 +292,13 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
 
       {/* Botones de acción */}
       <div className="flex gap-3 justify-end pt-4 border-t">
+        {/* Indicador de estado Data Gate */}
+        <DataGateStatus 
+          canAdvance={dataGateValidation.canAdvance}
+          errorCount={dataGateValidation.errors.length}
+          className="text-xs mb-3"
+        />
+        
         <Button
           onClick={handleSave}
           disabled={saving}

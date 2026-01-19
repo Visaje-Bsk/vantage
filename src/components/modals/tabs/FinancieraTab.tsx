@@ -128,16 +128,16 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
       try {
         const { data: ordenData, error } = await supabase
           .from("orden_pedido")
-          .select("estado_validacion_pago, medio_pago, condiciones_pago, pago_flete, observaciones_financieras")
+          .select("estatus, observaciones_orden")
           .eq("id_orden_pedido", order.id_orden_pedido)
           .single();
 
         if (!error && ordenData) {
-          const loadedEstado = (ordenData.estado_validacion_pago as EstadoValidacionPago) || "";
-          const loadedMedio = (ordenData.medio_pago as MedioPago) || "";
-          const loadedCondiciones = (ordenData.condiciones_pago as CondicionesPago) || "";
-          const loadedPagoFlete = (ordenData.pago_flete as PagoFlete) || "";
-          const loadedObservaciones = ordenData.observaciones_financieras || "";
+          const loadedEstado = ordenData.estatus === 'facturada' ? 'confirmado' : '';
+          const loadedMedio = "";
+          const loadedCondiciones = "";
+          const loadedPagoFlete = "";
+          const loadedObservaciones = ordenData.observaciones_orden || "";
 
           setEstadoValidacionPago(loadedEstado);
           setMedioPago(loadedMedio);
