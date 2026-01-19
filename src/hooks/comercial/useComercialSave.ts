@@ -66,9 +66,14 @@ export const useComercialSave = (orderId: number) => {
         } = params;
 
         // 1. Preparar datos de la orden
+        // Si el proyecto es "no_aplica" o vacío, enviar "0" (null en la BD)
+        const proyectoValue = formData.id_proyecto === "no_aplica" || !formData.id_proyecto
+          ? "0"
+          : formData.id_proyecto;
+
         const ordenData = {
           id_cliente: formData.id_cliente || "0",
-          id_proyecto: formData.id_proyecto || "0",
+          id_proyecto: proyectoValue,
           observaciones_orden: formData.observaciones_orden || "",
           orden_compra: formData.orden_compra || "",
         };

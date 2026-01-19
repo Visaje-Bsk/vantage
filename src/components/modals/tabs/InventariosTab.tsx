@@ -13,23 +13,66 @@ import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 interface InventariosTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
-export function InventariosTab({ order, onUpdateOrder }: InventariosTabProps) {
+export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: InventariosTabProps) {
   const [stockValidado, setStockValidado] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Simular carga inicial para mostrar skeleton
+  // Estado inicial para detectar cambios
+  const [initialState, setInitialState] = useState<{ stockValidado: boolean; observaciones: string } | null>(null);
+
+  // Detectar cambios comparando con estado inicial
+  useEffect(() => {
+    if (initialState === null) return;
+
+    const hasChanges =
+      stockValidado !== initialState.stockValidado ||
+      observaciones !== initialState.observaciones;
+
+    onDirtyChange?.(hasChanges);
+  }, [stockValidado, observaciones, initialState, onDirtyChange]);
+
+  // Cargar datos iniciales
   useEffect(() => {
     const loadTabData = async () => {
       setIsInitialLoading(true);
 
-      // Pequeño delay para mostrar el skeleton (mejor UX)
-      setTimeout(() => {
-        setIsInitialLoading(false);
-      }, 300);
+      try {
+        // Cargar datos existentes de la orden
+        const { data, error } = await supabase
+          .from("orden_pedido")
+          .select("stock_validado, observaciones_inventarios")
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .single();
+
+        if (!error && data) {
+          const loadedStockValidado = data.stock_validado ?? false;
+          const loadedObservaciones = data.observaciones_inventarios ?? "";
+
+          setStockValidado(loadedStockValidado);
+          setObservaciones(loadedObservaciones);
+
+          // Guardar estado inicial
+          setInitialState({
+            stockValidado: loadedStockValidado,
+            observaciones: loadedObservaciones,
+          });
+        } else {
+          // Si no hay datos, establecer estado inicial vacío
+          setInitialState({ stockValidado: false, observaciones: "" });
+        }
+      } catch (error) {
+        console.error("Error cargando datos:", error);
+        setInitialState({ stockValidado: false, observaciones: "" });
+      } finally {
+        setTimeout(() => {
+          setIsInitialLoading(false);
+        }, 300);
+      }
     };
 
     loadTabData();
@@ -49,21 +92,12 @@ export function InventariosTab({ order, onUpdateOrder }: InventariosTabProps) {
 
       if (error) throw error;
 
-      // Registrar en historial si se validó el stock
-      if (stockValidado) {
-        await supabase.from('historial_orden').insert({
-          id_orden_pedido: order.id_orden_pedido,
-          accion_clave: 'stock_validado',
-          fase_anterior: order.fase,
-          fase_nueva: order.fase,
-          observaciones: 'Stock validado y completo',
-        });
-      }
-
       onUpdateOrder(order.id_orden_pedido, {
-        stock_validado: stockValidado,
-        observaciones_inventarios: observaciones,
+        fecha_modificacion: new Date().toISOString(),
       });
+
+      // Actualizar estado inicial para marcar como limpio
+      setInitialState({ stockValidado, observaciones });
 
       alert('Cambios guardados exitosamente');
     } catch (error) {
@@ -80,8 +114,22 @@ export function InventariosTab({ order, onUpdateOrder }: InventariosTabProps) {
       return;
     }
 
+    // Primero guardar los cambios actuales
     setSaving(true);
     try {
+      // Guardar datos de inventarios primero
+      const { error: saveError } = await supabase
+        .from('orden_pedido')
+        .update({
+          stock_validado: stockValidado,
+          observaciones_inventarios: observaciones,
+          fecha_modificacion: new Date().toISOString(),
+        })
+        .eq('id_orden_pedido', order.id_orden_pedido);
+
+      if (saveError) throw saveError;
+
+      // Avanzar fase
       const { error } = await supabase
         .from('orden_pedido')
         .update({
@@ -92,14 +140,8 @@ export function InventariosTab({ order, onUpdateOrder }: InventariosTabProps) {
 
       if (error) throw error;
 
-      // Registrar avance en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'avance_fase',
-        fase_anterior: 'inventarios',
-        fase_nueva: 'produccion',
-        observaciones: 'Stock validado. Orden enviada a Producción',
-      });
+      // Marcar como limpio
+      setInitialState({ stockValidado, observaciones });
 
       onUpdateOrder(order.id_orden_pedido, { fase: 'produccion' });
       alert('Orden enviada a Producción exitosamente');

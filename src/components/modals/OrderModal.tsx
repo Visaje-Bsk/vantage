@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,13 +8,13 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  STAGE_UI, 
-  UI_TO_FASE, 
-  FASE_TO_UI, 
-  type OrdenStageUI, 
-  type FaseOrdenDB, 
-  estatusBadge, 
+import {
+  STAGE_UI,
+  UI_TO_FASE,
+  FASE_TO_UI,
+  type OrdenStageUI,
+  type FaseOrdenDB,
+  estatusBadge,
   OrdenKanban
 } from "@/types/kanban";
 import type { Database } from "@/integrations/supabase/types";
@@ -27,7 +27,8 @@ import {
   FileText,
   Tag,
   Clock,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from "lucide-react";
 import { ComercialTab } from "./tabs/ComercialTab";
 import { InventariosTab } from "./tabs/InventariosTab";
@@ -43,10 +44,10 @@ import { cn } from "@/lib/utils";
 const NEXT_FASE: Record<OrdenStageUI, FaseOrdenDB | null> = {
   comercial: "inventarios",
   inventarios: "produccion",
-  produccion: "logistica",
-  logistica: "facturacion",
-  facturacion: "financiera",
-  financiera: null,
+  produccion: "financiera",    // Nuevo flujo: produccion → financiera
+  financiera: "facturacion",   // financiera → facturacion
+  facturacion: "logistica",    // facturacion → logistica
+  logistica: null,             // logistica es la fase final
 };
 
 const REQUIRED_ROLE_BY_FASE: Record<FaseOrdenDB, AppRole> = {
@@ -80,6 +81,24 @@ export function OrderModal({
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showAnularConfirm, setShowAnularConfirm] = useState(false);
   const [razonAnulacion, setRazonAnulacion] = useState("");
+  const [showAdvanceConfirm, setShowAdvanceConfirm] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+
+  // Estado dirty por cada tab
+  const [tabDirtyStates, setTabDirtyStates] = useState<Record<OrdenStageUI, boolean>>({
+    comercial: false,
+    inventarios: false,
+    produccion: false,
+    logistica: false,
+    facturacion: false,
+    financiera: false,
+  });
+
+  // Callback para que cada tab reporte su estado dirty
+  const handleTabDirtyChange = useCallback((tab: OrdenStageUI, isDirty: boolean) => {
+    setTabDirtyStates(prev => ({ ...prev, [tab]: isDirty }));
+  }, []);
+
 
   const uiTabFromFase = (fase: FaseOrdenDB): OrdenStageUI => {
     const entry = (Object.entries(UI_TO_FASE) as [OrdenStageUI, FaseOrdenDB][])
@@ -182,13 +201,35 @@ export function OrderModal({
     }
   };
 
-  const handleAdvanceStage = async () => {
+  // Intento de avanzar fase - primero verifica cambios sin guardar
+  const handleAdvanceStageClick = () => {
     if (!order) return;
+
+    const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
+
+    // Verificar si el tab actual tiene cambios sin guardar
+    if (tabDirtyStates[currentFaseUI]) {
+      setShowAdvanceConfirm(true);
+      return;
+    }
+
+    // Si no hay cambios sin guardar, avanzar directamente
+    executeAdvanceStage();
+  };
+
+  // Ejecutar el avance de fase
+  const executeAdvanceStage = async () => {
+    if (!order) return;
+
+    setIsAdvancing(true);
 
     // Usar la fase REAL de la orden, no el tab activo
     const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
     const nextFase = NEXT_FASE[currentFaseUI];
-    if (!nextFase) return;
+    if (!nextFase) {
+      setIsAdvancing(false);
+      return;
+    }
 
     // Validar permisos sobre la fase ACTUAL de la orden
     if (!canUserEditFase(order.fase as FaseOrdenDB)) {
@@ -197,6 +238,7 @@ export function OrderModal({
         description: "No tienes permiso para avanzar esta orden desde su fase actual.",
         variant: "destructive"
       });
+      setIsAdvancing(false);
       return;
     }
 
@@ -206,27 +248,49 @@ export function OrderModal({
       fecha_modificacion: new Date().toISOString(),
     };
 
-    const { error } = await supabase
-      .from("orden_pedido")
-      .update(updates)
-      .eq("id_orden_pedido", order.id_orden_pedido);
+    try {
+      const { error } = await supabase
+        .from("orden_pedido")
+        .update(updates)
+        .eq("id_orden_pedido", order.id_orden_pedido);
 
-    if (error) {
-      console.error("Error updating order:", error);
+      if (error) {
+        console.error("Error updating order:", error);
+        toast({
+          title: "Error",
+          description: "No se pudo actualizar la orden. Por favor, intente de nuevo.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Nota: El historial se registra en los tabs específicos que manejan el avance
+
+      // Limpiar estados dirty del tab actual
+      setTabDirtyStates(prev => ({ ...prev, [currentFaseUI]: false }));
+
+      // Actualizar orden en el padre
+      onUpdateOrder(order.id_orden_pedido, updates);
+
+      // Cambiar al tab de la nueva fase
+      setActiveTab(uiTabFromFase(nextFase));
+
+      toast({
+        title: "¡Éxito!",
+        description: `La orden ha avanzado a la etapa de ${STAGE_UI[uiTabFromFase(nextFase)].label}`,
+        variant: "default"
+      });
+    } catch (err) {
+      console.error("Error advancing stage:", err);
       toast({
         title: "Error",
-        description: "No se pudo actualizar la orden. Por favor, intente de nuevo.",
+        description: "Ocurrió un error al avanzar la orden.",
         variant: "destructive"
       });
-      return;
+    } finally {
+      setIsAdvancing(false);
+      setShowAdvanceConfirm(false);
     }
-
-    onUpdateOrder(order.id_orden_pedido, updates);
-    toast({
-      title: "¡Éxito!",
-      description: `La orden ha avanzado a la etapa de ${STAGE_UI[uiTabFromFase(nextFase)].label}`,
-      variant: "default"
-    });
   };
 
   if (!order) return null;
@@ -430,28 +494,51 @@ export function OrderModal({
                     order={order}
                     onUpdateOrder={onUpdateOrder}
                     onRequestClose={handleClose}
-                    onUnsavedChangesChange={setHasUnsavedChanges}
+                    onUnsavedChangesChange={(isDirty) => {
+                      setHasUnsavedChanges(isDirty);
+                      handleTabDirtyChange("comercial", isDirty);
+                    }}
                   />
                 </TabsContent>
 
                 <TabsContent value="inventarios" className="mt-4">
-                  <InventariosTab order={order} onUpdateOrder={onUpdateOrder} />
+                  <InventariosTab
+                    order={order}
+                    onUpdateOrder={onUpdateOrder}
+                    onDirtyChange={(isDirty) => handleTabDirtyChange("inventarios", isDirty)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="produccion" className="mt-4">
-                  <ProduccionTab order={order} onUpdateOrder={onUpdateOrder} />
+                  <ProduccionTab
+                    order={order}
+                    onUpdateOrder={onUpdateOrder}
+                    onDirtyChange={(isDirty) => handleTabDirtyChange("produccion", isDirty)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="logistica" className="mt-4">
-                  <LogisticaTab order={order} onUpdateOrder={onUpdateOrder} />
+                  <LogisticaTab
+                    order={order}
+                    onUpdateOrder={onUpdateOrder}
+                    onDirtyChange={(isDirty) => handleTabDirtyChange("logistica", isDirty)}
+                  />
                 </TabsContent>
 
                 <TabsContent value="facturacion" className="mt-4">
-                  <FacturacionTab order={order} onUpdateOrder={onUpdateOrder} />
+                  <FacturacionTab
+                    order={order}
+                    onUpdateOrder={onUpdateOrder}
+                    onDirtyChange={(isDirty) => handleTabDirtyChange("facturacion", isDirty)}
+                  />
                 </TabsContent>
-                
+
                 <TabsContent value="financiera" className="mt-4">
-                  <FinancieraTab order={order} onUpdateOrder={onUpdateOrder} />
+                  <FinancieraTab
+                    order={order}
+                    onUpdateOrder={onUpdateOrder}
+                    onDirtyChange={(isDirty) => handleTabDirtyChange("financiera", isDirty)}
+                  />
                 </TabsContent>
               </div>
 
@@ -465,14 +552,22 @@ export function OrderModal({
                   <div className="border-t bg-background px-6 py-4 shrink-0">
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-sm text-muted-foreground">
-                        ¿Completaste todas las tareas de <strong>{STAGE_UI[currentFaseUI].label}</strong>?
+                        {tabDirtyStates[currentFaseUI] ? (
+                          <span className="flex items-center gap-2 text-amber-600">
+                            <AlertTriangle className="w-4 h-4" />
+                            Tienes cambios sin guardar en <strong>{STAGE_UI[currentFaseUI].label}</strong>
+                          </span>
+                        ) : (
+                          <>¿Completaste todas las tareas de <strong>{STAGE_UI[currentFaseUI].label}</strong>?</>
+                        )}
                       </div>
                       <Button
-                        onClick={handleAdvanceStage}
+                        onClick={handleAdvanceStageClick}
                         size="lg"
                         className="gap-2 shadow-sm"
+                        disabled={isAdvancing}
                       >
-                        Avanzar a {STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}
+                        {isAdvancing ? "Avanzando..." : `Avanzar a ${STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}`}
                         <ArrowRight className="w-4 h-4" />
                       </Button>
                     </div>
@@ -495,6 +590,27 @@ export function OrderModal({
         variant="destructive"
         onConfirm={confirmClose}
         onCancel={() => setShowCloseConfirm(false)}
+      />
+
+      {/* Modal de confirmación para avanzar con cambios sin guardar */}
+      <ConfirmationDialog
+        open={showAdvanceConfirm}
+        onOpenChange={setShowAdvanceConfirm}
+        title="Cambios sin guardar"
+        description="Tienes cambios sin guardar en esta fase. Debes guardar los cambios antes de avanzar a la siguiente fase, o perderás la información ingresada."
+        confirmText="Guardar y continuar"
+        cancelText="Cancelar"
+        variant="default"
+        onConfirm={() => {
+          // El usuario debe guardar primero
+          setShowAdvanceConfirm(false);
+          toast({
+            title: "Guarda tus cambios",
+            description: "Por favor guarda los cambios antes de avanzar a la siguiente fase.",
+            variant: "default"
+          });
+        }}
+        onCancel={() => setShowAdvanceConfirm(false)}
       />
 
       {/* Modal de anulación de orden */}

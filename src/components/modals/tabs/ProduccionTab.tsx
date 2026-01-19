@@ -26,13 +26,28 @@ import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 interface ProduccionTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
-export function ProduccionTab({ order, onUpdateOrder }: ProduccionTabProps) {
+export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: ProduccionTabProps) {
   const [observaciones, setObservaciones] = useState("");
   const [numeroProduccion, setNumeroProduccion] = useState("");
   const [saving, setSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Estado inicial para detectar cambios
+  const [initialState, setInitialState] = useState<{ observaciones: string; numeroProduccion: string } | null>(null);
+
+  // Detectar cambios comparando con estado inicial
+  useEffect(() => {
+    if (initialState === null) return;
+
+    const hasChanges =
+      observaciones !== initialState.observaciones ||
+      numeroProduccion !== initialState.numeroProduccion;
+
+    onDirtyChange?.(hasChanges);
+  }, [observaciones, numeroProduccion, initialState, onDirtyChange]);
 
   // Cargar datos iniciales del tab
   useEffect(() => {
@@ -48,11 +63,24 @@ export function ProduccionTab({ order, onUpdateOrder }: ProduccionTabProps) {
           .maybeSingle();
 
         if (!produccionError && produccionData) {
-          setObservaciones(produccionData.observaciones_produccion || "");
-          setNumeroProduccion(produccionData.numero_produccion || "");
+          const loadedObservaciones = produccionData.observaciones_produccion || "";
+          const loadedNumeroProduccion = produccionData.numero_produccion || "";
+
+          setObservaciones(loadedObservaciones);
+          setNumeroProduccion(loadedNumeroProduccion);
+
+          // Guardar estado inicial
+          setInitialState({
+            observaciones: loadedObservaciones,
+            numeroProduccion: loadedNumeroProduccion,
+          });
+        } else {
+          // Si no hay datos, establecer estado inicial vacío
+          setInitialState({ observaciones: "", numeroProduccion: "" });
         }
       } catch (error) {
         console.error("Error cargando datos del tab:", error);
+        setInitialState({ observaciones: "", numeroProduccion: "" });
       } finally {
         setTimeout(() => {
           setIsInitialLoading(false);
@@ -88,14 +116,8 @@ export function ProduccionTab({ order, onUpdateOrder }: ProduccionTabProps) {
         .update({ fecha_modificacion: new Date().toISOString() })
         .eq('id_orden_pedido', order.id_orden_pedido);
 
-      // Registrar en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'produccion_completada',
-        fase_anterior: order.fase,
-        fase_nueva: order.fase,
-        observaciones: `Producción completada. OP: ${numeroProduccion}`,
-      });
+      // Actualizar estado inicial para marcar como limpio
+      setInitialState({ observaciones, numeroProduccion });
 
       alert('Cambios guardados exitosamente');
     } catch (error) {
@@ -106,7 +128,7 @@ export function ProduccionTab({ order, onUpdateOrder }: ProduccionTabProps) {
     }
   };
 
-  const handleAvanzarLogistica = async () => {
+  const handleAvanzarFinanciera = async () => {
     if (!canAdvance) {
       alert('Debe completar las observaciones y el número de producción antes de avanzar');
       return;
@@ -126,31 +148,25 @@ export function ProduccionTab({ order, onUpdateOrder }: ProduccionTabProps) {
           onConflict: 'id_orden_pedido'
         });
 
-      // Avanzar fase
+      // Avanzar fase a Financiera
       const { error } = await supabase
         .from('orden_pedido')
         .update({
-          fase: 'logistica',
+          fase: 'financiera',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
 
       if (error) throw error;
 
-      // Registrar avance en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'avance_fase',
-        fase_anterior: 'produccion',
-        fase_nueva: 'logistica',
-        observaciones: `Producción completada. Orden enviada a Logística. OP: ${numeroProduccion}`,
-      });
+      // Marcar como limpio
+      setInitialState({ observaciones, numeroProduccion });
 
-      onUpdateOrder(order.id_orden_pedido, { fase: 'logistica' });
-      alert('Orden enviada a Logística exitosamente');
+      onUpdateOrder(order.id_orden_pedido, { fase: 'financiera' });
+      alert('Orden enviada a Financiera exitosamente');
     } catch (error) {
-      console.error('Error avanzando a Logística:', error);
-      alert('Error al avanzar a Logística');
+      console.error('Error avanzando a Financiera:', error);
+      alert('Error al avanzar a Financiera');
     } finally {
       setSaving(false);
     }
@@ -231,12 +247,12 @@ export function ProduccionTab({ order, onUpdateOrder }: ProduccionTabProps) {
           Guardar Cambios
         </Button>
         <Button
-          onClick={handleAvanzarLogistica}
+          onClick={handleAvanzarFinanciera}
           disabled={!canAdvance || saving}
           className="bg-success hover:bg-success/90"
         >
           {canAdvance
-            ? '✓ Enviar a Logística'
+            ? '✓ Enviar a Financiera'
             : '⚠️ Completar Campos Obligatorios'}
         </Button>
       </div>

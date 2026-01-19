@@ -6,39 +6,39 @@ export type AppRole        = Database["public"]["Enums"]["app_role"];
 export type FaseOrdenDB    = Database["public"]["Enums"]["fase_orden_enum"];
 export type EstatusOrdenDB = Database["public"]["Enums"]["estatus_orden_enum"];
 
-/** Claves de columnas/pestañas del Kanban (UI) */
+/** Claves de columnas/pestañas del Kanban (UI) - Orden del flujo */
 export type OrdenStageUI =
   | "comercial"
-  | "inventarios" // UI: nombre amigable; en BD es fase 'inventarios'
+  | "inventarios"
   | "produccion"
-  | "logistica"
-  | "facturacion"
-  | "financiera";
+  | "financiera"    // Nuevo orden: financiera viene después de producción
+  | "facturacion"   // facturación viene después de financiera
+  | "logistica";    // logística es la fase final
 
-/** Mapeo UI → fase (BD) */
+/** Mapeo UI → fase (BD) - Orden del nuevo flujo */
 export const UI_TO_FASE: Record<OrdenStageUI, FaseOrdenDB> = {
   comercial: "comercial",
   inventarios: "inventarios",
   produccion: "produccion",
-  logistica: "logistica",
-  facturacion: "facturacion",
   financiera: "financiera",
+  facturacion: "facturacion",
+  logistica: "logistica",
 };
 
-/** Mapeo fase (BD) → UI (para posicionar en una columna) */
+/** Mapeo fase (BD) → UI (para posicionar en una columna) - Orden del nuevo flujo */
 export const FASE_TO_UI: Record<FaseOrdenDB, OrdenStageUI> = {
   comercial: "comercial",
   inventarios: "inventarios",
   produccion: "produccion",
-  logistica: "logistica",
-  facturacion: "facturacion",
   financiera: "financiera",
+  facturacion: "facturacion",
+  logistica: "logistica",
 };
 
 /** Helper: pasar de fase BD a columna UI */
 export const faseDbToUi = (fase: FaseOrdenDB): OrdenStageUI => FASE_TO_UI[fase];
 
-/** Config visual por columna UI (label y color) */
+/** Config visual por columna UI (label y color) - Orden del nuevo flujo */
 export const STAGE_UI: Record<
   OrdenStageUI,
   { label: string; color: string; bgColor: string; borderColor: string; icon?: any }
@@ -61,11 +61,11 @@ export const STAGE_UI: Record<
     bgColor: "bg-cyan-50",
     borderColor: "border-cyan-500"
   },
-  logistica: {
-    label: "Logística",
-    color: "bg-green-700 text-white",
-    bgColor: "bg-green-50",
-    borderColor: "border-green-700"
+  financiera: {
+    label: "Financiera",
+    color: "bg-yellow-600 text-white",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-500"
   },
   facturacion: {
     label: "Facturación",
@@ -73,11 +73,11 @@ export const STAGE_UI: Record<
     bgColor: "bg-blue-50",
     borderColor: "border-blue-900"
   },
-  financiera: {
-    label: "Financiera",
-    color: "bg-yellow-600 text-white",
-    bgColor: "bg-yellow-50",
-    borderColor: "border-yellow-500"
+  logistica: {
+    label: "Logística",
+    color: "bg-green-700 text-white",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-700"
   },
 };
 
@@ -157,9 +157,9 @@ export const REQUIRED_ROLE_BY_FASE: Record<FaseOrdenDB, AppRole> = {
   comercial: "comercial",
   inventarios: "inventarios",
   produccion: "produccion",
-  logistica: "logistica",
-  facturacion: "facturacion",
   financiera: "financiera",
+  facturacion: "facturacion",
+  logistica: "logistica",
 };
 
 /** (Opcional) saber si un estatus es terminal para bloquear acciones en UI */

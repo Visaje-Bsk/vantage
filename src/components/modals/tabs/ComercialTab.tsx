@@ -166,9 +166,14 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       editMode.setIsFieldsLocked(Boolean(ingenieroAsignado));
 
       // Actualizar formData básico
+      // Si no tiene proyecto asignado, usar "no_aplica"
+      const proyectoId = orderData.id_proyecto
+        ? orderData.id_proyecto.toString()
+        : "no_aplica";
+
       form.resetForm({
         id_cliente: orderData.id_cliente?.toString() || "",
-        id_proyecto: orderData.id_proyecto?.toString() || "",
+        id_proyecto: proyectoId,
         observaciones_orden: orderData.observaciones_orden || "",
         orden_compra: orderData.orden_compra || "",
       });
@@ -646,7 +651,9 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                     Proyecto
                   </Label>
                   <div className="p-3 bg-muted/50 rounded-md text-sm">
-                    {display.displayData.proyecto_nombre || "Sin asignar"}
+                    {display.displayData.proyecto_nombre || (
+                      <span className="text-muted-foreground italic">No aplica</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -706,6 +713,9 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                       <SelectValue placeholder="Seleccionar proyecto" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="no_aplica" className="text-muted-foreground italic">
+                        No aplica
+                      </SelectItem>
                       {comercialData.proyectos.map((p) => (
                         <SelectItem key={p.id_proyecto} value={p.id_proyecto.toString()}>
                           {p.nombre_proyecto}

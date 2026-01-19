@@ -4,11 +4,12 @@
  * FASE 5: FACTURACIÓN
  * Responsable: Rol facturacion
  *
- * Según FLUJOKANBAN.md:
+ * Según el nuevo flujo:
  * - Emisión de factura (numero_factura, fecha_factura)
  * - Gestión de moneda base (USD o COP)
  * - TRM (Tasa Representativa del Mercado) obligatoria si es USD
  * - Fecha de TRM aplicada
+ * - Avanza a Logística
  */
 
 import { useState, useEffect } from "react";
@@ -26,9 +27,18 @@ import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 interface FacturacionTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
-export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
+interface FacturacionInitialState {
+  numeroFactura: string;
+  fechaFactura: string;
+  monedaBase: string;
+  trmAplicada: string;
+  fechaTrm: string;
+}
+
+export function FacturacionTab({ order, onUpdateOrder, onDirtyChange }: FacturacionTabProps) {
   const [numeroFactura, setNumeroFactura] = useState("");
   const [fechaFactura, setFechaFactura] = useState("");
   const [monedaBase, setMonedaBase] = useState<"COP" | "USD" | "">("");
@@ -36,6 +46,23 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
   const [fechaTrm, setFechaTrm] = useState("");
   const [saving, setSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Estado inicial para detectar cambios
+  const [initialState, setInitialState] = useState<FacturacionInitialState | null>(null);
+
+  // Detectar cambios comparando con estado inicial
+  useEffect(() => {
+    if (initialState === null) return;
+
+    const hasChanges =
+      numeroFactura !== initialState.numeroFactura ||
+      fechaFactura !== initialState.fechaFactura ||
+      monedaBase !== initialState.monedaBase ||
+      trmAplicada !== initialState.trmAplicada ||
+      fechaTrm !== initialState.fechaTrm;
+
+    onDirtyChange?.(hasChanges);
+  }, [numeroFactura, fechaFactura, monedaBase, trmAplicada, fechaTrm, initialState, onDirtyChange]);
 
   // Cargar datos iniciales del tab
   useEffect(() => {
@@ -51,14 +78,45 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
           .maybeSingle();
 
         if (!facturaError && facturaData) {
-          setNumeroFactura(facturaData.numero_factura || "");
-          setFechaFactura(facturaData.fecha_factura || "");
-          setMonedaBase((facturaData.moneda_base as "COP" | "USD") || "");
-          setTrmAplicada(facturaData.trm_aplicada?.toString() || "");
-          setFechaTrm(facturaData.fecha_trm || "");
+          const loadedNumeroFactura = facturaData.numero_factura || "";
+          const loadedFechaFactura = facturaData.fecha_factura || "";
+          const loadedMonedaBase = (facturaData.moneda_base as "COP" | "USD") || "";
+          const loadedTrmAplicada = facturaData.trm_aplicada?.toString() || "";
+          const loadedFechaTrm = facturaData.fecha_trm || "";
+
+          setNumeroFactura(loadedNumeroFactura);
+          setFechaFactura(loadedFechaFactura);
+          setMonedaBase(loadedMonedaBase);
+          setTrmAplicada(loadedTrmAplicada);
+          setFechaTrm(loadedFechaTrm);
+
+          // Guardar estado inicial
+          setInitialState({
+            numeroFactura: loadedNumeroFactura,
+            fechaFactura: loadedFechaFactura,
+            monedaBase: loadedMonedaBase,
+            trmAplicada: loadedTrmAplicada,
+            fechaTrm: loadedFechaTrm,
+          });
+        } else {
+          // Establecer estado inicial vacío
+          setInitialState({
+            numeroFactura: "",
+            fechaFactura: "",
+            monedaBase: "",
+            trmAplicada: "",
+            fechaTrm: "",
+          });
         }
       } catch (error) {
         console.error("Error cargando datos del tab:", error);
+        setInitialState({
+          numeroFactura: "",
+          fechaFactura: "",
+          monedaBase: "",
+          trmAplicada: "",
+          fechaTrm: "",
+        });
       } finally {
         setTimeout(() => {
           setIsInitialLoading(false);
@@ -103,13 +161,13 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
         .update({ fecha_modificacion: new Date().toISOString() })
         .eq('id_orden_pedido', order.id_orden_pedido);
 
-      // Registrar en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'factura_emitida',
-        fase_anterior: order.fase,
-        fase_nueva: order.fase,
-        observaciones: `Factura ${numeroFactura} emitida. Moneda: ${monedaBase}${needsTrm ? ` - TRM: $${trmAplicada}` : ''}`,
+      // Actualizar estado inicial para marcar como limpio
+      setInitialState({
+        numeroFactura,
+        fechaFactura,
+        monedaBase,
+        trmAplicada,
+        fechaTrm,
       });
 
       alert('Cambios guardados exitosamente');
@@ -121,9 +179,9 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
     }
   };
 
-  const handleAvanzarFinanciera = async () => {
+  const handleAvanzarLogistica = async () => {
     if (!canAdvance) {
-      alert('Debe completar todos los campos obligatorios antes de avanzar a Financiera');
+      alert('Debe completar todos los campos obligatorios antes de avanzar a Logística');
       return;
     }
 
@@ -145,11 +203,11 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
 
       if (facturaError) throw facturaError;
 
-      // Avanzar fase y cambiar estatus a 'facturada'
+      // Avanzar fase a Logística y cambiar estatus a 'facturada'
       const { error } = await supabase
         .from('orden_pedido')
         .update({
-          fase: 'financiera',
+          fase: 'logistica',
           estatus: 'facturada',
           fecha_modificacion: new Date().toISOString(),
         })
@@ -157,23 +215,23 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
 
       if (error) throw error;
 
-      // Registrar avance en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'avance_fase',
-        fase_anterior: 'facturacion',
-        fase_nueva: 'financiera',
-        observaciones: `Facturación completada. Factura: ${numeroFactura} (${monedaBase}). Orden FACTURADA (estatus → facturada).`,
+      // Marcar como limpio
+      setInitialState({
+        numeroFactura,
+        fechaFactura,
+        monedaBase,
+        trmAplicada,
+        fechaTrm,
       });
 
       onUpdateOrder(order.id_orden_pedido, {
-        fase: 'financiera',
+        fase: 'logistica',
         estatus: 'facturada'
       });
-      alert('Factura emitida y orden enviada a Financiera exitosamente');
+      alert('Factura emitida y orden enviada a Logística exitosamente');
     } catch (error) {
-      console.error('Error avanzando a Financiera:', error);
-      alert('Error al avanzar a Financiera');
+      console.error('Error avanzando a Logística:', error);
+      alert('Error al avanzar a Logística');
     } finally {
       setSaving(false);
     }
@@ -320,12 +378,12 @@ export function FacturacionTab({ order, onUpdateOrder }: FacturacionTabProps) {
           Guardar Cambios
         </Button>
         <Button
-          onClick={handleAvanzarFinanciera}
+          onClick={handleAvanzarLogistica}
           disabled={!canAdvance || saving}
           className="bg-success hover:bg-success/90"
         >
           {canAdvance
-            ? 'Enviar a Financiera'
+            ? 'Enviar a Logística'
             : 'Completar Campos'}
         </Button>
       </div>

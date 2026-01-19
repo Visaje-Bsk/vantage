@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx supabase db remote:*)",
       "Bash(del:*)",
-      "Bash(del TYPESCRIPT_TYPES_REFERENCE.md)"
+      "Bash(del TYPESCRIPT_TYPES_REFERENCE.md)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

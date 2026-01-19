@@ -1,14 +1,15 @@
 /**
  * Tab de Logística
  *
- * FASE 4: LOGÍSTICA
+ * FASE 6: LOGÍSTICA (FASE FINAL)
  * Responsable: Rol logistica
  *
- * Según FLUJOKANBAN.md:
+ * Según el nuevo flujo:
  * - RF-8 DATA GATE CRÍTICO: valor_servicio_flete es OBLIGATORIO
  * - Registro de despacho_orden (numero_guia, id_transportadora, fecha_despacho)
  * - Registro de remision (numero_remision)
- * - Sin este data gate completado, Facturación NO puede emitir facturas
+ * - Cierre definitivo de la orden (estatus -> 'cerrada')
+ * - Última fase del flujo Kanban
  */
 
 import { useState, useEffect } from "react";
@@ -26,16 +27,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OrdenKanban } from "@/types/kanban";
-import { Truck, DollarSign, FileText, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
+import { Truck, DollarSign, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
+import { ConfirmationDialog } from "../ConfirmationDialog";
+import { SuccessModal } from "../SuccessModal";
+import { toast } from "sonner";
 
 interface LogisticaTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
-export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
+interface LogisticaInitialState {
+  valorFlete: string;
+  numeroGuia: string;
+  idTransportadora: string;
+  fechaDespacho: string;
+  observacionesLogistica: string;
+  numeroRemision: string;
+}
+
+export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaTabProps) {
   // Estado para despacho_orden
   const [valorFlete, setValorFlete] = useState("");
   const [numeroGuia, setNumeroGuia] = useState("");
@@ -53,6 +67,26 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
 
   const [saving, setSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Estado inicial para detectar cambios
+  const [initialState, setInitialState] = useState<LogisticaInitialState | null>(null);
+
+  // Detectar cambios comparando con estado inicial
+  useEffect(() => {
+    if (initialState === null) return;
+
+    const hasChanges =
+      valorFlete !== initialState.valorFlete ||
+      numeroGuia !== initialState.numeroGuia ||
+      idTransportadora !== initialState.idTransportadora ||
+      fechaDespacho !== initialState.fechaDespacho ||
+      observacionesLogistica !== initialState.observacionesLogistica ||
+      numeroRemision !== initialState.numeroRemision;
+
+    onDirtyChange?.(hasChanges);
+  }, [valorFlete, numeroGuia, idTransportadora, fechaDespacho, observacionesLogistica, numeroRemision, initialState, onDirtyChange]);
 
   // Cargar datos iniciales del tab
   useEffect(() => {
@@ -72,6 +106,14 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
           setTransportadoras(transportadorasData);
         }
 
+        // Variables para el estado inicial
+        let loadedValorFlete = "";
+        let loadedNumeroGuia = "";
+        let loadedIdTransportadora = "";
+        let loadedFechaDespacho = "";
+        let loadedObservacionesLogistica = "";
+        let loadedNumeroRemision = "";
+
         // Cargar datos de despacho_orden si existen
         const { data: despachoData, error: despachoError } = await supabase
           .from("despacho_orden")
@@ -80,11 +122,17 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
           .maybeSingle();
 
         if (!despachoError && despachoData) {
-          setValorFlete(despachoData.valor_servicio_flete?.toString() || "");
-          setNumeroGuia(despachoData.numero_guia || "");
-          setIdTransportadora(despachoData.id_transportadora?.toString() || "");
-          setFechaDespacho(despachoData.fecha_despacho || "");
-          setObservacionesLogistica(despachoData.observaciones_logistica || "");
+          loadedValorFlete = despachoData.valor_servicio_flete?.toString() || "";
+          loadedNumeroGuia = despachoData.numero_guia || "";
+          loadedIdTransportadora = despachoData.id_transportadora?.toString() || "";
+          loadedFechaDespacho = despachoData.fecha_despacho || "";
+          loadedObservacionesLogistica = despachoData.observaciones_logistica || "";
+
+          setValorFlete(loadedValorFlete);
+          setNumeroGuia(loadedNumeroGuia);
+          setIdTransportadora(loadedIdTransportadora);
+          setFechaDespacho(loadedFechaDespacho);
+          setObservacionesLogistica(loadedObservacionesLogistica);
         }
 
         // Cargar datos de remisión si existen
@@ -95,10 +143,30 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
           .maybeSingle();
 
         if (!remisionError && remisionData) {
-          setNumeroRemision(remisionData.numero_remision || "");
+          loadedNumeroRemision = remisionData.numero_remision || "";
+          setNumeroRemision(loadedNumeroRemision);
         }
+
+        // Guardar estado inicial
+        setInitialState({
+          valorFlete: loadedValorFlete,
+          numeroGuia: loadedNumeroGuia,
+          idTransportadora: loadedIdTransportadora,
+          fechaDespacho: loadedFechaDespacho,
+          observacionesLogistica: loadedObservacionesLogistica,
+          numeroRemision: loadedNumeroRemision,
+        });
       } catch (error) {
         console.error("Error cargando datos del tab:", error);
+        // Establecer estado inicial vacío en caso de error
+        setInitialState({
+          valorFlete: "",
+          numeroGuia: "",
+          idTransportadora: "",
+          fechaDespacho: "",
+          observacionesLogistica: "",
+          numeroRemision: "",
+        });
       } finally {
         // Pequeño delay para mostrar el skeleton (mejor UX)
         setTimeout(() => {
@@ -110,8 +178,8 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
     loadTabData();
   }, [order.id_orden_pedido]);
 
-  // RF-8 CRITICAL: valor_servicio_flete es OBLIGATORIO para avanzar
-  const canAdvance =
+  // RF-8 CRITICAL: valor_servicio_flete es OBLIGATORIO para cerrar
+  const canClose =
     valorFlete.trim() !== "" &&
     numeroGuia.trim() !== "" &&
     idTransportadora.trim() !== "" &&
@@ -155,31 +223,37 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
         .update({ fecha_modificacion: new Date().toISOString() })
         .eq('id_orden_pedido', order.id_orden_pedido);
 
-      // Registrar en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'logistica_actualizada',
-        fase_anterior: order.fase,
-        fase_nueva: order.fase,
-        observaciones: `Datos logísticos guardados. Guía: ${numeroGuia}, Remisión: ${numeroRemision}`,
+      // Actualizar estado inicial para marcar como limpio
+      setInitialState({
+        valorFlete,
+        numeroGuia,
+        idTransportadora,
+        fechaDespacho,
+        observacionesLogistica,
+        numeroRemision,
       });
 
-      alert('Cambios guardados exitosamente');
+      toast.success('Cambios guardados exitosamente');
     } catch (error) {
       console.error('Error guardando cambios:', error);
-      alert('Error al guardar cambios');
+      toast.error('Error al guardar cambios');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAvanzarFacturacion = async () => {
-    if (!canAdvance) {
-      alert('Debe completar todos los campos obligatorios antes de avanzar a Facturación');
+  const handleCerrarOrden = () => {
+    if (!canClose) {
+      toast.error('Debe completar todos los campos obligatorios antes de cerrar la orden');
       return;
     }
+    setShowConfirmDialog(true);
+  };
 
+  const handleConfirmCerrarOrden = async () => {
+    setShowConfirmDialog(false);
     setSaving(true);
+
     try {
       // Primero guardar todos los datos
       const { error: despachoError } = await supabase
@@ -209,35 +283,36 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
 
       if (remisionError) throw remisionError;
 
-      // Avanzar fase y cambiar estatus a 'enviada'
-      const { error } = await supabase
+      // Cambiar estatus a cerrada (fase final)
+      const { error: updateError } = await supabase
         .from('orden_pedido')
         .update({
-          fase: 'facturacion',
-          estatus: 'enviada',
+          estatus: 'cerrada',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      // Registrar avance en historial con énfasis en RF-8
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'avance_fase',
-        fase_anterior: 'logistica',
-        fase_nueva: 'facturacion',
-        observaciones: `RF-8 completado: Valor flete $${valorFlete}. Orden DESPACHADA (estatus → enviada). Guía: ${numeroGuia}, Remisión: ${numeroRemision}`,
+      // Marcar como limpio
+      setInitialState({
+        valorFlete,
+        numeroGuia,
+        idTransportadora,
+        fechaDespacho,
+        observacionesLogistica,
+        numeroRemision,
       });
 
       onUpdateOrder(order.id_orden_pedido, {
-        fase: 'facturacion',
-        estatus: 'enviada'
+        estatus: 'cerrada',
       });
-      alert('Orden despachada y enviada a Facturación exitosamente');
+
+      // Mostrar modal de éxito
+      setShowSuccessModal(true);
     } catch (error) {
-      console.error('Error avanzando a Facturación:', error);
-      alert('Error al avanzar a Facturación');
+      console.error('Error cerrando orden:', error);
+      toast.error('Error al cerrar la orden');
     } finally {
       setSaving(false);
     }
@@ -370,23 +445,23 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
         </CardContent>
       </Card>
 
-      {/* Validación visual */}
-      {!canAdvance && (
+      {/* Validación visual para cierre */}
+      {!canClose && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Campos Obligatorios</AlertTitle>
           <AlertDescription>
-            Complete los campos requeridos
+            Complete los campos requeridos para cerrar la orden
           </AlertDescription>
         </Alert>
       )}
 
-      {canAdvance && (
+      {canClose && (
         <Alert className="border-success/50 bg-success/10">
           <CheckCircle2 className="h-4 w-4 text-success" />
           <AlertTitle className="text-success">Validación Completa</AlertTitle>
           <AlertDescription className="text-success-foreground/80">
-            Información registrada correctamente
+            Información registrada correctamente. Puede cerrar la orden.
           </AlertDescription>
         </Alert>
       )}
@@ -395,21 +470,42 @@ export function LogisticaTab({ order, onUpdateOrder }: LogisticaTabProps) {
       <div className="flex gap-3 justify-end pt-4 border-t">
         <Button
           onClick={handleSave}
-          disabled={saving || !canAdvance}
+          disabled={saving}
           variant="outline"
         >
           Guardar Cambios
         </Button>
         <Button
-          onClick={handleAvanzarFacturacion}
-          disabled={!canAdvance || saving}
+          onClick={handleCerrarOrden}
+          disabled={!canClose || saving}
           className="bg-success hover:bg-success/90"
         >
-          {canAdvance
-            ? 'Enviar a Facturación'
-            : 'Completar Campos'}
+          {canClose
+            ? 'Cerrar Orden'
+            : 'Completar Campos Primero'}
         </Button>
       </div>
+
+      {/* Modal de confirmación */}
+      <ConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmCerrarOrden}
+        title="¿Cerrar esta orden?"
+        description="Esta acción marcará la orden como CERRADA. Esta es la etapa final del flujo y la orden desaparecerá del tablero Kanban. Podrá consultarla en el historial."
+        confirmText="Sí, cerrar orden"
+        cancelText="Cancelar"
+        variant="destructive"
+      />
+
+      {/* Modal de éxito */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="¡Orden Cerrada!"
+        message={`La orden #${order.consecutivo || order.id_orden_pedido} ha sido cerrada exitosamente. El proceso ha finalizado.`}
+        autoCloseDuration={3500}
+      />
     </div>
   );
 }
