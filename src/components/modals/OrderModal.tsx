@@ -19,6 +19,8 @@ import {
 } from "@/types/kanban";
 import type { Database } from "@/integrations/supabase/types";
 type AppRole = Database["public"]["Enums"]["app_role"];
+import { useDataGateValidation } from "@/hooks/useDataGateValidation";
+import { DATA_GATE_CONFIG, VALIDATION_MESSAGES } from "@/types/dataGates";
 import {
   Building2,
   User,
@@ -99,6 +101,47 @@ export function OrderModal({
     setTabDirtyStates(prev => ({ ...prev, [tab]: isDirty }));
   }, []);
 
+  // Función para obtener datos completos de la orden para validación
+  const getOrderDataForValidation = async () => {
+    if (!order) return {};
+
+    try {
+      // Obtener datos completos para validación
+      const { data: fullOrder } = await supabase
+        .from("orden_pedido")
+        .select(`
+          *,
+          cliente ( nombre_cliente, nit ),
+          proyecto ( nombre_proyecto ),
+          responsable_orden (
+            user_id,
+            role,
+            profiles ( nombre, username )
+          ),
+          detalles (
+            id_orden_detalle,
+            cantidad,
+            valor_unitario,
+            equipo ( nombre_equipo, codigo ),
+            servicio ( nombre_servicio )
+          )
+        `)
+        .eq("id_orden_pedido", order.id_orden_pedido)
+        .single();
+
+      return fullOrder || {};
+    } catch (error) {
+      console.error("Error fetching order for validation:", error);
+      return order;
+    }
+  };
+
+  // Validación de Data Gates para la fase actual (usando datos básicos)
+  const dataGateValidation = useDataGateValidation({
+    order: order || {},
+    currentPhase: order?.fase as FaseOrdenDB || 'comercial',
+    hasUnsavedChanges: tabDirtyStates[FASE_TO_UI[order?.fase as FaseOrdenDB] ?? "comercial"],
+  });
 
   const uiTabFromFase = (fase: FaseOrdenDB): OrdenStageUI => {
     const entry = (Object.entries(UI_TO_FASE) as [OrdenStageUI, FaseOrdenDB][])
@@ -171,14 +214,16 @@ export function OrderModal({
 
       if (updateError) throw updateError;
 
-      // Registrar en historial
-      await supabase.from('historial_orden').insert({
-        id_orden_pedido: order.id_orden_pedido,
-        accion_clave: 'orden_anulada',
-        fase_anterior: order.fase,
-        fase_nueva: order.fase,
-        observaciones: `Orden anulada por admin. Razón: ${razonAnulacion}`,
-      });
+      // Registrar en historial - Comentado hasta tener contexto del usuario
+      // await supabase.from('historial_orden').insert({
+      //   accion_clave: 'orden_anulada',
+      //   actor_user_id: 'current_user_id', // Reemplazar con ID del usuario actual
+      //   rol_actor: 'current_role', // Reemplazar con rol del usuario actual
+      //   fase_anterior: order.fase,
+      //   fase_nueva: order.fase,
+      //   estatus_nuevo: 'anulada',
+      //   observaciones: `Orden anulada por admin. Razón: ${razonAnulacion}`,
+      // });
 
       onUpdateOrder(order.id_orden_pedido, { estatus: 'anulada' });
 
@@ -240,6 +285,76 @@ export function OrderModal({
       });
       setIsAdvancing(false);
       return;
+    }
+
+    // Validar Data Gates con datos completos antes de avanzar
+    const orderDataForValidation = await getOrderDataForValidation();
+    
+    // Validación directa sin usar hooks
+    const phaseConfig = DATA_GATE_CONFIG[order.fase as FaseOrdenDB];
+    if (phaseConfig) {
+      const errors = [];
+      const missingFields = [];
+
+      // Validar campos obligatorios
+      phaseConfig.requiredFields.forEach((fieldConfig) => {
+        const value = getFieldValue(orderDataForValidation, fieldConfig.field, fieldConfig.table);
+        
+        if (!value || value === '' || value === null || value === undefined) {
+          missingFields.push(fieldConfig.field);
+          const message = fieldConfig.severity === 'critical'
+            ? VALIDATION_MESSAGES.CRITICAL_FIELD(fieldConfig.label)
+            : VALIDATION_MESSAGES.FIELD_REQUIRED(fieldConfig.label);
+          
+          errors.push({
+            field: fieldConfig.field,
+            message,
+            severity: fieldConfig.severity,
+          });
+        }
+      });
+
+      // Ejecutar validaciones personalizadas
+      if (phaseConfig.customValidations) {
+        phaseConfig.customValidations.forEach((customValidation) => {
+          const customErrors = customValidation(orderDataForValidation);
+          errors.push(...customErrors);
+        });
+      }
+
+      // Si hay errores, mostrar y bloquear avance
+      if (errors.length > 0) {
+        const errorMessage = errors
+          .map(err => err.message)
+          .join('. ');
+
+        toast({
+          title: "Validación requerida",
+          description: errorMessage || "Complete todos los campos obligatorios antes de avanzar.",
+          variant: "destructive"
+        });
+        setIsAdvancing(false);
+        return;
+      }
+    }
+
+    // Helper para obtener el valor de un campo
+    function getFieldValue(orderData: any, field: string, table?: string): any {
+      if (!orderData) return null;
+
+      if (table) {
+        const tableMap: Record<string, string> = {
+          'orden_produccion': 'produccion',
+          'despacho_orden': 'despacho',
+          'remision': 'remision',
+          'factura': 'factura',
+        };
+
+        const tableProperty = tableMap[table] || table;
+        return orderData[tableProperty]?.[field];
+      }
+
+      return orderData[field];
     }
 
     const updates = {

@@ -18,6 +18,7 @@ import { FaseOrdenDB } from '@/types/kanban';
 interface UseDataGateValidationProps {
   order: any; // OrdenKanban extendida con datos de todas las tablas
   currentPhase: FaseOrdenDB;
+  hasUnsavedChanges?: boolean; // Para bloquear avance si hay cambios sin guardar
 }
 
 /**
@@ -26,6 +27,7 @@ interface UseDataGateValidationProps {
 export const useDataGateValidation = ({
   order,
   currentPhase,
+  hasUnsavedChanges = false,
 }: UseDataGateValidationProps): DataGateValidationResult => {
 
   const validationResult = useMemo(() => {
@@ -85,8 +87,18 @@ export const useDataGateValidation = ({
       });
     }
 
-    // Determinar si puede avanzar (solo si no hay errores críticos o errores)
-    const canAdvance = errors.length === 0;
+    // Si hay cambios sin guardar, agregar error específico
+    if (hasUnsavedChanges) {
+      errors.push({
+        field: 'unsaved_changes',
+        message: VALIDATION_MESSAGES.UNSAVED_CHANGES,
+        severity: 'error',
+      });
+      missingFields.push('unsaved_changes');
+    }
+
+    // Determinar si puede avanzar (solo si no hay errores críticos o errores y no hay cambios sin guardar)
+    const canAdvance = errors.length === 0 && !hasUnsavedChanges;
 
     return {
       canAdvance,

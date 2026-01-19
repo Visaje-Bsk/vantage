@@ -69,24 +69,9 @@ export const DATA_GATE_CONFIG: Record<FaseOrdenDB, PhaseDataGateConfig> = {
         severity: 'critical',
       },
       {
-        field: 'id_clase_orden',
-        label: 'Clase de Orden',
-        severity: 'critical',
-      },
-      {
-        field: 'id_tipo_servicio',
-        label: 'Tipo de Servicio',
-        severity: 'critical',
-      },
-      {
         field: 'id_ingeniero_asignado',
         label: 'Ingeniero Asignado',
         severity: 'critical',
-      },
-      {
-        field: 'id_tipo_despacho',
-        label: 'Tipo de Despacho',
-        severity: 'error',
       },
     ],
     customValidations: [
@@ -243,4 +228,5 @@ export const VALIDATION_MESSAGES = {
   CRITICAL_FIELD: (label: string) => `⛔ CRÍTICO: ${label} es obligatorio para continuar`,
   CANNOT_ADVANCE: (phase: string) => `No se puede avanzar desde ${phase} hasta completar todos los campos obligatorios`,
   PHASE_COMPLETE: (phase: string) => `✓ Fase ${phase} completa. Puede avanzar a la siguiente fase.`,
+  UNSAVED_CHANGES: `⚠️ Hay cambios sin guardar. Debe guardar los cambios antes de avanzar.`,
 };

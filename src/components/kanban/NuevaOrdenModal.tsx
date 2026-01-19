@@ -31,6 +31,12 @@ interface NuevaOrdenModalProps {
   onOrderCreated: (orderId: number) => void; // Callback para refrescar el kanban y manejar la nueva orden
 }
 
+// Función de validación de email
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 interface Cliente {
   id_cliente: number;
   nombre_cliente: string;
@@ -278,6 +284,12 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
           toast.error('Por favor complete la información de dirección y contacto');
           return;
         }
+
+        // Validar email si se proporciona
+        if (despachoData.email_contacto && !validateEmail(despachoData.email_contacto)) {
+          toast.error('El email de contacto no es válido');
+          return;
+        }
       }
 
       if (tipoSeleccionado?.requiere_transportadora && !despachoData.id_transportadora) {
@@ -414,16 +426,9 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
           throw new Error('Error al crear la información de despacho');
         }
 
-        // Update ordenpedido with id_despacho_orden
-        const { error: updateError } = await supabase
-          .from('orden_pedido')
-          .update({ id_despacho_orden: despacho.id_despacho_orden })
-          .eq('id_orden_pedido', orderId);
-
-        if (updateError) {
-          console.error('Error updating orden with despacho:', updateError);
-          // Don't fail the operation
-        }
+        // No es necesario actualizar orden_pedido con id_despacho_orden
+        // La relación se maneja por el id_orden_pedido en la tabla despacho_orden
+        console.log('Despacho creado exitosamente para orden:', orderId);
       }
 
       toast.success('Orden creada exitosamente');

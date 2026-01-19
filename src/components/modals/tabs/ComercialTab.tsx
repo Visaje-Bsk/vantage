@@ -82,29 +82,6 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   // Hooks de validación
   const validation = useComercialValidation();
 
-  // Hooks de Data Gates
-  const dataGateValidation = useDataGateValidation({
-    order: {
-      ...order,
-      // Agregar datos del formulario para validación
-      id_cliente: form.formData.id_cliente || order.id_cliente,
-      id_tipo_servicio: order.id_tipo_servicio,
-      id_ingeniero_asignado: responsable.selectedResponsable || null,
-    },
-    currentPhase: 'comercial' as FaseOrdenDB,
-  });
-
-  const dataGateStatus = useDataGateStatus({
-    order: {
-      ...order,
-      id_cliente: form.formData.id_cliente,
-      id_clase_orden: form.formData.id_clase_orden,
-      id_tipo_servicio: form.formData.id_tipo_servicio,
-      id_ingeniero_asignado: responsable.selectedResponsable || null,
-    },
-    currentPhase: 'comercial' as FaseOrdenDB,
-  });
-
   // Hook de guardado
   const { saveComercialData, isSaving } = useComercialSave(order.id_orden_pedido);
 
@@ -118,6 +95,30 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     selectedResponsable: responsable.selectedResponsable,
     deletedEquipoIds: products.deletedEquipoIds,
     deletedServicioIds: services.deletedServiceIds,
+  });
+
+  // Hooks de Data Gates
+  const dataGateValidation = useDataGateValidation({
+    order: {
+      ...order,
+      // Agregar datos del formulario para validación
+      id_cliente: form.formData.id_cliente || order.id_cliente,
+      id_tipo_servicio: order.id_tipo_servicio,
+      id_ingeniero_asignado: responsable.selectedResponsable || null,
+    },
+    currentPhase: 'comercial' as FaseOrdenDB,
+    hasUnsavedChanges: unsavedChanges.hasUnsavedChanges,
+  });
+
+  const dataGateStatus = useDataGateStatus({
+    order: {
+      ...order,
+      id_cliente: form.formData.id_cliente,
+      id_clase_orden: form.formData.id_clase_orden,
+      id_tipo_servicio: form.formData.id_tipo_servicio,
+      id_ingeniero_asignado: responsable.selectedResponsable || null,
+    },
+    currentPhase: 'comercial' as FaseOrdenDB,
   });
 
   // ==================== FUNCIONES DE CARGA DE DATOS ====================
@@ -548,13 +549,17 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
         if (!estatusError) {
           newEstatus = 'abierta';
           // Registrar en historial
-          await supabase.from('historial_orden').insert({
-            id_orden_pedido: order.id_orden_pedido,
-            accion_clave: 'estatus_actualizado',
-            fase_anterior: order.fase,
-            fase_nueva: order.fase,
-            observaciones: 'Orden completada y activada. Estatus cambiado de "borrador" a "abierta".',
-          });
+          // Nota: Se requiere actor_user_id y rol_actor, pero no tenemos el usuario actual
+          // Por ahora, omitimos este registro hasta tener el contexto del usuario
+          // await supabase.from('historial_orden').insert({
+          //   accion_clave: 'estatus_actualizado',
+          //   actor_user_id: 'current_user_id', // Reemplazar con ID del usuario actual
+          //   rol_actor: 'current_role', // Reemplazar con rol del usuario actual
+          //   fase_anterior: order.fase,
+          //   fase_nueva: order.fase,
+          //   estatus_nuevo: 'abierta',
+          //   observaciones: 'Orden completada y activada. Estatus cambiado de "borrador" a "abierta".',
+          // });
           toast.success('Orden activada correctamente');
         }
       }
