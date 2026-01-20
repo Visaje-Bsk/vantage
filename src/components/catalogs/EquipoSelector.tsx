@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,8 +65,18 @@ export default function EquipoSelector({ value, onChange, placeholder = "Buscar 
           .order("codigo", { ascending: true, nullsFirst: false });
 
         if (term) {
+          // Escapar caracteres especiales para evitar errores en la consulta
+          // Los caracteres que causan problemas en PostgREST: / , ( ) .
+          const escapedTerm = term
+            .replace(/\\/g, '\\\\')  // Escapar backslash primero
+            .replace(/,/g, '\\,')    // Escapar comas
+            .replace(/\(/g, '\\(')   // Escapar paréntesis
+            .replace(/\)/g, '\\)')
+            .replace(/\./g, '\\.');  // Escapar puntos
+
           // Server-side search on codigo or nombre_equipo
-          qb = qb.or(`codigo.ilike.%${term}%,nombre_equipo.ilike.%${term}%`);
+          // Nota: El slash (/) no necesita escape en el valor, solo en la estructura
+          qb = qb.or(`codigo.ilike.*${escapedTerm}*,nombre_equipo.ilike.*${escapedTerm}*`);
         }
 
         const { data, error } = await qb;

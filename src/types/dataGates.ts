@@ -63,11 +63,7 @@ export const DATA_GATE_CONFIG: Record<FaseOrdenDB, PhaseDataGateConfig> = {
     phaseName: 'Comercial',
     nextPhase: 'inventarios',
     requiredFields: [
-      {
-        field: 'id_cliente',
-        label: 'Cliente',
-        severity: 'critical',
-      },
+      // Nota: id_cliente NO se valida aquí porque ya viene asignado desde la creación de la orden
       {
         field: 'id_ingeniero_asignado',
         label: 'Ingeniero Asignado',

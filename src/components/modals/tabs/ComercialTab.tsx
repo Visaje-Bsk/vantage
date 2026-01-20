@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { OrdenKanban } from "@/types/kanban";
-import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2, Edit, Lock, Truck } from "lucide-react";
+import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2, Edit, Lock, Truck, Check, Pencil, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -818,94 +818,160 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 // Modo edición - formularios interactivos
                 <>
               {products.productLines.map((line) => (
-                <div key={line.id_linea_detalle} className="grid grid-cols-12 gap-4 items-start">
-                  <div className="col-span-12 md:col-span-1 flex md:justify-start justify-end">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleRemoveProductLine(line.id_linea_detalle)}
-                      disabled={products.productLines.length === 1}
-                      aria-label="Eliminar línea"
-                      title="Eliminar línea"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2 col-span-12 md:col-span-5">
-                    <Label>Equipos</Label>
-                    <EquipoSelector
-                      value={line.selectedEquipo}
-                      onChange={(val) => products.updateLine(line.id_linea_detalle, "selectedEquipo", val)}
-                      placeholder="Buscar por código o nombre..."
-                    />
-                  </div>
-                  <div className="space-y-2 col-span-6 md:col-span-2">
-                    <Label>
-                      Cantidad {line.selectedEquipo?.id_equipo && <span className="text-red-500">*</span>}
-                    </Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0"
-                      value={line.cantidad}
-                      onChange={(e) => handleQuantityChange(line.id_linea_detalle, e.target.value)}
-                      className={
-                        (line.selectedEquipo?.id_equipo && (!line.cantidad || Number(line.cantidad) <= 0)) ||
-                        (line.cantidad && !line.selectedEquipo?.id_equipo) ||
-                        validation.quantityErrors[line.id_linea_detalle]
-                          ? "border-red-300"
-                          : ""
-                      }
-                      min={1}
-                      max={9999}
-                    />
-                    {validation.quantityErrors[line.id_linea_detalle] && (
-                      <p className="text-xs text-red-500">{validation.quantityErrors[line.id_linea_detalle]}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2 col-span-6 md:col-span-2">
-                    <Label>
-                      Valor Unitario {line.selectedEquipo?.id_equipo && <span className="text-red-500">*</span>}
-                    </Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="$0"
-                      value={formatCOP(line.valorUnitario)}
-                      onChange={(e) => {
-                        const digits = digitsOnly(e.target.value);
-                        products.updateLine(line.id_linea_detalle, "valorUnitario", digits);
-                      }}
-                      className={
-                        (line.selectedEquipo?.id_equipo && (!line.valorUnitario || Number(line.valorUnitario) <= 0)) ||
-                        (line.valorUnitario && !line.selectedEquipo?.id_equipo)
-                          ? "border-red-300"
-                          : ""
-                      }
-                    />
-                  </div>
-
-                  {/* Plantilla section */}
-                  <div className="col-span-12 space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`plantilla-${line.id_linea_detalle}`}
-                        checked={line.plantilla}
-                        onCheckedChange={(checked) => products.updateLine(line.id_linea_detalle, "plantilla", checked)}
-                      />
-                      <Label htmlFor={`plantilla-${line.id_linea_detalle}`}>Plantilla</Label>
+                <div
+                  key={line.id_linea_detalle}
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    line.isConfirmed
+                      ? "bg-green-50 border-green-300 dark:bg-green-950/20 dark:border-green-800"
+                      : "bg-muted/30 border-muted"
+                  }`}
+                >
+                  {line.isConfirmed ? (
+                    // Vista de equipo confirmado
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                          <div>
+                            <span className="font-medium text-muted-foreground">Equipo:</span>{" "}
+                            <span className="font-semibold">{line.selectedEquipo?.nombre_equipo || line.selectedEquipo?.codigo}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">Código:</span>{" "}
+                            <span>{line.selectedEquipo?.codigo || "-"}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">Cantidad:</span>{" "}
+                            <span className="font-semibold">{line.cantidad}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">Valor:</span>{" "}
+                            <span className="font-semibold">{formatCOP(line.valorUnitario)}</span>
+                          </div>
+                        </div>
+                        {line.plantilla && line.plantillaText && (
+                          <div className="text-xs text-muted-foreground border-l pl-2">
+                            Plantilla: {line.plantillaText}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => products.unconfirmLine(line.id_linea_detalle)}
+                          title="Editar equipo"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveProductLine(line.id_linea_detalle)}
+                          disabled={products.productLines.length === 1 && !line.isConfirmed}
+                          title="Eliminar equipo"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    {line.plantilla && (
-                      <Input
-                        type="text"
-                        placeholder="Información de plantilla..."
-                        value={line.plantillaText}
-                        onChange={(e) => products.updateLine(line.id_linea_detalle, "plantillaText", e.target.value)}
-                      />
-                    )}
-                  </div>
+                  ) : (
+                    // Formulario de edición
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-12 gap-4 items-end">
+                        <div className="col-span-12 md:col-span-5 space-y-2">
+                          <Label>Equipos <span className="text-red-500">*</span></Label>
+                          <EquipoSelector
+                            value={line.selectedEquipo}
+                            onChange={(val) => products.updateLine(line.id_linea_detalle, "selectedEquipo", val)}
+                            placeholder="Buscar por código o nombre..."
+                          />
+                        </div>
+                        <div className="col-span-5 md:col-span-2 space-y-2">
+                          <Label>Cantidad <span className="text-red-500">*</span></Label>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={line.cantidad}
+                            onChange={(e) => handleQuantityChange(line.id_linea_detalle, e.target.value)}
+                            className={validation.quantityErrors[line.id_linea_detalle] ? "border-red-300" : ""}
+                          />
+                          {validation.quantityErrors[line.id_linea_detalle] && (
+                            <p className="text-xs text-red-500">{validation.quantityErrors[line.id_linea_detalle]}</p>
+                          )}
+                        </div>
+                        <div className="col-span-5 md:col-span-2 space-y-2">
+                          <Label>Valor Unitario <span className="text-red-500">*</span></Label>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="$0"
+                            value={formatCOP(line.valorUnitario)}
+                            onChange={(e) => {
+                              const digits = digitsOnly(e.target.value);
+                              products.updateLine(line.id_linea_detalle, "valorUnitario", digits);
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-2 md:col-span-3 flex gap-2 justify-end">
+                          <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            onClick={() => {
+                              const confirmed = products.confirmLine(line.id_linea_detalle);
+                              if (!confirmed) {
+                                toast.error("Completa equipo, cantidad y valor antes de confirmar");
+                              }
+                            }}
+                            disabled={!products.canConfirmLine(line.id_linea_detalle)}
+                            className="bg-green-600 hover:bg-green-700"
+                            title="Confirmar equipo"
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Confirmar
+                          </Button>
+                          {products.productLines.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveProductLine(line.id_linea_detalle)}
+                              title="Eliminar línea"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Plantilla section */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`plantilla-${line.id_linea_detalle}`}
+                            checked={line.plantilla}
+                            onCheckedChange={(checked) => products.updateLine(line.id_linea_detalle, "plantilla", checked)}
+                          />
+                          <Label htmlFor={`plantilla-${line.id_linea_detalle}`}>Plantilla</Label>
+                        </div>
+                        {line.plantilla && (
+                          <Input
+                            type="text"
+                            placeholder="Información de plantilla..."
+                            value={line.plantillaText}
+                            onChange={(e) => products.updateLine(line.id_linea_detalle, "plantillaText", e.target.value)}
+                            className="flex-1"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
                   <Button variant="outline" size="sm" onClick={handleAddProductLine}>

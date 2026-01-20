@@ -28,6 +28,7 @@ export interface ProductLine {
   claseCobro: string;
   plantilla: boolean;
   plantillaText: string;
+  isConfirmed: boolean; // Indica si el equipo fue confirmado por el usuario
 }
 
 // Línea de producto inicial vacía
@@ -40,6 +41,7 @@ const INITIAL_PRODUCT_LINE: ProductLine = {
   claseCobro: "",
   plantilla: false,
   plantillaText: "",
+  isConfirmed: false,
 };
 
 export const useProductLines = () => {
@@ -110,18 +112,75 @@ export const useProductLines = () => {
 
   /**
    * Obtiene solo las líneas válidas para guardar
-   * Una línea es válida si tiene equipo, cantidad > 0 y valor > 0
+   * Una línea es válida si está confirmada, tiene equipo, cantidad > 0 y valor > 0
    * @returns Array de líneas válidas
    */
   const getValidLines = useCallback(() => {
     return productLines.filter(
       (l) =>
+        l.isConfirmed &&
         l.selectedEquipo &&
         l.selectedEquipo.id_equipo &&
         l.cantidad &&
         Number(l.cantidad) > 0 &&
         l.valorUnitario &&
         Number(l.valorUnitario) > 0
+    );
+  }, [productLines]);
+
+  /**
+   * Confirma una línea de producto
+   * Solo se puede confirmar si tiene equipo, cantidad > 0 y valor > 0
+   * @param id - ID local de la línea
+   * @returns true si se confirmó exitosamente, false si faltan datos
+   */
+  const confirmLine = useCallback((id: number): boolean => {
+    const line = productLines.find((l) => l.id_linea_detalle === id);
+    if (!line) return false;
+
+    // Validar que tenga todos los datos necesarios
+    const isValid =
+      line.selectedEquipo &&
+      line.selectedEquipo.id_equipo &&
+      line.cantidad &&
+      Number(line.cantidad) > 0 &&
+      line.valorUnitario &&
+      Number(line.valorUnitario) > 0;
+
+    if (!isValid) return false;
+
+    setProductLines((prev) =>
+      prev.map((l) => (l.id_linea_detalle === id ? { ...l, isConfirmed: true } : l))
+    );
+    return true;
+  }, [productLines]);
+
+  /**
+   * Desconfirma una línea de producto (permite editar de nuevo)
+   * @param id - ID local de la línea
+   */
+  const unconfirmLine = useCallback((id: number) => {
+    setProductLines((prev) =>
+      prev.map((l) => (l.id_linea_detalle === id ? { ...l, isConfirmed: false } : l))
+    );
+  }, []);
+
+  /**
+   * Verifica si una línea puede ser confirmada
+   * @param id - ID local de la línea
+   * @returns true si la línea tiene todos los datos necesarios
+   */
+  const canConfirmLine = useCallback((id: number): boolean => {
+    const line = productLines.find((l) => l.id_linea_detalle === id);
+    if (!line) return false;
+
+    return !!(
+      line.selectedEquipo &&
+      line.selectedEquipo.id_equipo &&
+      line.cantidad &&
+      Number(line.cantidad) > 0 &&
+      line.valorUnitario &&
+      Number(line.valorUnitario) > 0
     );
   }, [productLines]);
 
@@ -142,6 +201,9 @@ export const useProductLines = () => {
     setLines,
     resetLines,
     getValidLines,
+    confirmLine,
+    unconfirmLine,
+    canConfirmLine,
     clearDeletedIds,
   };
 };

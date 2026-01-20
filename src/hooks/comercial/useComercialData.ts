@@ -226,6 +226,7 @@ export const useComercialData = (orderId: number) => {
                 claseCobro: "",
                 plantilla: Boolean(detalleWithPlantilla.plantilla),
                 plantillaText: detalleWithPlantilla.plantilla ?? "",
+                isConfirmed: true, // Los equipos que vienen de BD ya están confirmados
               };
             })
           : [
@@ -238,6 +239,7 @@ export const useComercialData = (orderId: number) => {
                 claseCobro: "",
                 plantilla: false,
                 plantillaText: "",
+                isConfirmed: false,
               },
             ];
 

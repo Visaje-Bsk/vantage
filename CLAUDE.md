@@ -38,14 +38,16 @@ This is an "ordenes-pedido" (order management) application with role-based acces
 4. **Admin** - User management and system administration (admin-only)
 
 #### Order Management Workflow
-Orders flow through stages: `comercial` → `inventarios` → `produccion` → `logistica` → `facturacion` → `financiera`
+Orders flow through stages: `comercial` → `inventarios` → `produccion` → `financiera` → `facturacion` → `logistica`
 
 Each stage has different statuses: `borrador`, `abierta`, `enviada`, `facturada`, `cerrada`, `anulada`
 
 Key files:
 - `src/types/kanban.ts` - Order workflow types and stage mappings
+- `src/types/dataGates.ts` - Data Gate validations per phase
 - `src/components/kanban/KanbanBoard.tsx` - Main Kanban interface
 - `src/components/modals/OrderModal.tsx` - Order editing modal with tabs per stage
+- `src/hooks/comercial/` - Modular hooks for ComercialTab (useProductLines, useComercialSave, etc.)
 
 #### Supabase Integration
 - Client configured in `src/integrations/supabase/client.ts`
@@ -64,7 +66,15 @@ Key files:
 - Tab-based order editing with separate components per workflow stage
 - Permission checks integrated throughout the UI
 
+#### Recent Implementations
+- **Equipment Confirmation System**: Products must be "confirmed" before saving (isConfirmed flag)
+- **Unsaved Changes Detection**: Prevents advancing orders with pending changes
+- **Data Gates**: Validation system that blocks phase advancement if required fields are missing
+- **Equipment Search**: Handles special characters (/, -, etc.) in search queries
+
 ### Development Notes
 - The README.md file is for Supabase CLI documentation, not this project
 - No existing test setup - check with user before adding tests
 - Uses ESLint for code quality (run `npm run lint` before committing)
+- For detailed technical documentation, see `docs/TECHNICAL_SPECIFICATION.md`
+- For project overview, see `docs/PROJECT_OVERVIEW.md`

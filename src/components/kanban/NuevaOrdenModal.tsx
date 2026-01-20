@@ -57,6 +57,8 @@ interface ClaseOrden {
 interface TipoPago {
   id_tipo_pago: number;
   forma_pago: string;
+  plazo: string | null;
+  aprobado_cartera: boolean | null;
 }
 
 interface TipoDespacho {
@@ -571,20 +573,20 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
                     </Select>
                 </div>
 
-                {/* Tipo de Pago */}
+                {/* Condiciones de Pago */}
                 <div className="space-y-2">
-                    <Label>Tipo de Pago <span className="text-red-500">*</span></Label>
-                    <Select 
+                    <Label>Condiciones de Pago <span className="text-red-500">*</span></Label>
+                    <Select
                     value={formData.id_tipo_pago}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, id_tipo_pago: value }))}
                     >
                     <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar tipo de pago" />
+                        <SelectValue placeholder="Seleccionar condición de pago" />
                     </SelectTrigger>
                     <SelectContent>
                         {tiposPago.map((pago) => (
                         <SelectItem key={pago.id_tipo_pago} value={pago.id_tipo_pago.toString()}>
-                            {pago.forma_pago}
+                            {pago.plazo ? `${pago.forma_pago} - ${pago.plazo}` : pago.forma_pago}
                         </SelectItem>
                         ))}
                     </SelectContent>

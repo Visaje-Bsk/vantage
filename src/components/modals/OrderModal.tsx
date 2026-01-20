@@ -662,15 +662,16 @@ export function OrderModal({
                 const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
                 const nextFase = NEXT_FASE[currentFaseUI];
                 const canAdvance = nextFase && canUserEditFase(order.fase as FaseOrdenDB);
+                const hasDirtyChanges = tabDirtyStates[currentFaseUI];
 
                 return canAdvance ? (
                   <div className="border-t bg-background px-6 py-4 shrink-0">
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-sm text-muted-foreground">
-                        {tabDirtyStates[currentFaseUI] ? (
+                        {hasDirtyChanges ? (
                           <span className="flex items-center gap-2 text-amber-600">
                             <AlertTriangle className="w-4 h-4" />
-                            Tienes cambios sin guardar en <strong>{STAGE_UI[currentFaseUI].label}</strong>
+                            Debes guardar los cambios antes de avanzar
                           </span>
                         ) : (
                           <>¿Completaste todas las tareas de <strong>{STAGE_UI[currentFaseUI].label}</strong>?</>
@@ -680,7 +681,8 @@ export function OrderModal({
                         onClick={handleAdvanceStageClick}
                         size="lg"
                         className="gap-2 shadow-sm"
-                        disabled={isAdvancing}
+                        disabled={isAdvancing || hasDirtyChanges}
+                        title={hasDirtyChanges ? "Guarda los cambios antes de avanzar" : undefined}
                       >
                         {isAdvancing ? "Avanzando..." : `Avanzar a ${STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}`}
                         <ArrowRight className="w-4 h-4" />

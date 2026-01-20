@@ -97,7 +97,9 @@ export const useComercialSave = (orderId: number) => {
           observaciones: despachoForm.observaciones || "",
         };
 
-        // 3. Preparar equipos v�lidos
+        // 3. Preparar equipos válidos
+        console.log("[useComercialSave] productLines recibidos:", productLines);
+
         const validProductLines = productLines.filter(
           (l) =>
             l.selectedEquipo &&
@@ -108,6 +110,8 @@ export const useComercialSave = (orderId: number) => {
             Number(l.valorUnitario) > 0
         );
 
+        console.log("[useComercialSave] productLines válidos después del filtro:", validProductLines);
+
         const equiposData = validProductLines.map((line) => ({
           id_orden_detalle: line.id_orden_detalle || 0,
           id_equipo: line.selectedEquipo!.id_equipo,
@@ -115,6 +119,8 @@ export const useComercialSave = (orderId: number) => {
           valor_unitario: line.valorUnitario,
           plantilla: line.plantilla && line.plantillaText ? line.plantillaText : "",
         }));
+
+        console.log("[useComercialSave] equiposData a enviar al RPC:", equiposData);
 
         // 4. Preparar servicios v�lidos
         const validServicios = serviceLines.filter(
@@ -140,7 +146,19 @@ export const useComercialSave = (orderId: number) => {
           valor_mensual: sl.valorMensual,
         }));
 
-        // 5. Llamar a la funci�n RPC at�mica
+        // 5. Llamar a la función RPC atómica
+        console.log("[useComercialSave] Llamando RPC upsert_comercial_tab con:", {
+          p_orden_id: orderId,
+          p_orden_data: ordenData,
+          p_despacho_data: despachoData,
+          p_responsable_user_id: selectedResponsable || null,
+          p_responsable_role: selectedResponsable ? selectedResponsableRole : null,
+          p_equipos: equiposData,
+          p_servicios: serviciosData,
+          p_deleted_equipos: deletedEquipoIds,
+          p_deleted_servicios: deletedServicioIds,
+        });
+
         const { data: result, error: rpcError } = await supabase.rpc("upsert_comercial_tab", {
           p_orden_id: orderId,
           p_orden_data: ordenData,
@@ -152,6 +170,8 @@ export const useComercialSave = (orderId: number) => {
           p_deleted_equipos: deletedEquipoIds,
           p_deleted_servicios: deletedServicioIds,
         });
+
+        console.log("[useComercialSave] Resultado RPC:", { result, rpcError });
 
         if (rpcError) throw rpcError;
 
