@@ -118,12 +118,11 @@ export function OrderModal({
             role,
             profiles ( nombre, username )
           ),
-          detalles (
+          detalles:detalle_orden (
             id_orden_detalle,
             cantidad,
             valor_unitario,
-            equipo ( nombre_equipo, codigo ),
-            servicio ( nombre_servicio )
+            equipo ( nombre_equipo, codigo )
           )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)

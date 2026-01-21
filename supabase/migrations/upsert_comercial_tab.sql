@@ -26,6 +26,10 @@ DECLARE
   v_detalle_rows JSONB[];
   v_existing_assignment RECORD;
   v_deleted_linea_ids INT[];
+  v_requiere_direccion BOOLEAN;
+  v_tipo_despacho_id INT;
+  -- Constante: ID de la dirección predefinida de Bismark (AK7 84A-29)
+  C_DIRECCION_BISMARK CONSTANT INT := 20;
 BEGIN
   -- ============================================
   -- 1. UPSERT DESPACHO_ORDEN
@@ -37,23 +41,40 @@ BEGIN
     FROM despacho_orden
     WHERE id_orden_pedido = p_orden_id;
 
-    -- 1a) Manejar dirección de despacho (si hay datos de dirección)
-    IF (p_despacho_data->>'direccion') IS NOT NULL OR (p_despacho_data->>'ciudad') IS NOT NULL THEN
-      IF v_direccion_id IS NOT NULL THEN
-        -- Actualizar dirección existente
+    -- Obtener el tipo de despacho y verificar si requiere dirección
+    v_tipo_despacho_id := NULLIF((p_despacho_data->>'id_tipo_despacho')::INT, 0);
+
+    IF v_tipo_despacho_id IS NOT NULL THEN
+      SELECT COALESCE(requiere_direccion, true) INTO v_requiere_direccion
+      FROM tipo_despacho
+      WHERE id_tipo_despacho = v_tipo_despacho_id;
+    ELSE
+      v_requiere_direccion := true; -- Por defecto, requiere dirección
+    END IF;
+
+    -- 1a) Manejar dirección de despacho
+    IF v_requiere_direccion = false THEN
+      -- Si el tipo de despacho NO requiere dirección (ej: "Recoge en Bismark"),
+      -- asignar automáticamente la dirección predefinida de Bismark
+      v_direccion_id := C_DIRECCION_BISMARK;
+    ELSIF NULLIF(TRIM(COALESCE(p_despacho_data->>'direccion', '')), '') IS NOT NULL OR
+          NULLIF(TRIM(COALESCE(p_despacho_data->>'ciudad', '')), '') IS NOT NULL THEN
+      -- Si requiere dirección y hay datos de dirección proporcionados
+      IF v_direccion_id IS NOT NULL AND v_direccion_id != C_DIRECCION_BISMARK THEN
+        -- Actualizar dirección existente (solo si no es la de Bismark)
         UPDATE direccion_despacho
         SET
-          direccion = COALESCE(NULLIF(p_despacho_data->>'direccion', ''), direccion),
-          ciudad = NULLIF(p_despacho_data->>'ciudad', '')
+          direccion = COALESCE(NULLIF(TRIM(p_despacho_data->>'direccion'), ''), direccion),
+          ciudad = NULLIF(TRIM(p_despacho_data->>'ciudad'), '')
         WHERE id_direccion = v_direccion_id;
       ELSE
         -- Crear nueva dirección (necesita id_cliente de la orden)
         INSERT INTO direccion_despacho (id_cliente, direccion, ciudad)
         SELECT
           o.id_cliente,
-          NULLIF(p_despacho_data->>'direccion', ''),
-          NULLIF(p_despacho_data->>'ciudad', '')
-        FROM ordenpedido o
+          NULLIF(TRIM(p_despacho_data->>'direccion'), ''),
+          NULLIF(TRIM(p_despacho_data->>'ciudad'), '')
+        FROM orden_pedido o
         WHERE o.id_orden_pedido = p_orden_id
         RETURNING id_direccion INTO v_direccion_id;
       END IF;
@@ -133,9 +154,9 @@ BEGIN
   END IF;
 
   -- ============================================
-  -- 2. UPDATE ORDENPEDIDO
+  -- 2. UPDATE ORDEN_PEDIDO
   -- ============================================
-  UPDATE ordenpedido
+  UPDATE orden_pedido
   SET
     id_cliente = NULLIF((p_orden_data->>'id_cliente')::INT, 0),
     id_proyecto = NULLIF((p_orden_data->>'id_proyecto')::INT, 0),
@@ -180,9 +201,9 @@ BEGIN
     WHERE id_orden_detalle = ANY(p_deleted_servicios)
       AND id_linea_detalle IS NOT NULL;
 
-    -- Eliminar de lineaservicio
+    -- Eliminar de linea_servicio
     IF v_deleted_linea_ids IS NOT NULL AND array_length(v_deleted_linea_ids, 1) > 0 THEN
-      DELETE FROM lineaservicio
+      DELETE FROM linea_servicio
       WHERE id_linea_detalle = ANY(v_deleted_linea_ids);
     END IF;
 
@@ -239,7 +260,7 @@ BEGIN
   IF p_servicios IS NOT NULL THEN
     -- Obtener el siguiente id_linea_detalle disponible
     SELECT COALESCE(MAX(id_linea_detalle), 0) + 1 INTO v_next_linea_id
-    FROM lineaservicio;
+    FROM linea_servicio;
 
     v_linea_ids := ARRAY[]::INT[];
 
@@ -247,8 +268,8 @@ BEGIN
     LOOP
       -- Si tiene id_orden_detalle, es un UPDATE
       IF (v_servicio->>'id_orden_detalle') IS NOT NULL AND (v_servicio->>'id_orden_detalle')::INT > 0 THEN
-        -- Actualizar lineaservicio
-        UPDATE lineaservicio
+        -- Actualizar linea_servicio
+        UPDATE linea_servicio
         SET
           id_operador = (v_servicio->>'id_operador')::INT,
           id_plan = (v_servicio->>'id_plan')::INT,
@@ -266,8 +287,8 @@ BEGIN
         v_linea_id := v_next_linea_id;
         v_next_linea_id := v_next_linea_id + 1;
 
-        -- Insertar en lineaservicio
-        INSERT INTO lineaservicio (
+        -- Insertar en linea_servicio
+        INSERT INTO linea_servicio (
           id_linea_detalle,
           id_operador,
           id_plan,
@@ -330,6 +351,7 @@ $$;
 -- Comentario explicativo
 COMMENT ON FUNCTION upsert_comercial_tab IS
 'Función atómica para guardar toda la información del ComercialTab.
+
 Parámetros:
 - p_orden_id: ID de la orden a actualizar
 - p_orden_data: JSONB con datos de la orden (id_cliente, id_proyecto, observaciones_orden, orden_compra)
@@ -340,6 +362,10 @@ Parámetros:
 - p_servicios: JSONB array con servicios [{id_orden_detalle?, id_linea_detalle?, id_operador, id_plan, id_apn, clase_cobro, permanencia, valor_mensual}]
 - p_deleted_equipos: Array de INT con IDs de detalle_orden a eliminar (equipos)
 - p_deleted_servicios: Array de INT con IDs de detalle_orden a eliminar (servicios)
+
+Comportamiento especial:
+- Si el tipo de despacho tiene requiere_direccion = false (ej: "Recoge en Bismark"),
+  se asigna automáticamente la dirección predefinida de Bismark (id_direccion = 20)
 
 Retorna: JSONB con {success: true, despacho_id: INT, message: TEXT}
 ';

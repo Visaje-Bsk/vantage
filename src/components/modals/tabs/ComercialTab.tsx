@@ -97,7 +97,11 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     deletedServicioIds: services.deletedServiceIds,
   });
 
-  // Hooks de Data Gates
+  // Contar productos confirmados en UI (para validación local)
+  const confirmedProductsCount = products.productLines.filter(l => l.isConfirmed).length;
+  const hasConfirmedProducts = confirmedProductsCount > 0;
+
+  // Hooks de Data Gates - Incluir productos confirmados de UI para validación
   const dataGateValidation = useDataGateValidation({
     order: {
       ...order,
@@ -105,6 +109,13 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       id_cliente: form.formData.id_cliente || order.id_cliente,
       id_tipo_servicio: order.id_tipo_servicio,
       id_ingeniero_asignado: responsable.selectedResponsable || null,
+      // Simular detalles con productos confirmados en UI
+      detalles: hasConfirmedProducts
+        ? products.productLines.filter(l => l.isConfirmed).map(l => ({
+            cantidad: Number(l.cantidad),
+            valor_unitario: Number(l.valorUnitario),
+          }))
+        : order.detalles,
     },
     currentPhase: 'comercial' as FaseOrdenDB,
     hasUnsavedChanges: unsavedChanges.hasUnsavedChanges,
@@ -117,9 +128,18 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       id_clase_orden: form.formData.id_clase_orden,
       id_tipo_servicio: form.formData.id_tipo_servicio,
       id_ingeniero_asignado: responsable.selectedResponsable || null,
+      detalles: hasConfirmedProducts
+        ? products.productLines.filter(l => l.isConfirmed).map(l => ({
+            cantidad: Number(l.cantidad),
+            valor_unitario: Number(l.valorUnitario),
+          }))
+        : order.detalles,
     },
     currentPhase: 'comercial' as FaseOrdenDB,
   });
+
+  // Determinar si el botón Guardar debe estar habilitado
+  const canSave = hasConfirmedProducts || unsavedChanges.hasUnsavedChanges;
 
   // ==================== FUNCIONES DE CARGA DE DATOS ====================
 
@@ -1530,21 +1550,47 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
             )}
           </div>
 
-          {editMode.isEditMode && (
-            <div className="flex items-center justify-between gap-3">
-              <DataGateAlert 
+        </CardContent>
+      </Card>
+
+      {/* ==================== BARRA DE GUARDADO ==================== */}
+      {editMode.isEditMode && (
+        <div className="bg-muted/50 border rounded-lg p-4 mt-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Alerta de Data Gate compacta */}
+            {!dataGateValidation.canAdvance && dataGateValidation.errors.length > 0 && (
+              <DataGateAlert
                 errors={dataGateValidation.errors}
                 canAdvance={dataGateValidation.canAdvance}
                 phaseName="Comercial"
+                className="flex-1 min-w-[200px]"
               />
-              <Button onClick={handleSave} disabled={isSaving || !dataGateValidation.canAdvance} variant="default" className="w-full">
-                <Save className="w-4 h-4 mr-2" />
-                {isSaving ? "Guardando..." : "Guardar Información Comercial"}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+
+            {/* Indicador de productos confirmados */}
+            {hasConfirmedProducts && (
+              <div className="text-sm text-green-600 flex items-center gap-2 bg-green-50 px-3 py-2 rounded-md border border-green-200">
+                <CheckCircle2 className="w-4 h-4" />
+                {confirmedProductsCount} producto(s) confirmado(s)
+              </div>
+            )}
+
+            <div className="flex-1" />
+
+            {/* Botón Guardar - Siempre visible y accesible */}
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || !canSave}
+              variant="default"
+              size="lg"
+              className="min-w-[250px]"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? "Guardando..." : "Guardar Información Comercial"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ==================== MODALES DE CONFIRMACIÓN ==================== */}
 
