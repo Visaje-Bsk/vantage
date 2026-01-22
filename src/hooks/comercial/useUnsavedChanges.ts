@@ -4,22 +4,18 @@
  * Hook para detectar cambios sin guardar en el formulario comercial
  * Compara el estado actual con snapshots iniciales para determinar si hay cambios
  *
+ * OPTIMIZADO: Usa comparación shallow en lugar de JSON.stringify para mejor rendimiento
+ *
  * Detecta cambios en:
- * - Datos del formulario b�sico
- * - L�neas de productos
- * - L�neas de servicio
+ * - Datos del formulario básico
+ * - Líneas de productos
+ * - Líneas de servicio
  * - Formulario de despacho
  * - Responsable seleccionado
  * - Items marcados para eliminar
- *
- * @example
- * const { hasUnsavedChanges, setInitialStates } = useUnsavedChanges({
- *   formData, productLines, serviceLines, despachoForm, selectedResponsable,
- *   deletedEquipoIds, deletedServicioIds
- * });
  */
 
-import { useMemo, useCallback, useState, useEffect } from "react";
+import { useMemo, useCallback, useRef } from "react";
 import type { ComercialFormData } from "./useComercialForm";
 import type { ProductLine } from "./useProductLines";
 import type { ServiceLine } from "./useServiceLines";
@@ -36,6 +32,107 @@ interface UnsavedChangesProps {
   deletedServicioIds: number[];
 }
 
+// Tipos para los snapshots
+interface InitialSnapshot {
+  formData: ComercialFormData | null;
+  productLines: ProductLine[];
+  serviceLines: ServiceLine[];
+  despachoForm: DespachoFormData | null;
+  selectedResponsable: string;
+}
+
+/**
+ * Comparación shallow de objetos planos
+ */
+function shallowEqual<T extends object>(obj1: T | null, obj2: T | null): boolean {
+  if (obj1 === obj2) return true;
+  if (!obj1 || !obj2) return false;
+
+  const keys1 = Object.keys(obj1) as Array<keyof T>;
+  const keys2 = Object.keys(obj2) as Array<keyof T>;
+
+  if (keys1.length !== keys2.length) return false;
+
+  for (const key of keys1) {
+    if (obj1[key] !== obj2[key]) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Compara dos líneas de producto (campos relevantes)
+ */
+function compareProductLine(a: ProductLine, b: ProductLine): boolean {
+  return (
+    a.selectedEquipo?.id_equipo === b.selectedEquipo?.id_equipo &&
+    a.cantidad === b.cantidad &&
+    a.valorUnitario === b.valorUnitario &&
+    a.isConfirmed === b.isConfirmed &&
+    a.plantilla === b.plantilla &&
+    a.plantillaText === b.plantillaText &&
+    a.id_orden_detalle === b.id_orden_detalle
+  );
+}
+
+/**
+ * Compara dos líneas de servicio (campos relevantes)
+ */
+function compareServiceLine(a: ServiceLine, b: ServiceLine): boolean {
+  return (
+    a.operadorId === b.operadorId &&
+    a.planId === b.planId &&
+    a.apnId === b.apnId &&
+    a.permanencia === b.permanencia &&
+    a.claseCobro === b.claseCobro &&
+    a.valorMensual === b.valorMensual &&
+    a.id_orden_detalle === b.id_orden_detalle
+  );
+}
+
+/**
+ * Compara arrays de líneas de producto
+ */
+function compareProductLines(current: ProductLine[], initial: ProductLine[]): boolean {
+  if (current.length !== initial.length) return false;
+
+  for (let i = 0; i < current.length; i++) {
+    if (!compareProductLine(current[i], initial[i])) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Compara arrays de líneas de servicio
+ */
+function compareServiceLines(current: ServiceLine[], initial: ServiceLine[]): boolean {
+  if (current.length !== initial.length) return false;
+
+  for (let i = 0; i < current.length; i++) {
+    if (!compareServiceLine(current[i], initial[i])) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Crea una copia profunda de una línea de producto
+ */
+function cloneProductLine(line: ProductLine): ProductLine {
+  return {
+    ...line,
+    selectedEquipo: line.selectedEquipo ? { ...line.selectedEquipo } : null,
+  };
+}
+
+/**
+ * Crea una copia profunda de una línea de servicio
+ */
+function cloneServiceLine(line: ServiceLine): ServiceLine {
+  return { ...line };
+}
+
 export const useUnsavedChanges = (props: UnsavedChangesProps) => {
   const {
     isEditMode,
@@ -48,86 +145,82 @@ export const useUnsavedChanges = (props: UnsavedChangesProps) => {
     deletedServicioIds,
   } = props;
 
-  // Snapshots de estados iniciales
-  const [initialFormData, setInitialFormData] = useState<ComercialFormData | null>(null);
-  const [initialProductLines, setInitialProductLines] = useState<ProductLine[]>([]);
-  const [initialServiceLines, setInitialServiceLines] = useState<ServiceLine[]>([]);
-  const [initialDespachoForm, setInitialDespachoForm] = useState<DespachoFormData | null>(null);
-  const [initialSelectedResponsable, setInitialSelectedResponsable] = useState<string>("");
+  // Usar ref para snapshots (evita re-renders innecesarios)
+  const snapshotRef = useRef<InitialSnapshot>({
+    formData: null,
+    productLines: [],
+    serviceLines: [],
+    despachoForm: null,
+    selectedResponsable: "",
+  });
 
   /**
-   * Establece los estados iniciales para comparaci�n
-   * Debe llamarse al entrar en modo edici�n
+   * Establece los estados iniciales para comparación
+   * Debe llamarse al entrar en modo edición
    */
   const setInitialStates = useCallback(() => {
-    setInitialFormData({ ...formData });
-    setInitialProductLines(JSON.parse(JSON.stringify(productLines)));
-    setInitialServiceLines(JSON.parse(JSON.stringify(serviceLines)));
-    setInitialDespachoForm({ ...despachoForm });
-    setInitialSelectedResponsable(selectedResponsable);
+    snapshotRef.current = {
+      formData: { ...formData },
+      productLines: productLines.map(cloneProductLine),
+      serviceLines: serviceLines.map(cloneServiceLine),
+      despachoForm: { ...despachoForm },
+      selectedResponsable: selectedResponsable,
+    };
   }, [formData, productLines, serviceLines, despachoForm, selectedResponsable]);
 
   /**
    * Limpia los snapshots iniciales
    */
   const clearInitialStates = useCallback(() => {
-    setInitialFormData(null);
-    setInitialProductLines([]);
-    setInitialServiceLines([]);
-    setInitialDespachoForm(null);
-    setInitialSelectedResponsable("");
+    snapshotRef.current = {
+      formData: null,
+      productLines: [],
+      serviceLines: [],
+      despachoForm: null,
+      selectedResponsable: "",
+    };
   }, []);
 
   /**
    * Calcula si hay cambios sin guardar
-   * Compara todos los estados actuales con los snapshots iniciales
+   * Usa comparación optimizada en lugar de JSON.stringify
    */
   const hasUnsavedChanges = useMemo(() => {
-    // Si no est� en modo edici�n o no hay snapshots, no hay cambios
-    if (!isEditMode || !initialFormData) return false;
+    const snapshot = snapshotRef.current;
 
-    // Comparar formData
-    const formDataChanged = JSON.stringify(formData) !== JSON.stringify(initialFormData);
+    // Si no está en modo edición o no hay snapshots, no hay cambios
+    if (!isEditMode || !snapshot.formData) return false;
 
-    // Comparar productLines (excluir id_linea_detalle que es solo para UI)
-    const productLinesChanged =
-      JSON.stringify(productLines.map(({ id_linea_detalle, ...rest }) => rest)) !==
-      JSON.stringify(initialProductLines.map(({ id_linea_detalle, ...rest }) => rest));
+    // Verificar si hay elementos marcados para eliminar (check rápido)
+    if (deletedEquipoIds.length > 0 || deletedServicioIds.length > 0) return true;
 
-    // Comparar serviceLines
-    const serviceLinesChanged =
-      JSON.stringify(serviceLines.map(({ id_linea_detalle, ...rest }) => rest)) !==
-      JSON.stringify(initialServiceLines.map(({ id_linea_detalle, ...rest }) => rest));
+    // Comparar responsable (check rápido)
+    if (selectedResponsable !== snapshot.selectedResponsable) return true;
 
-    // Comparar despachoForm
-    const despachoFormChanged = JSON.stringify(despachoForm) !== JSON.stringify(initialDespachoForm);
+    // Comparar cantidad de líneas (check rápido)
+    if (productLines.length !== snapshot.productLines.length) return true;
+    if (serviceLines.length !== snapshot.serviceLines.length) return true;
 
-    // Comparar selectedResponsable
-    const responsableChanged = selectedResponsable !== initialSelectedResponsable;
+    // Comparar formData (shallow)
+    if (!shallowEqual(formData, snapshot.formData)) return true;
 
-    // Verificar si hay elementos marcados para eliminar
-    const hasDeletedItems = deletedEquipoIds.length > 0 || deletedServicioIds.length > 0;
+    // Comparar despachoForm (shallow)
+    if (!shallowEqual(despachoForm, snapshot.despachoForm)) return true;
 
-    return (
-      formDataChanged ||
-      productLinesChanged ||
-      serviceLinesChanged ||
-      despachoFormChanged ||
-      responsableChanged ||
-      hasDeletedItems
-    );
+    // Comparar productLines (detallado)
+    if (!compareProductLines(productLines, snapshot.productLines)) return true;
+
+    // Comparar serviceLines (detallado)
+    if (!compareServiceLines(serviceLines, snapshot.serviceLines)) return true;
+
+    return false;
   }, [
     isEditMode,
     formData,
-    initialFormData,
     productLines,
-    initialProductLines,
     serviceLines,
-    initialServiceLines,
     despachoForm,
-    initialDespachoForm,
     selectedResponsable,
-    initialSelectedResponsable,
     deletedEquipoIds,
     deletedServicioIds,
   ]);
@@ -136,10 +229,11 @@ export const useUnsavedChanges = (props: UnsavedChangesProps) => {
     hasUnsavedChanges,
     setInitialStates,
     clearInitialStates,
-    initialFormData,
-    initialProductLines,
-    initialServiceLines,
-    initialDespachoForm,
-    initialSelectedResponsable,
+    // Exponer snapshots para casos que los necesiten (readonly)
+    initialFormData: snapshotRef.current.formData,
+    initialProductLines: snapshotRef.current.productLines,
+    initialServiceLines: snapshotRef.current.serviceLines,
+    initialDespachoForm: snapshotRef.current.despachoForm,
+    initialSelectedResponsable: snapshotRef.current.selectedResponsable,
   };
 };

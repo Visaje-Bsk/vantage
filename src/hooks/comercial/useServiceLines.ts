@@ -33,6 +33,7 @@ export interface ServiceLine {
   permanencia: string; // Meses de permanencia (1-36)
   claseCobro: ClaseCobro | "";
   valorMensual: string;
+  cantidadLineas: string; // Cantidad de líneas
 }
 
 // Línea de servicio inicial vacía
@@ -45,6 +46,7 @@ const INITIAL_SERVICE_LINE: ServiceLine = {
   permanencia: "",
   claseCobro: "",
   valorMensual: "",
+  cantidadLineas: "",
 };
 
 export const useServiceLines = () => {

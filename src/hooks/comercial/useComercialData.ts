@@ -1,112 +1,79 @@
 /**
  * useComercialData
  *
- * Hook para manejar la carga de datos desde Supabase para la pesta�a comercial
- * Gestiona la carga de cat�logos (clientes, proyectos, operadores, etc.) y datos de la orden
+ * Hook para manejar la carga de datos desde Supabase para la pestaña comercial
+ * Gestiona la carga de catálogos (clientes, proyectos, operadores, etc.) y datos de la orden
  *
- * Responsabilidades:
- * - Cargar cat�logos necesarios (clientes, proyectos, operadores, planes, apns, transportadoras, tipos despacho)
- * - Cargar datos existentes de la orden
- * - Cargar detalles de orden (equipos y servicios)
- * - Cargar responsables asignados
+ * OPTIMIZADO: Usa React Query para caching de catálogos
+ * - Los catálogos se cachean por 5 minutos
+ * - No se recargan al cambiar entre modo readonly/edit
+ * - Cache compartido entre órdenes
  *
  * @param orderId - ID de la orden de pedido
- *
- * @example
- * const { loadInitialData, loadEditData, clientes, proyectos } = useComercialData(orderId);
- * await loadInitialData();
  */
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-import type { Cliente, Proyecto } from "@/types/kanban";
 import type { ProductLine } from "./useProductLines";
 import type { ServiceLine } from "./useServiceLines";
 import { EquipoOption } from "@/components/catalogs/EquipoSelector";
 
-type AppRole = Database["public"]["Enums"]["app_role"];
+// Importar hooks de React Query para catálogos
+import {
+  useClientes,
+  useProyectos,
+  useOperadores,
+  usePlanes,
+  useApns,
+  useTiposDespacho,
+  useTransportadoras,
+  useTiposPago,
+} from "@/hooks/queries/useCatalogQueries";
 
-export const useComercialData = (orderId: number) => {
-  // Catálogos
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [proyectos, setProyectos] = useState<Proyecto[]>([]);
-  const [operadores, setOperadores] = useState<Array<Database["public"]["Tables"]["operador"]["Row"]>>([]);
-  const [planes, setPlanes] = useState<Array<Database["public"]["Tables"]["plan"]["Row"]>>([]);
-  const [apns, setApns] = useState<Array<Database["public"]["Tables"]["apn"]["Row"]>>([]);
-  const [tiposDespacho, setTiposDespacho] = useState<Array<Database["public"]["Tables"]["tipo_despacho"]["Row"]>>([]);
-  const [transportadoras, setTransportadoras] = useState<Array<Database["public"]["Tables"]["transportadora"]["Row"]>>(
-    []
-  );
-  const [tiposPago, setTiposPago] = useState<Array<Database["public"]["Tables"]["tipo_pago"]["Row"]>>([]);
+export const useComercialData = (orderId: number, clienteId?: string | null) => {
+  // Catálogos con React Query (cacheados)
+  const clientesQuery = useClientes();
+  const proyectosQuery = useProyectos(clienteId ?? null);
+  const operadoresQuery = useOperadores();
+  const planesQuery = usePlanes();
+  const apnsQuery = useApns();
+  const tiposDespachoQuery = useTiposDespacho();
+  const transportadorasQuery = useTransportadoras();
+  const tiposPagoQuery = useTiposPago();
+
+  // Estado de carga combinado
+  const isLoadingCatalogs =
+    clientesQuery.isLoading ||
+    operadoresQuery.isLoading ||
+    planesQuery.isLoading ||
+    apnsQuery.isLoading ||
+    tiposDespachoQuery.isLoading ||
+    transportadorasQuery.isLoading ||
+    tiposPagoQuery.isLoading;
 
   /**
    * Carga proyectos asociados a un cliente
-   * @param clienteId - ID del cliente
+   * NOTA: Con React Query, los proyectos se cargan automáticamente
+   * cuando clienteId cambia. Esta función se mantiene por compatibilidad.
+   * @deprecated Usar el parámetro clienteId del hook en su lugar
    */
-  const loadProyectos = useCallback(async (clienteId: string) => {
-    if (!clienteId) {
-      setProyectos([]);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("proyecto")
-        .select("*")
-        .eq("id_cliente", parseInt(clienteId))
-        .order("nombre_proyecto");
-
-      if (error) throw error;
-      setProyectos(data ?? []);
-    } catch (error) {
-      console.error("Error loading projects:", error);
-      setProyectos([]);
-    }
+  const loadProyectos = useCallback(async (_clienteId: string) => {
+    // Los proyectos ahora se cargan automáticamente via useProyectos(clienteId)
+    // Esta función se mantiene por compatibilidad con código existente
+    // pero no hace nada - React Query maneja la carga
   }, []);
 
   /**
    * Carga todos los catálogos necesarios para modo edición
+   * NOTA: Con React Query, los catálogos ya están cacheados.
+   * Esta función se mantiene por compatibilidad pero no hace llamadas redundantes.
+   * @deprecated Los catálogos se cargan automáticamente via React Query
    */
   const loadCatalogos = useCallback(async () => {
-    try {
-      const [
-        clientesRes,
-        operadoresRes,
-        planesRes,
-        apnsRes,
-        tiposDespachoRes,
-        transportadorasRes,
-        tiposPagoRes,
-      ] = await Promise.all([
-        supabase.from("cliente").select("*").order("nombre_cliente"),
-        supabase.from("operador").select("*").order("nombre_operador"),
-        supabase.from("plan").select("*").order("nombre_plan"),
-        supabase.from("apn").select("*").order("apn"),
-        supabase.from("tipo_despacho").select("*").order("nombre_tipo"),
-        supabase.from("transportadora").select("*").order("nombre_transportadora"),
-        supabase.from("tipo_pago").select("*").order("forma_pago"),
-      ]);
-
-      if (clientesRes.error) throw clientesRes.error;
-      if (operadoresRes.error) throw operadoresRes.error;
-      if (planesRes.error) throw planesRes.error;
-      if (apnsRes.error) throw apnsRes.error;
-      if (tiposDespachoRes.error) throw tiposDespachoRes.error;
-      if (transportadorasRes.error) throw transportadorasRes.error;
-      if (tiposPagoRes.error) throw tiposPagoRes.error;
-
-      setClientes(clientesRes.data ?? []);
-      setOperadores(operadoresRes.data ?? []);
-      setPlanes(planesRes.data ?? []);
-      setApns(apnsRes.data ?? []);
-      setTiposDespacho(tiposDespachoRes.data ?? []);
-      setTransportadoras(transportadorasRes.data ?? []);
-      setTiposPago(tiposPagoRes.data ?? []);
-    } catch (error) {
-      console.error("Error loading catalogos:", error);
-      throw error;
-    }
+    // Los catálogos ya están cargados via React Query hooks
+    // Esta función se mantiene por compatibilidad
+    // Si los datos no están en cache, React Query los cargará automáticamente
+    return Promise.resolve();
   }, []);
 
   /**
@@ -165,7 +132,7 @@ export const useComercialData = (orderId: number) => {
         (equipos ?? []).forEach((e) => equiposById.set(e.id_equipo, e));
       }
 
-      // 3) Cargar l�neas de servicio
+      // 3) Cargar líneas de servicio
       const lineaServicioIds = servicioDetalles
         .map((d) => d.id_linea_detalle)
         .filter((v): v is number => typeof v === "number");
@@ -178,6 +145,7 @@ export const useComercialData = (orderId: number) => {
         id_apn: number | null;
         clase_cobro: string | null;
         permanencia: string | null;
+        cantidad_linea: number | null;
         operador?: { id_operador: number; nombre_operador: string } | null;
         plan?: { id_plan: number; nombre_plan: string } | null;
         apn?: { id_apn: number; apn: string } | null;
@@ -195,6 +163,7 @@ export const useComercialData = (orderId: number) => {
             id_apn,
             clase_cobro,
             permanencia,
+            cantidad_linea,
             operador:operador ( id_operador, nombre_operador ),
             plan:plan ( id_plan, nombre_plan ),
             apn:apn ( id_apn, apn )
@@ -262,6 +231,7 @@ export const useComercialData = (orderId: number) => {
                 permanencia: ls?.permanencia != null ? String(ls.permanencia) : "",
                 claseCobro: (ls?.clase_cobro as any) ?? "",
                 valorMensual: d.valor_unitario != null ? String(d.valor_unitario) : "",
+                cantidadLineas: ls?.cantidad_linea != null ? String(ls.cantidad_linea) : "",
               };
             })
           : [
@@ -274,6 +244,7 @@ export const useComercialData = (orderId: number) => {
                 permanencia: "",
                 claseCobro: "",
                 valorMensual: "",
+                cantidadLineas: "",
               },
             ];
 
@@ -285,29 +256,26 @@ export const useComercialData = (orderId: number) => {
   }, [orderId]);
 
   return {
-    // Estados
-    clientes,
-    proyectos,
-    operadores,
-    planes,
-    apns,
-    tiposDespacho,
-    transportadoras,
-    tiposPago,
+    // Estados (datos de React Query)
+    clientes: clientesQuery.data ?? [],
+    proyectos: proyectosQuery.data ?? [],
+    operadores: operadoresQuery.data ?? [],
+    planes: planesQuery.data ?? [],
+    apns: apnsQuery.data ?? [],
+    tiposDespacho: tiposDespachoQuery.data ?? [],
+    transportadoras: transportadorasQuery.data ?? [],
+    tiposPago: tiposPagoQuery.data ?? [],
 
-    // Funciones
+    // Estado de carga
+    isLoadingCatalogs,
+
+    // Funciones (mantenidas por compatibilidad)
     loadProyectos,
     loadCatalogos,
     loadDetalleOrden,
 
-    // Setters (para casos especiales)
-    setClientes,
-    setProyectos,
-    setOperadores,
-    setPlanes,
-    setApns,
-    setTiposDespacho,
-    setTransportadoras,
-    setTiposPago,
+    // Refetch functions (para casos que necesiten forzar recarga)
+    refetchClientes: clientesQuery.refetch,
+    refetchProyectos: proyectosQuery.refetch,
   };
 };

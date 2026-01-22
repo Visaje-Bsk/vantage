@@ -7,7 +7,7 @@
  * Refactorización: De 1920 líneas monolíticas a ~600 líneas usando 14 hooks modulares.
  */
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,7 +76,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   const responsable = useResponsableSelection();
 
   // Hooks de datos y visualización
-  const comercialData = useComercialData(order.id_orden_pedido);
+  // Pasar clienteId para que React Query cargue los proyectos automáticamente
+  const comercialData = useComercialData(order.id_orden_pedido, form.formData.id_cliente);
   const display = useComercialDisplay();
 
   // Hooks de validación
@@ -101,40 +102,38 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   const confirmedProductsCount = products.productLines.filter(l => l.isConfirmed).length;
   const hasConfirmedProducts = confirmedProductsCount > 0;
 
-  // Hooks de Data Gates - Incluir productos confirmados de UI para validación
+  // Memoizar objeto de orden para Data Gates (evita recálculos duplicados)
+  const orderForValidation = useMemo(() => ({
+    ...order,
+    id_cliente: form.formData.id_cliente || order.id_cliente,
+    id_clase_orden: form.formData.id_clase_orden || order.id_clase_orden,
+    id_tipo_servicio: form.formData.id_tipo_servicio || order.id_tipo_servicio,
+    id_ingeniero_asignado: responsable.selectedResponsable || null,
+    detalles: hasConfirmedProducts
+      ? products.productLines.filter(l => l.isConfirmed).map(l => ({
+          cantidad: Number(l.cantidad),
+          valor_unitario: Number(l.valorUnitario),
+        }))
+      : order.detalles,
+  }), [
+    order,
+    form.formData.id_cliente,
+    form.formData.id_clase_orden,
+    form.formData.id_tipo_servicio,
+    responsable.selectedResponsable,
+    hasConfirmedProducts,
+    products.productLines,
+  ]);
+
+  // Hooks de Data Gates - Usar objeto memoizado
   const dataGateValidation = useDataGateValidation({
-    order: {
-      ...order,
-      // Agregar datos del formulario para validación
-      id_cliente: form.formData.id_cliente || order.id_cliente,
-      id_tipo_servicio: order.id_tipo_servicio,
-      id_ingeniero_asignado: responsable.selectedResponsable || null,
-      // Simular detalles con productos confirmados en UI
-      detalles: hasConfirmedProducts
-        ? products.productLines.filter(l => l.isConfirmed).map(l => ({
-            cantidad: Number(l.cantidad),
-            valor_unitario: Number(l.valorUnitario),
-          }))
-        : order.detalles,
-    },
+    order: orderForValidation,
     currentPhase: 'comercial' as FaseOrdenDB,
     hasUnsavedChanges: unsavedChanges.hasUnsavedChanges,
   });
 
   const dataGateStatus = useDataGateStatus({
-    order: {
-      ...order,
-      id_cliente: form.formData.id_cliente,
-      id_clase_orden: form.formData.id_clase_orden,
-      id_tipo_servicio: form.formData.id_tipo_servicio,
-      id_ingeniero_asignado: responsable.selectedResponsable || null,
-      detalles: hasConfirmedProducts
-        ? products.productLines.filter(l => l.isConfirmed).map(l => ({
-            cantidad: Number(l.cantidad),
-            valor_unitario: Number(l.valorUnitario),
-          }))
-        : order.detalles,
-    },
+    order: orderForValidation,
     currentPhase: 'comercial' as FaseOrdenDB,
   });
 
@@ -1116,7 +1115,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                         </div>
                       </div>
 
-                      {/* Valor Mensual */}
+                      {/* Valor Mensual, Cantidad de Líneas y Permanencia */}
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2 md:col-span-1">
                           <Label>Valor Mensual</Label>
@@ -1128,6 +1127,19 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                             onChange={(e) => {
                               const digits = e.target.value.replace(/[^0-9]/g, "");
                               services.updateLine(line.id_linea_detalle, "valorMensual", digits);
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2 md:col-span-1">
+                          <Label>Cantidad de Líneas</Label>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={line.cantidadLineas}
+                            onChange={(e) => {
+                              const digits = e.target.value.replace(/[^0-9]/g, "");
+                              services.updateLine(line.id_linea_detalle, "cantidadLineas", digits);
                             }}
                           />
                         </div>
@@ -1230,12 +1242,15 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                                     <span className="font-medium">APN:</span> {apnNombre || `ID: ${line.apnId}`}
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm mt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm mt-2">
                                   <div>
                                     <span className="font-medium">Permanencia:</span> {line.permanencia} meses
                                   </div>
                                   <div>
                                     <span className="font-medium">Clase Cobro:</span> {line.claseCobro}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Cantidad Líneas:</span> {line.cantidadLineas || "0"}
                                   </div>
                                   <div>
                                     <span className="font-medium">Valor:</span> {formatCOP(line.valorMensual)}

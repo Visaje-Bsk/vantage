@@ -1,6 +1,23 @@
-import { useEffect, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
+/**
+ * EquipoSelector
+ *
+ * Selector de equipos con búsqueda server-side y autocompletado.
+ *
+ * OPTIMIZADO:
+ * - Usa Popover de Radix para posicionamiento inteligente (evita overflow)
+ * - Navegación con teclado (ArrowUp/Down, Enter, Escape)
+ * - Indicador de "más resultados disponibles"
+ * - Loading spinner visible durante búsqueda
+ * - Atributos ARIA para accesibilidad
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Loader2, ChevronDown, Check, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface EquipoOption {
@@ -16,151 +33,278 @@ interface EquipoSelectorProps {
   disabled?: boolean;
 }
 
-export default function EquipoSelector({ value, onChange, placeholder = "Buscar equipo por código o nombre...", disabled }: EquipoSelectorProps) {
+const MAX_VISIBLE_RESULTS = 15;
+const SEARCH_DEBOUNCE_MS = 300;
+
+export default function EquipoSelector({
+  value,
+  onChange,
+  placeholder = "Buscar equipo...",
+  disabled,
+}: EquipoSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [items, setItems] = useState<EquipoOption[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // The input shows the selected equipo name (or code) via query state.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // keep input query in sync when a value is selected/changed from outside
-  useEffect(() => {
-    if (value) {
-      const name = value.nombre_equipo ?? "";
-      const code = value.codigo ?? "";
-      const lbl = name || code;
-      setQuery(lbl || "");
-    } else {
-      setQuery("");
-    }
+  // Display label para el botón trigger
+  const displayLabel = useMemo(() => {
+    if (!value) return null;
+    return value.nombre_equipo || value.codigo || "(sin nombre)";
   }, [value]);
 
-  // Close on outside click
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Buscar equipos con debounce
   useEffect(() => {
-    const onDocMouseDown = (e: MouseEvent) => {
-      if (!open) return;
-      const el = containerRef.current;
-      if (el && !el.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [open]);
+    if (!open) return;
 
-  useEffect(() => {
     let active = true;
     const fetchItems = async () => {
       setLoading(true);
       setErrorMsg(null);
+
       try {
         const term = query.trim();
-        // producto table is empty in this env; use only equipo fields (codigo, nombre_equipo)
         let qb = supabase
           .from("equipo")
-          .select(`id_equipo, codigo, nombre_equipo`, { count: "exact" })
-          .order("codigo", { ascending: true, nullsFirst: false });
+          .select("id_equipo, codigo, nombre_equipo", { count: "exact" })
+          .order("codigo", { ascending: true, nullsFirst: false })
+          .limit(50); // Limitar resultados para performance
 
         if (term) {
-          // Escapar caracteres especiales para evitar errores en la consulta
-          // Los caracteres que causan problemas en PostgREST: / , ( ) .
+          // Escapar caracteres especiales para PostgREST
           const escapedTerm = term
-            .replace(/\\/g, '\\\\')  // Escapar backslash primero
-            .replace(/,/g, '\\,')    // Escapar comas
-            .replace(/\(/g, '\\(')   // Escapar paréntesis
-            .replace(/\)/g, '\\)')
-            .replace(/\./g, '\\.');  // Escapar puntos
+            .replace(/\\/g, "\\\\")
+            .replace(/,/g, "\\,")
+            .replace(/\(/g, "\\(")
+            .replace(/\)/g, "\\)")
+            .replace(/\./g, "\\.");
 
-          // Server-side search on codigo or nombre_equipo
-          // Nota: El slash (/) no necesita escape en el valor, solo en la estructura
           qb = qb.or(`codigo.ilike.*${escapedTerm}*,nombre_equipo.ilike.*${escapedTerm}*`);
         }
 
-        const { data, error } = await qb;
+        const { data, error, count } = await qb;
         if (error) throw error;
         if (!active) return;
 
-        const mapped: EquipoOption[] = (data ?? []).map((row: any) => ({
+        const mapped: EquipoOption[] = (data ?? []).map((row) => ({
           id_equipo: row.id_equipo,
           codigo: row.codigo ?? null,
           nombre_equipo: row.nombre_equipo ?? null,
         }));
+
         setItems(mapped);
-      } catch (e: any) {
+        setTotalCount(count ?? 0);
+        setSelectedIndex(0);
+      } catch (e) {
         console.error("Error fetching equipos:", e);
-        setErrorMsg(e?.message ?? "Error desconocido al cargar equipos");
+        setErrorMsg(e instanceof Error ? e.message : "Error al cargar equipos");
         setItems([]);
+        setTotalCount(0);
       } finally {
         if (active) setLoading(false);
       }
     };
 
-    const t = setTimeout(fetchItems, 250); // debounce
-    return () => { active = false; clearTimeout(t); };
+    const timer = setTimeout(fetchItems, SEARCH_DEBOUNCE_MS);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [query, open]);
 
+  // Seleccionar un equipo
+  const handleSelect = useCallback(
+    (equipo: EquipoOption) => {
+      onChange(equipo);
+      setQuery("");
+      setOpen(false);
+    },
+    [onChange]
+  );
+
+  // Navegación con teclado
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!open) return;
+
+      const visibleItems = items.slice(0, MAX_VISIBLE_RESULTS);
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((prev) => Math.min(prev + 1, visibleItems.length - 1));
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (visibleItems[selectedIndex]) {
+            handleSelect(visibleItems[selectedIndex]);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setOpen(false);
+          break;
+      }
+    },
+    [open, items, selectedIndex, handleSelect]
+  );
+
+  // Scroll al item seleccionado
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const selectedEl = listRef.current.querySelector(`[data-index="${selectedIndex}"]`);
+    if (selectedEl) {
+      selectedEl.scrollIntoView({ block: "nearest" });
+    }
+  }, [selectedIndex, open]);
+
+  // Limpiar selección
+  const handleClear = useCallback(() => {
+    onChange(null);
+    setQuery("");
+  }, [onChange]);
+
+  // Focus en input cuando se abre
+  useEffect(() => {
+    if (open && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const visibleItems = items.slice(0, MAX_VISIBLE_RESULTS);
+  const hasMoreResults = totalCount > MAX_VISIBLE_RESULTS;
+
   return (
-    <div className="w-full" ref={containerRef}>
-      <div className="relative w-full">
-        <Input
-          placeholder={placeholder}
-          value={query}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-label="Seleccionar equipo"
           disabled={disabled}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setOpen(false);
-          }}
-        />
-        {open && (
-          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
-            <Command>
-              <CommandList className="max-h-64 overflow-auto">
-                {loading && (
-                  <div className="p-3 text-sm text-muted-foreground">Buscando...</div>
-                )}
-                {errorMsg && !loading && (
-                  <div className="p-3 text-sm text-red-600">{errorMsg}</div>
-                )}
-                <CommandEmpty>No se encontraron equipos</CommandEmpty>
-                <CommandGroup heading="Equipos">
-                  {items.slice(0, 10).map((opt) => (
-                    <CommandItem
-                      key={opt.id_equipo}
-                      value={`${opt.codigo ?? ""} ${opt.nombre_equipo ?? ""}`}
-                      onSelect={() => {
-                        onChange(opt);
-                        // reflect the chosen name (fallback to code) in the input
-                        const name = opt.nombre_equipo ?? "";
-                        const code = opt.codigo ?? "";
-                        const lbl = name || code;
-                        setQuery(lbl);
-                        setOpen(false);
-                      }}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium">{opt.nombre_equipo ?? opt.codigo ?? "(sin nombre)"}</span>
-                        {opt.codigo && (
-                          <span className="text-xs text-muted-foreground">{opt.codigo}</span>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))}
-                  {!loading && !errorMsg && items.length === 0 && (
-                    <div className="p-3 text-sm text-muted-foreground">No hay equipos para mostrar.</div>
-                  )}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+          className={cn(
+            "w-full justify-between font-normal h-10",
+            !value && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate flex-1 text-left">
+            {displayLabel || placeholder}
+          </span>
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+        sideOffset={4}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <Command shouldFilter={false}>
+          {/* Input de búsqueda */}
+          <div className="flex items-center border-b px-3">
+            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+            <Input
+              ref={inputRef}
+              placeholder="Buscar por código o nombre..."
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
+              className="h-10 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
+            />
+            {loading && <Loader2 className="ml-2 h-4 w-4 animate-spin opacity-50" />}
           </div>
-        )}
-      </div>
-    </div>
+
+          <CommandList ref={listRef} className="max-h-80 overflow-auto">
+            {/* Estado de carga */}
+            {loading && items.length === 0 && (
+              <div className="flex items-center justify-center p-6 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Buscando equipos...
+              </div>
+            )}
+
+            {/* Error */}
+            {errorMsg && !loading && (
+              <div className="p-4 text-sm text-red-600">{errorMsg}</div>
+            )}
+
+            {/* Sin resultados */}
+            {!loading && !errorMsg && items.length === 0 && query && (
+              <CommandEmpty className="py-6 text-center text-sm">
+                No se encontraron equipos para "{query}"
+              </CommandEmpty>
+            )}
+
+            {/* Lista de resultados */}
+            {visibleItems.length > 0 && (
+              <CommandGroup>
+                {visibleItems.map((item, index) => (
+                  <CommandItem
+                    key={item.id_equipo}
+                    value={String(item.id_equipo)}
+                    data-index={index}
+                    onSelect={() => handleSelect(item)}
+                    className={cn(
+                      "cursor-pointer",
+                      index === selectedIndex && "bg-accent"
+                    )}
+                    aria-selected={index === selectedIndex}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4 shrink-0",
+                        value?.id_equipo === item.id_equipo ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="font-medium truncate">
+                        {item.nombre_equipo || item.codigo || "(sin nombre)"}
+                      </span>
+                      {item.codigo && item.nombre_equipo && (
+                        <span className="text-xs text-muted-foreground truncate">
+                          {item.codigo}
+                        </span>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+
+            {/* Indicador de más resultados */}
+            {hasMoreResults && !loading && (
+              <div className="p-2 text-center text-xs text-muted-foreground border-t bg-muted/30">
+                Mostrando {MAX_VISIBLE_RESULTS} de {totalCount} resultados.
+                <br />
+                Refina tu búsqueda para ver más.
+              </div>
+            )}
+
+            {/* Mensaje cuando no hay búsqueda */}
+            {!loading && !errorMsg && items.length === 0 && !query && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Escribe para buscar equipos
+              </div>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
