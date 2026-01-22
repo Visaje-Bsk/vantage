@@ -6,14 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrdenKanban } from "@/types/kanban";
-import { Package, CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
-
-// Data Gates
-import { useDataGateValidation } from "@/hooks/useDataGateValidation";
-import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
-import type { FaseOrdenDB } from "@/types/kanban";
 
 interface InventariosTabProps {
   order: OrdenKanban;
@@ -29,17 +24,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
 
   // Estado inicial para detectar cambios
   const [initialState, setInitialState] = useState<{ stockValidado: boolean; observaciones: string } | null>(null);
-
-  // Hooks de Data Gates
-  const dataGateValidation = useDataGateValidation({
-    order: {
-      ...order,
-      stock_validado: stockValidado,
-      observaciones_inventarios: observaciones,
-    },
-    currentPhase: 'inventarios' as FaseOrdenDB,
-  });
-
 
   // Detectar cambios comparando con estado inicial
   useEffect(() => {
@@ -100,8 +84,7 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
       const { error } = await supabase
         .from('orden_pedido')
         .update({
-          stock_validado: stockValidado,
-          observaciones_inventarios: observaciones,
+          observaciones_orden: observaciones,
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
@@ -124,51 +107,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
     }
   };
 
-  const handleAvanzarProduccion = async () => {
-    if (!stockValidado) {
-      alert('Debe validar el stock completo antes de avanzar a Producción');
-      return;
-    }
-
-    // Primero guardar los cambios actuales
-    setSaving(true);
-    try {
-      // Guardar datos de inventarios primero
-      const { error: saveError } = await supabase
-        .from('orden_pedido')
-        .update({
-          stock_validado: stockValidado,
-          observaciones_inventarios: observaciones,
-          fecha_modificacion: new Date().toISOString(),
-        })
-        .eq('id_orden_pedido', order.id_orden_pedido);
-
-      if (saveError) throw saveError;
-
-      // Avanzar fase
-      const { error } = await supabase
-        .from('orden_pedido')
-        .update({
-          fase: 'produccion',
-          fecha_modificacion: new Date().toISOString(),
-        })
-        .eq('id_orden_pedido', order.id_orden_pedido);
-
-      if (error) throw error;
-
-      // Marcar como limpio
-      setInitialState({ stockValidado, observaciones });
-
-      onUpdateOrder(order.id_orden_pedido, { fase: 'produccion' });
-      alert('Orden enviada a Producción exitosamente');
-    } catch (error) {
-      console.error('Error avanzando a Producción:', error);
-      alert('Error al avanzar a Producción');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
     return <TabLoadingSkeleton />;
@@ -176,13 +114,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
 
   return (
     <div className="space-y-6">
-      {/* Data Gates Validation */}
-      <DataGateAlert 
-        errors={dataGateValidation.errors}
-        canAdvance={dataGateValidation.canAdvance}
-        phaseName="Inventarios"
-      />
-
       {/* Productos de la orden */}
       <Card>
         <CardHeader>
@@ -290,15 +221,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
           variant="outline"
         >
           Guardar Cambios
-        </Button>
-        <Button
-          onClick={handleAvanzarProduccion}
-          disabled={!stockValidado || saving}
-          className="bg-success hover:bg-success/90"
-        >
-          {stockValidado
-            ? 'Enviar a Producción'
-            : 'Validar Stock para Continuar'}
         </Button>
       </div>
     </div>

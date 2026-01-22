@@ -36,6 +36,7 @@ interface EnrichedProfile {
 const roles: Array<{ value: AppRole; label: string; color: string }> = [
   { value: 'admin', label: 'Administrador', color: 'bg-destructive text-destructive-foreground' },
   { value: 'comercial', label: 'Comercial', color: 'bg-primary text-primary-foreground' },
+  { value: 'ingenieria', label: 'Ingeniería', color: 'bg-blue-600 text-white' },
   { value: 'inventarios', label: 'Inventarios', color: 'bg-warning text-warning-foreground' },
   { value: 'produccion', label: 'Producción', color: 'bg-accent text-accent-foreground' },
   { value: 'logistica', label: 'Logística', color: 'bg-success text-success-foreground' },

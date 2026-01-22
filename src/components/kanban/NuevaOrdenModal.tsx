@@ -104,6 +104,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
     id_tipo_pago: '',
     id_tipo_despacho: '',
     id_tipo_servicio: '',
+    pago_flete: '',
     observaciones_orden: '',
     orden_compra: '',
   });
@@ -153,6 +154,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       id_tipo_pago: '',
       id_tipo_despacho: '',
       id_tipo_servicio: '',
+      pago_flete: '',
       observaciones_orden: '',
       orden_compra: '',
     });
@@ -178,18 +180,17 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       if (cliErr) throw cliErr;
       setClientes(clientesData ?? []);
 
-      // Cargar usuarios asignables (excluye admin y comercial)
-      const { data: comercialesData, error: comErr } = await supabase
+      // Cargar usuarios asignables - Solo usuarios con rol "ingenieria"
+      const { data: ingenierosData, error: ingErr } = await supabase
         .from('profiles')
         .select('user_id, nombre, username, role')
-        .neq('role', 'comercial' as AppRole)
-        .neq('role', 'admin' as AppRole)
+        .eq('role', 'ingenieria' as AppRole)
         .order('nombre', { ascending: true, nullsFirst: false })
         .order('username', { ascending: true });
-      if (comErr) throw comErr;
+      if (ingErr) throw ingErr;
 
       setAsignables(
-        (comercialesData ?? []).map((u: ProfileRow) => ({
+        (ingenierosData ?? []).map((u: ProfileRow) => ({
           user_id: u.user_id,
           label: u.nombre ?? u.username ?? '(sin nombre)',
           role: u.role as AppRole,
@@ -309,6 +310,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
         id_clase_orden: formData.id_clase_orden ? parseInt(formData.id_clase_orden) : null,
         id_tipo_pago: formData.id_tipo_pago ? parseInt(formData.id_tipo_pago) : null,
         id_tipo_servicio: formData.id_tipo_servicio ? parseInt(formData.id_tipo_servicio) : null,
+        pago_flete: formData.pago_flete || null,
         orden_compra: formData.orden_compra || null,
         observaciones_orden: formData.observaciones_orden || null,
         // Establecer estatus y fase inicial
@@ -635,6 +637,27 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
                             {tipo.nombre_tipo}
                         </SelectItem>
                         ))}
+                    </SelectContent>
+                    </Select>
+                </div>
+                </div>
+
+                {/* Segunda fila: Pago del Flete */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                <div className="space-y-2">
+                    <Label>Pago del Flete</Label>
+                    <Select
+                    value={formData.pago_flete}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, pago_flete: value }))}
+                    >
+                    <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar tipo de pago" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="no_aplica">No Aplica</SelectItem>
+                        <SelectItem value="pago_contraentrega">Pago Contraentrega</SelectItem>
+                        <SelectItem value="paga_bismark_factura_cliente">Paga Bismark y lo factura al cliente</SelectItem>
+                        <SelectItem value="flete_costo_negocio">Flete es Costo del Negocio</SelectItem>
                     </SelectContent>
                     </Select>
                 </div>

@@ -23,7 +23,6 @@ import type { ComercialFormData } from "./useComercialForm";
 import type { ProductLine } from "./useProductLines";
 import type { ServiceLine } from "./useServiceLines";
 import type { DespachoFormData } from "./useDespachoForm";
-import type { AsignableUser } from "./useResponsableSelection";
 import { useLoadingState } from "../shared/useLoadingState";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -76,6 +75,9 @@ export const useComercialSave = (orderId: number) => {
           id_proyecto: proyectoValue,
           observaciones_orden: formData.observaciones_orden || "",
           orden_compra: formData.orden_compra || "",
+          // Campos de pago desde despachoForm
+          pago_flete: despachoForm.pago_flete || "",
+          id_tipo_pago: despachoForm.id_tipo_pago || "0",
         };
 
         // 2. Preparar datos de despacho
@@ -176,7 +178,9 @@ export const useComercialSave = (orderId: number) => {
         if (rpcError) throw rpcError;
 
         toast.success("Datos guardados correctamente");
-        return result;
+        // Castear el resultado a nuestro tipo esperado
+        const typedResult = result as unknown as { despacho_id?: number };
+        return typedResult;
       } catch (error) {
         console.error("Error al guardar:", error);
         toast.error("Error al guardar los datos");

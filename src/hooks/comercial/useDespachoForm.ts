@@ -30,6 +30,9 @@ export interface DespachoFormData {
   email_contacto2: string;
   email_contacto3: string;
   observaciones: string;
+  // Campos de pago (visualizados/editados desde comercial)
+  pago_flete: string;
+  id_tipo_pago: string;
 }
 
 // Valores iniciales vacíos
@@ -44,6 +47,9 @@ const INITIAL_DESPACHO_FORM: DespachoFormData = {
   email_contacto2: "",
   email_contacto3: "",
   observaciones: "",
+  // Campos de pago
+  pago_flete: "",
+  id_tipo_pago: "",
 };
 
 export const useDespachoForm = () => {
@@ -108,7 +114,9 @@ export const useDespachoForm = () => {
         despachoForm.email_contacto ||
         despachoForm.email_contacto2 ||
         despachoForm.email_contacto3 ||
-        despachoForm.observaciones
+        despachoForm.observaciones ||
+        despachoForm.pago_flete ||
+        despachoForm.id_tipo_pago
     );
   }, [despachoForm]);
 

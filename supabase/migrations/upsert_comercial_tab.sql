@@ -162,6 +162,8 @@ BEGIN
     id_proyecto = NULLIF((p_orden_data->>'id_proyecto')::INT, 0),
     observaciones_orden = NULLIF(p_orden_data->>'observaciones_orden', ''),
     orden_compra = NULLIF(p_orden_data->>'orden_compra', ''),
+    pago_flete = NULLIF(p_orden_data->>'pago_flete', '')::pago_flete_enum,
+    id_tipo_pago = NULLIF((p_orden_data->>'id_tipo_pago')::INT, 0),
     fecha_modificacion = NOW()
   WHERE id_orden_pedido = p_orden_id;
 
@@ -354,7 +356,7 @@ COMMENT ON FUNCTION upsert_comercial_tab IS
 
 Parámetros:
 - p_orden_id: ID de la orden a actualizar
-- p_orden_data: JSONB con datos de la orden (id_cliente, id_proyecto, observaciones_orden, orden_compra)
+- p_orden_data: JSONB con datos de la orden (id_cliente, id_proyecto, observaciones_orden, orden_compra, pago_flete, id_tipo_pago)
 - p_despacho_data: JSONB con datos de despacho (incluye has_values para saber si hay datos)
 - p_responsable_user_id: UUID del usuario responsable
 - p_responsable_role: Rol del responsable (app_role)

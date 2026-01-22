@@ -41,7 +41,7 @@ export const ROLE_PRIORITY: AppRole[] = [
 
 export const useResponsableSelection = () => {
   // Usuario responsable seleccionado (UUID)
-  const [selectedResponsable, setSelectedResponsable] = useState<string>("");
+  const [selectedResponsable, setSelectedResponsable] = useState<string | null>(null);
 
   // Lista de usuarios asignables
   const [asignables, setAsignables] = useState<AsignableUser[]>([]);
@@ -58,7 +58,7 @@ export const useResponsableSelection = () => {
    * Limpia la selección y la lista de asignables
    */
   const clearSelection = useCallback(() => {
-    setSelectedResponsable("");
+    setSelectedResponsable(null);
     setAsignables([]);
   }, []);
 

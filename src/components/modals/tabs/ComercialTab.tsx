@@ -262,9 +262,16 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           email_contacto2: despachoWithJoins.contacto_despacho?.email2 || "",
           email_contacto3: despachoWithJoins.contacto_despacho?.email3 || "",
           observaciones: despachoData.observaciones || "",
+          // Campos de pago desde orden_pedido
+          pago_flete: orderData.pago_flete || "",
+          id_tipo_pago: orderData.id_tipo_pago?.toString() || "",
         });
       } else {
-        despacho.clearForm();
+        // Aunque no haya despacho, cargar los campos de pago de la orden
+        despacho.updateMultipleFields({
+          pago_flete: orderData.pago_flete || "",
+          id_tipo_pago: orderData.id_tipo_pago?.toString() || "",
+        });
       }
 
       // Cargar catálogos básicos para modo readonly
@@ -297,12 +304,11 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       // Cargar catálogos
       await comercialData.loadCatalogos();
 
-      // Cargar usuarios asignables
+      // Cargar usuarios asignables - Solo usuarios con rol "ingenieria"
       const { data: comercialesRes, error: comercialesErr } = await supabase
         .from("profiles")
         .select("user_id, nombre, username, role")
-        .neq("role", "comercial" as AppRole)
-        .neq("role", "admin" as AppRole)
+        .eq("role", "ingenieria" as AppRole)
         .order("nombre", { ascending: true, nullsFirst: false })
         .order("username", { ascending: true });
 
@@ -1417,6 +1423,48 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                         </div>
                       )}
 
+                      {/* Información de Pago */}
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-semibold mb-3">Información de Pago</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Tipo de Pago</Label>
+                            <Select
+                              value={despacho.despachoForm.id_tipo_pago}
+                              onValueChange={(value) => despacho.updateField("id_tipo_pago", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar tipo de pago" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {comercialData.tiposPago.map((tipo) => (
+                                  <SelectItem key={tipo.id_tipo_pago} value={tipo.id_tipo_pago.toString()}>
+                                    {tipo.forma_pago}{tipo.plazo ? ` (${tipo.plazo})` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Pago del Flete</Label>
+                            <Select
+                              value={despacho.despachoForm.pago_flete}
+                              onValueChange={(value) => despacho.updateField("pago_flete", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar tipo" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="no_aplica">No Aplica</SelectItem>
+                                <SelectItem value="pago_contraentrega">Pago Contraentrega</SelectItem>
+                                <SelectItem value="paga_bismark_factura_cliente">Paga Bismark y lo factura al cliente</SelectItem>
+                                <SelectItem value="flete_costo_negocio">Flete es Costo del Negocio</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Observaciones */}
                       <div className="space-y-2">
                         <Label>Observaciones de Despacho</Label>
@@ -1513,6 +1561,42 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                             <Label className="text-sm font-medium">Transportadora</Label>
                             <div className="p-2 bg-muted/30 rounded text-sm">
                               {comercialData.transportadoras.find(t => t.id_transportadora.toString() === despacho.despachoForm.id_transportadora)?.nombre_transportadora || "Sin definir"}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Información de Pago - Readonly */}
+                        {(despacho.despachoForm.id_tipo_pago || despacho.despachoForm.pago_flete) && (
+                          <div className="border-t pt-3 space-y-2">
+                            <h4 className="text-sm font-semibold">Información de Pago</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              {despacho.despachoForm.id_tipo_pago && (
+                                <div className="space-y-1">
+                                  <Label className="text-sm font-medium">Tipo de Pago</Label>
+                                  <div className="p-2 bg-muted/30 rounded text-sm">
+                                    {(() => {
+                                      const tipoPago = comercialData.tiposPago.find(t => t.id_tipo_pago.toString() === despacho.despachoForm.id_tipo_pago);
+                                      return tipoPago ? `${tipoPago.forma_pago}${tipoPago.plazo ? ` (${tipoPago.plazo})` : ""}` : "Sin definir";
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
+                              {despacho.despachoForm.pago_flete && (
+                                <div className="space-y-1">
+                                  <Label className="text-sm font-medium">Pago del Flete</Label>
+                                  <div className="p-2 bg-muted/30 rounded text-sm">
+                                    {(() => {
+                                      const pagoFleteLabels: Record<string, string> = {
+                                        "no_aplica": "No Aplica",
+                                        "pago_contraentrega": "Pago Contraentrega",
+                                        "paga_bismark_factura_cliente": "Paga Bismark y lo factura al cliente",
+                                        "flete_costo_negocio": "Flete es Costo del Negocio",
+                                      };
+                                      return pagoFleteLabels[despacho.despachoForm.pago_flete] || despacho.despachoForm.pago_flete;
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}

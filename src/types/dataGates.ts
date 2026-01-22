@@ -92,13 +92,9 @@ export const DATA_GATE_CONFIG: Record<FaseOrdenDB, PhaseDataGateConfig> = {
     phase: 'inventarios',
     phaseName: 'Inventarios',
     nextPhase: 'produccion',
-    requiredFields: [
-      {
-        field: 'stock_validado',
-        label: 'Validación de Stock',
-        severity: 'critical',
-      },
-    ],
+    requiredFields: [],
+    // No hay campos obligatorios a nivel de BD para inventarios
+    // La validación del stock se maneja localmente en el componente
   },
 
   produccion: {

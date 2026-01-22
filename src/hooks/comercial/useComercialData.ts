@@ -28,7 +28,7 @@ import { EquipoOption } from "@/components/catalogs/EquipoSelector";
 type AppRole = Database["public"]["Enums"]["app_role"];
 
 export const useComercialData = (orderId: number) => {
-  // Cat �logos
+  // Catálogos
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [operadores, setOperadores] = useState<Array<Database["public"]["Tables"]["operador"]["Row"]>>([]);
@@ -38,6 +38,7 @@ export const useComercialData = (orderId: number) => {
   const [transportadoras, setTransportadoras] = useState<Array<Database["public"]["Tables"]["transportadora"]["Row"]>>(
     []
   );
+  const [tiposPago, setTiposPago] = useState<Array<Database["public"]["Tables"]["tipo_pago"]["Row"]>>([]);
 
   /**
    * Carga proyectos asociados a un cliente
@@ -65,7 +66,7 @@ export const useComercialData = (orderId: number) => {
   }, []);
 
   /**
-   * Carga todos los cat�logos necesarios para modo edici�n
+   * Carga todos los catálogos necesarios para modo edición
    */
   const loadCatalogos = useCallback(async () => {
     try {
@@ -76,6 +77,7 @@ export const useComercialData = (orderId: number) => {
         apnsRes,
         tiposDespachoRes,
         transportadorasRes,
+        tiposPagoRes,
       ] = await Promise.all([
         supabase.from("cliente").select("*").order("nombre_cliente"),
         supabase.from("operador").select("*").order("nombre_operador"),
@@ -83,6 +85,7 @@ export const useComercialData = (orderId: number) => {
         supabase.from("apn").select("*").order("apn"),
         supabase.from("tipo_despacho").select("*").order("nombre_tipo"),
         supabase.from("transportadora").select("*").order("nombre_transportadora"),
+        supabase.from("tipo_pago").select("*").order("forma_pago"),
       ]);
 
       if (clientesRes.error) throw clientesRes.error;
@@ -91,6 +94,7 @@ export const useComercialData = (orderId: number) => {
       if (apnsRes.error) throw apnsRes.error;
       if (tiposDespachoRes.error) throw tiposDespachoRes.error;
       if (transportadorasRes.error) throw transportadorasRes.error;
+      if (tiposPagoRes.error) throw tiposPagoRes.error;
 
       setClientes(clientesRes.data ?? []);
       setOperadores(operadoresRes.data ?? []);
@@ -98,6 +102,7 @@ export const useComercialData = (orderId: number) => {
       setApns(apnsRes.data ?? []);
       setTiposDespacho(tiposDespachoRes.data ?? []);
       setTransportadoras(transportadorasRes.data ?? []);
+      setTiposPago(tiposPagoRes.data ?? []);
     } catch (error) {
       console.error("Error loading catalogos:", error);
       throw error;
@@ -288,6 +293,7 @@ export const useComercialData = (orderId: number) => {
     apns,
     tiposDespacho,
     transportadoras,
+    tiposPago,
 
     // Funciones
     loadProyectos,
@@ -302,5 +308,6 @@ export const useComercialData = (orderId: number) => {
     setApns,
     setTiposDespacho,
     setTransportadoras,
+    setTiposPago,
   };
 };
