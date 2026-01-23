@@ -66,7 +66,10 @@ export default function GenericCatalogList({
   const filteredData = data.filter(item => 
     fields.some(field => {
       const value = item[field.key];
-      return value?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+      // Handle null, undefined, and non-primitive values safely
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'object') return false;
+      return value.toString().toLowerCase().includes(searchTerm.toLowerCase());
     })
   );
 

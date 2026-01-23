@@ -7,28 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { ClienteSearchSelect } from '@/components/ui/cliente-search-select';
-import EquipoSelector, { type EquipoOption } from '@/components/catalogs/EquipoSelector';
-import { 
-  Building2, 
-  FolderOpen, 
-  User, 
-  Save, 
-  Plus, 
-  ChevronDown, 
-  ChevronRight, 
-  Trash2,
-  Truck
-} from 'lucide-react';
+import ClienteSelector, { type ClienteOption } from '@/components/catalogs/ClienteSelector';
+import { Building2, Save, Plus, Truck } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 interface NuevaOrdenModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onOrderCreated: (orderId: number) => void; // Callback para refrescar el kanban y manejar la nueva orden
+  onOrderCreated: (orderId: number) => void;
 }
 
 // Función de validación de email
@@ -36,12 +24,6 @@ const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
-
-interface Cliente {
-  id_cliente: number;
-  nombre_cliente: string;
-  nit: string;
-}
 
 interface Proyecto {
   id_proyecto: number;
@@ -78,27 +60,22 @@ interface Transportadora {
   nombre_transportadora: string;
 }
 
-type ClaseCobro = Database["public"]["Enums"]["clase_cobro"];
 type AppRole = Database["public"]["Enums"]["app_role"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
 export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrdenModalProps) {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  // Estado para cliente seleccionado (objeto completo para el selector)
+  const [selectedCliente, setSelectedCliente] = useState<ClienteOption | null>(null);
   const [proyectos, setProyectos] = useState<Proyecto[]>([]);
   const [asignables, setAsignables] = useState<Array<{ user_id: string; label: string; role: AppRole }>>([]);
-  const [operadores, setOperadores] = useState<Array<Database["public"]["Tables"]["operador"]["Row"]>>([]);
-  const [planes, setPlanes] = useState<Array<Database["public"]["Tables"]["plan"]["Row"]>>([]);
-  const [apns, setApns] = useState<Array<Database["public"]["Tables"]["apn"]["Row"]>>([]);
-  const [clasesOrden , setClasesOrden] = useState<Array<ClaseOrden>>([]);
+  const [clasesOrden, setClasesOrden] = useState<Array<ClaseOrden>>([]);
   const [tiposPago, setTiposPago] = useState<Array<TipoPago>>([]);
   const [tiposDespacho, setTiposDespacho] = useState<Array<TipoDespacho>>([]);
   const [tiposServicio, setTiposServicio] = useState<Array<TipoServicio>>([]);
   const [transportadoras, setTransportadoras] = useState<Array<Transportadora>>([]);
   const [loading, setLoading] = useState(false);
-  const [showLineasDetalle, setShowLineasDetalle] = useState(false);
   
   const [formData, setFormData] = useState({
-    id_cliente: '',
     id_proyecto: '',
     id_clase_orden: '',
     id_tipo_pago: '',
@@ -122,23 +99,6 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
   const [comerciales, setComerciales] = useState<Array<{ user_id: string; label: string; role: AppRole }>>([]);
   const [selectedComercialAdicional, setSelectedComercialAdicional] = useState<string>('');
 
-  // Money formatter
-  const formatterCOP = new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-
-  const formatCOP = (raw: string) => {
-    if (!raw) return '';
-    const num = Number(raw);
-    if (Number.isNaN(num)) return '';
-    return formatterCOP.format(num);
-  };
-
-  const digitsOnly = (s: string) => s.replace(/[^0-9]/g, '');
-
   useEffect(() => {
     if (open) {
       loadInitialData();
@@ -147,8 +107,8 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
   }, [open]);
 
   const resetForm = () => {
+    setSelectedCliente(null);
     setFormData({
-      id_cliente: '',
       id_proyecto: '',
       id_clase_orden: '',
       id_tipo_pago: '',
@@ -168,17 +128,12 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
     });
     setSelectedComercial('');
     setSelectedComercialAdicional('');
+    setProyectos([]);
   };
 
   const loadInitialData = async () => {
     try {
-      // Cargar clientes
-      const { data: clientesData, error: cliErr } = await supabase
-        .from('cliente')
-        .select('*')
-        .order('nombre_cliente');
-      if (cliErr) throw cliErr;
-      setClientes(clientesData ?? []);
+      // NOTA: Los clientes ya no se cargan aquí - el ClienteSelector los busca dinámicamente
 
       // Cargar usuarios asignables - Solo usuarios con rol "ingenieria"
       const { data: ingenierosData, error: ingErr } = await supabase
@@ -259,15 +214,20 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
     }
   };
 
-  const handleClienteChange = (clienteId: string) => {
-    setFormData(prev => ({ ...prev, id_cliente: clienteId, id_proyecto: '' }));
-    loadProyectos(clienteId);
+  const handleClienteChange = (cliente: ClienteOption | null) => {
+    setSelectedCliente(cliente);
+    setFormData(prev => ({ ...prev, id_proyecto: '' }));
+    if (cliente) {
+      loadProyectos(cliente.id_cliente.toString());
+    } else {
+      setProyectos([]);
+    }
   };
 
 
   const handleSubmit = async () => {
     // Basic validation
-    if (!formData.id_cliente) {
+    if (!selectedCliente) {
       toast.error('Debe seleccionar un cliente');
       return;
     }
@@ -303,14 +263,17 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
     setLoading(true);
     try {
+      // Tipo para pago_flete según el enum de la BD
+      type PagoFleteEnum = 'no_aplica' | 'pago_contraentrega' | 'paga_bismark_factura_cliente' | 'flete_costo_negocio';
+
       // Create the order with the new fields
       const ordenData = {
-        id_cliente: parseInt(formData.id_cliente),
+        id_cliente: selectedCliente!.id_cliente,
         id_proyecto: formData.id_proyecto ? parseInt(formData.id_proyecto) : null,
         id_clase_orden: formData.id_clase_orden ? parseInt(formData.id_clase_orden) : null,
         id_tipo_pago: formData.id_tipo_pago ? parseInt(formData.id_tipo_pago) : null,
         id_tipo_servicio: formData.id_tipo_servicio ? parseInt(formData.id_tipo_servicio) : null,
-        pago_flete: formData.pago_flete || null,
+        pago_flete: (formData.pago_flete as PagoFleteEnum) || null,
         orden_compra: formData.orden_compra || null,
         observaciones_orden: formData.observaciones_orden || null,
         // Establecer estatus y fase inicial
@@ -375,7 +338,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
           const { data: direccion, error: direccionError } = await supabase
             .from('direccion_despacho')
             .insert({
-              id_cliente: parseInt(formData.id_cliente),
+              id_cliente: selectedCliente!.id_cliente,
               direccion: despachoData.direccion,
               ciudad: despachoData.ciudad || null,
             })
@@ -474,10 +437,10 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Cliente *</Label>
-                  <ClienteSearchSelect 
-                    clientes={clientes}
-                    value={formData.id_cliente}
-                    onValueChange={handleClienteChange}
+                  <ClienteSelector
+                    value={selectedCliente}
+                    onChange={handleClienteChange}
+                    placeholder="Buscar cliente por nombre o NIT..."
                   />
                 </div>
 
@@ -486,7 +449,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
                   <Select
                     value={formData.id_proyecto}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, id_proyecto: value }))}
-                    disabled={!formData.id_cliente}
+                    disabled={!selectedCliente}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar proyecto" />
@@ -794,9 +757,9 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleSubmit} 
-              disabled={loading || !formData.id_cliente}
+            <Button
+              onClick={handleSubmit}
+              disabled={loading || !selectedCliente}
             >
               <Save className="w-4 h-4 mr-2" />
               {loading ? 'Creando orden...' : 'Crear Orden'}

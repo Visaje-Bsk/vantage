@@ -277,7 +277,8 @@ BEGIN
           id_plan = (v_servicio->>'id_plan')::INT,
           id_apn = (v_servicio->>'id_apn')::INT,
           clase_cobro = (v_servicio->>'clase_cobro')::clase_cobro,
-          permanencia = v_servicio->>'permanencia'
+          permanencia = v_servicio->>'permanencia',
+          cantidad_linea = NULLIF((v_servicio->>'cantidad_linea')::INT, 0)
         WHERE id_linea_detalle = (v_servicio->>'id_linea_detalle')::INT;
 
         -- Actualizar detalle_orden
@@ -296,7 +297,8 @@ BEGIN
           id_plan,
           id_apn,
           clase_cobro,
-          permanencia
+          permanencia,
+          cantidad_linea
         )
         VALUES (
           v_linea_id,
@@ -304,7 +306,8 @@ BEGIN
           (v_servicio->>'id_plan')::INT,
           (v_servicio->>'id_apn')::INT,
           (v_servicio->>'clase_cobro')::clase_cobro,
-          v_servicio->>'permanencia'
+          v_servicio->>'permanencia',
+          NULLIF((v_servicio->>'cantidad_linea')::INT, 0)
         );
 
         -- Guardar el id para insertar en detalle_orden después
@@ -361,7 +364,7 @@ Parámetros:
 - p_responsable_user_id: UUID del usuario responsable
 - p_responsable_role: Rol del responsable (app_role)
 - p_equipos: JSONB array con equipos [{id_orden_detalle?, id_equipo, cantidad, valor_unitario, plantilla}]
-- p_servicios: JSONB array con servicios [{id_orden_detalle?, id_linea_detalle?, id_operador, id_plan, id_apn, clase_cobro, permanencia, valor_mensual}]
+- p_servicios: JSONB array con servicios [{id_orden_detalle?, id_linea_detalle?, id_operador, id_plan, id_apn, clase_cobro, permanencia, valor_mensual, cantidad_linea}]
 - p_deleted_equipos: Array de INT con IDs de detalle_orden a eliminar (equipos)
 - p_deleted_servicios: Array de INT con IDs de detalle_orden a eliminar (servicios)
 

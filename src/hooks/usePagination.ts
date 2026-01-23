@@ -22,7 +22,10 @@ export function usePagination<T>({
     return data.filter(item => 
       searchFields.some(field => {
         const value = item[field];
-        return value?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+        // Handle null, undefined, and non-primitive values safely
+        if (value === null || value === undefined) return false;
+        if (typeof value === 'object') return false;
+        return value.toString().toLowerCase().includes(searchTerm.toLowerCase());
       })
     );
   }, [data, searchTerm, searchFields]);

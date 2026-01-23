@@ -118,6 +118,7 @@ export const useComercialSave = (orderId: number) => {
           id_orden_detalle: line.id_orden_detalle || 0,
           id_equipo: line.selectedEquipo!.id_equipo,
           cantidad: line.cantidad,
+          cantidad_linea: line.cantidad_linea || "",
           valor_unitario: line.valorUnitario,
           plantilla: line.plantilla && line.plantillaText ? line.plantillaText : "",
         }));
@@ -146,6 +147,7 @@ export const useComercialSave = (orderId: number) => {
           clase_cobro: sl.claseCobro,
           permanencia: sl.permanencia,
           valor_mensual: sl.valorMensual,
+          cantidad_linea: sl.cantidadLineas,
         }));
 
         // 5. Llamar a la función RPC atómica

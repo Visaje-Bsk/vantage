@@ -186,8 +186,8 @@ export function TipoPagoCatalog() {
   };
 
   const filteredTiposPago = tiposPago.filter(tipoPago =>
-    tipoPago.forma_pago.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tipoPago.plazo?.toLowerCase().includes(searchTerm.toLowerCase())
+    (tipoPago.forma_pago?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+    (tipoPago.plazo?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
 
   return (

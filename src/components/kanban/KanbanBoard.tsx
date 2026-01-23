@@ -109,13 +109,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
           const t = searchTerm.toLowerCase();
 
           // Buscar en consecutivo
-          const consecutivoMatch = (o.consecutivo_code?.toLowerCase() ?? o.consecutivo?.toLowerCase() ?? "").includes(t);
+          const consecutivoMatch = (o.consecutivo_code?.toString().toLowerCase() ?? o.consecutivo?.toString().toLowerCase() ?? "").includes(t);
 
           // Buscar en cliente
-          const clienteMatch = o.nombre_cliente.toLowerCase().includes(t);
+          const clienteMatch = o.nombre_cliente?.toString().toLowerCase().includes(t) ?? false;
 
           // Buscar en proyecto
-          const proyectoMatch = (o.proyecto_nombre?.toLowerCase() ?? "").includes(t);
+          const proyectoMatch = (o.proyecto_nombre?.toString().toLowerCase() ?? "").includes(t);
 
           // Buscar en fechas (formato completo o parcial: "2024", "2024-07", "2024-07-20")
           const fechaCreacionMatch = o.fecha_creacion?.includes(t) ?? false;

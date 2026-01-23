@@ -7,7 +7,7 @@
  * Refactorización: De 1920 líneas monolíticas a ~600 líneas usando 14 hooks modulares.
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import EquipoSelector from "@/components/catalogs/EquipoSelector";
 import { ConfirmationDialog } from "@/components/modals/ConfirmationDialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
 
 // Hooks compartidos
@@ -98,6 +99,11 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     deletedServicioIds: services.deletedServiceIds,
   });
 
+
+
+  // Estado para el diálogo de confirmación de guardado
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+
   // Contar productos confirmados en UI (para validación local)
   const confirmedProductsCount = products.productLines.filter(l => l.isConfirmed).length;
   const hasConfirmedProducts = confirmedProductsCount > 0;
@@ -148,12 +154,14 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   const loadInitialDisplayData = async () => {
     try {
       // Obtener datos básicos de la orden actual con joins mínimos
+      // Incluir el perfil del ingeniero asignado directamente
       const { data: orderData, error: ordErr } = await supabase
         .from("orden_pedido")
         .select(`
           *,
           cliente ( nombre_cliente, nit ),
-          proyecto ( id_proyecto, nombre_proyecto )
+          proyecto ( id_proyecto, nombre_proyecto ),
+          ingeniero_asignado:profiles!orden_pedido_id_ingeniero_asignado_fkey ( nombre, username )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
         .single();
@@ -194,13 +202,23 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
       const orderDataWithJoins = orderData as typeof orderData & {
         cliente?: { nombre_cliente: string; nit: string } | null;
         proyecto?: { nombre_proyecto: string } | null;
+        ingeniero_asignado?: { nombre?: string; username?: string } | null;
       };
 
-      const ingenieroWithProfile = resp?.find(r => r.user_id === ingenieroAsignado?.user_id) as typeof resp[0] & {
-        profiles?: { nombre?: string; username?: string } | null;
-      };
+      // Primero intentar obtener el nombre del ingeniero desde el join directo (orden_pedido.id_ingeniero_asignado)
+      // Si no existe, buscar en responsable_orden como fallback
+      let ingenieroNombre = "";
 
-      const ingenieroNombre = ingenieroWithProfile?.profiles?.nombre || ingenieroWithProfile?.profiles?.username || "";
+      if (orderDataWithJoins.ingeniero_asignado) {
+        // El ingeniero está asignado directamente en orden_pedido
+        ingenieroNombre = orderDataWithJoins.ingeniero_asignado.nombre || orderDataWithJoins.ingeniero_asignado.username || "";
+      } else if (ingenieroAsignado) {
+        // Fallback: buscar en responsable_orden
+        const ingenieroWithProfile = resp?.find(r => r.user_id === ingenieroAsignado.user_id) as typeof resp[0] & {
+          profiles?: { nombre?: string; username?: string } | null;
+        };
+        ingenieroNombre = ingenieroWithProfile?.profiles?.nombre || ingenieroWithProfile?.profiles?.username || "";
+      }
 
       display.updateDisplayData({
         cliente_nombre: orderDataWithJoins.cliente?.nombre_cliente || "",
@@ -210,8 +228,16 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
         observaciones: orderData.observaciones_orden || "",
       });
 
+      // Determinar el user_id del ingeniero (desde orden_pedido o responsable_orden)
+      const ingenieroUserId = orderData.id_ingeniero_asignado || ingenieroAsignado?.user_id || "";
+
       // Verificar si los campos deben estar bloqueados
-      editMode.setIsFieldsLocked(Boolean(ingenieroAsignado));
+      editMode.setIsFieldsLocked(Boolean(ingenieroUserId));
+
+      // Establecer el responsable seleccionado para modo edición
+      if (ingenieroUserId) {
+        responsable.setSelectedResponsable(ingenieroUserId);
+      }
 
       // Actualizar formData básico
       // Si no tiene proyecto asignado, usar "no_aplica"
@@ -328,16 +354,28 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
       // Cargar responsable actual si no está establecido
       if (!responsable.selectedResponsable) {
-        const { data: respAsignados, error: respErr } = await supabase
-          .from("responsable_orden")
-          .select("user_id, role")
+        // Primero verificar si hay ingeniero asignado directamente en la orden
+        const { data: ordenData, error: ordenErr } = await supabase
+          .from("orden_pedido")
+          .select("id_ingeniero_asignado")
           .eq("id_orden_pedido", order.id_orden_pedido)
-          .neq("role", "admin" as AppRole);
+          .single();
 
-        if (!respErr && respAsignados && respAsignados.length > 0) {
-          responsable.selectByPriority(
-            respAsignados.map(r => ({ user_id: r.user_id, role: r.role as AppRole }))
-          );
+        if (!ordenErr && ordenData?.id_ingeniero_asignado) {
+          responsable.setSelectedResponsable(ordenData.id_ingeniero_asignado);
+        } else {
+          // Fallback: buscar en responsable_orden
+          const { data: respAsignados, error: respErr } = await supabase
+            .from("responsable_orden")
+            .select("user_id, role")
+            .eq("id_orden_pedido", order.id_orden_pedido)
+            .neq("role", "admin" as AppRole);
+
+          if (!respErr && respAsignados && respAsignados.length > 0) {
+            responsable.selectByPriority(
+              respAsignados.map(r => ({ user_id: r.user_id, role: r.role as AppRole }))
+            );
+          }
         }
       }
 
@@ -410,7 +448,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
   const confirmDeleteEquipo = () => {
     if (!confirmation.itemToDelete || confirmation.itemToDelete.type !== "equipo") return;
-    products.removeLine(confirmation.itemToDelete.id);
+    products.removeLine(confirmation.itemToDelete.id as number);
     confirmation.setItemToDelete(null);
   };
 
@@ -480,6 +518,10 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   // ==================== HANDLER DE GUARDADO ====================
 
   const handleSave = async () => {
+    setShowSaveConfirm(true);
+  };
+
+  const executeSave = async () => {
     // Validar líneas de productos
     const productValidation = validation.validateProductLines(products.productLines);
     if (!productValidation.valid) {
@@ -616,6 +658,9 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
       // Salir del modo edición
       editMode.exitEditMode();
+      
+      // Cerrar el diálogo de confirmación
+      setShowSaveConfirm(false);
     }
   };
 
@@ -674,6 +719,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                   Campos bloqueados
                 </div>
               )}
+
               {!editMode.isEditMode ? (
                 <Button
                   variant="outline"
@@ -784,7 +830,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                   <Select
                     value={form.formData.id_proyecto}
                     onValueChange={(value) => form.updateField("id_proyecto", value)}
-                    disabled={!form.formData.id_cliente || editMode.isFieldsLocked}
+                    disabled={!form.formData.id_cliente}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar proyecto" />
@@ -806,12 +852,20 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
               <div className="space-y-2">
                 <Label>Ingeniero asignado</Label>
                 <Select
-                  value={responsable.selectedResponsable}
+                  value={responsable.selectedResponsable || ""}
                   onValueChange={(v) => responsable.setSelectedResponsable(v)}
                   disabled={editMode.isFieldsLocked}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar usuario" />
+                    <SelectValue placeholder="Seleccionar usuario">
+                      {/* Mostrar el nombre del ingeniero si está disponible */}
+                      {responsable.selectedResponsable && responsable.asignables.length > 0
+                        ? responsable.asignables.find(u => u.user_id === responsable.selectedResponsable)?.label || display.displayData.ingeniero_nombre || "Cargando..."
+                        : responsable.selectedResponsable && display.displayData.ingeniero_nombre
+                          ? display.displayData.ingeniero_nombre
+                          : "Seleccionar usuario"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {responsable.asignables.map((u) => (
@@ -1677,16 +1731,24 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
             <div className="flex-1" />
 
             {/* Botón Guardar - Siempre visible y accesible */}
-            <Button
-              onClick={handleSave}
+            <ConfirmDialog
+              title="Confirmar guardado"
+              description="¿Estás seguro de que deseas guardar la información comercial de esta orden? Verifica que todos los datos sean correctos antes de confirmar."
+              confirmText="Guardar"
+              cancelText="Cancelar"
+              onConfirm={executeSave}
               disabled={isSaving || !canSave}
-              variant="default"
-              size="lg"
-              className="min-w-[250px]"
             >
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? "Guardando..." : "Guardar Información Comercial"}
-            </Button>
+              <Button
+                disabled={isSaving || !canSave}
+                variant="default"
+                size="lg"
+                className="min-w-[250px]"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSaving ? "Guardando..." : "Guardar Información Comercial"}
+              </Button>
+            </ConfirmDialog>
           </div>
         </div>
       )}
@@ -1704,7 +1766,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
         showThirdOption
         thirdOptionText="Salir sin guardar"
         onConfirm={async () => {
-          await handleSave();
+          await executeSave();
+          confirmation.setConfirmationType(null);
         }}
         onThirdOption={confirmDiscardChanges}
         onCancel={() => confirmation.setConfirmationType(null)}

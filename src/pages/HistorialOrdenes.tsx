@@ -114,9 +114,9 @@ export default function HistorialOrdenes() {
     if (searchTerm) {
       const t = searchTerm.toLowerCase();
       filtered = filtered.filter((o) => {
-        const consecutivoMatch = (o.consecutivo_code?.toLowerCase() ?? o.consecutivo?.toLowerCase() ?? "").includes(t);
-        const clienteMatch = o.nombre_cliente.toLowerCase().includes(t);
-        const proyectoMatch = (o.proyecto_nombre?.toLowerCase() ?? "").includes(t);
+        const consecutivoMatch = (o.consecutivo_code?.toString().toLowerCase() ?? o.consecutivo?.toString().toLowerCase() ?? "").includes(t);
+        const clienteMatch = o.nombre_cliente?.toString().toLowerCase().includes(t) ?? false;
+        const proyectoMatch = (o.proyecto_nombre?.toString().toLowerCase() ?? "").includes(t);
         return consecutivoMatch || clienteMatch || proyectoMatch;
       });
     }

@@ -195,7 +195,7 @@ export function MetodoDespachoCatalog() {
   };
 
   const filteredTiposDespacho = tiposDespacho.filter(tipo =>
-    tipo.nombre_tipo?.toLowerCase().includes(searchTerm.toLowerCase())
+    tipo.nombre_tipo?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false
   );
 
   return (

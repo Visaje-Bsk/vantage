@@ -67,6 +67,7 @@ function compareProductLine(a: ProductLine, b: ProductLine): boolean {
   return (
     a.selectedEquipo?.id_equipo === b.selectedEquipo?.id_equipo &&
     a.cantidad === b.cantidad &&
+    a.cantidad_linea === b.cantidad_linea &&
     a.valorUnitario === b.valorUnitario &&
     a.isConfirmed === b.isConfirmed &&
     a.plantilla === b.plantilla &&

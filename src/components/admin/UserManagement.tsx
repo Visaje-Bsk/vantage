@@ -403,9 +403,9 @@ export default function UserManagement() {
   };
 
   const filteredProfiles = profiles.filter(profile => 
-    profile.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    profile.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    profile.role.toLowerCase().includes(searchTerm.toLowerCase())
+    (profile.nombre?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+    (profile.username?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+    (profile.role?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
 
   const getRoleBadge = (role: AppRole) => {

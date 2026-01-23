@@ -29,6 +29,7 @@ export interface ProductLine {
   plantilla: boolean;
   plantillaText: string;
   isConfirmed: boolean; // Indica si el equipo fue confirmado por el usuario
+  cantidad_linea: string; // Cantidad de líneas
 }
 
 // Línea de producto inicial vacía
@@ -42,6 +43,7 @@ const INITIAL_PRODUCT_LINE: ProductLine = {
   plantilla: false,
   plantillaText: "",
   isConfirmed: false,
+  cantidad_linea: "",
 };
 
 export const useProductLines = () => {

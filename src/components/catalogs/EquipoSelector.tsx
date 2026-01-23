@@ -70,6 +70,10 @@ export default function EquipoSelector({
 
       try {
         const term = query.trim();
+        
+        // Siempre incluir el equipo actualmente seleccionado
+        const includeSelectedId = value?.id_equipo;
+        
         let qb = supabase
           .from("equipo")
           .select("id_equipo, codigo, nombre_equipo", { count: "exact" })
@@ -77,19 +81,30 @@ export default function EquipoSelector({
           .limit(50); // Limitar resultados para performance
 
         if (term) {
-          // Escapar caracteres especiales para PostgREST
+          // Mejorar escaping para caracteres especiales
           const escapedTerm = term
             .replace(/\\/g, "\\\\")
+            .replace(/%/g, "\\%")
+            .replace(/_/g, "\\_")
             .replace(/,/g, "\\,")
             .replace(/\(/g, "\\(")
             .replace(/\)/g, "\\)")
             .replace(/\./g, "\\.");
 
-          qb = qb.or(`codigo.ilike.*${escapedTerm}*,nombre_equipo.ilike.*${escapedTerm}*`);
+          // Construir condición OR que siempre incluya el equipo seleccionado si existe
+          let orCondition = `codigo.ilike.%${escapedTerm}%,nombre_equipo.ilike.%${escapedTerm}%`;
+          if (includeSelectedId) {
+            orCondition += `,id_equipo.eq.${includeSelectedId}`;
+          }
+          
+          qb = qb.or(orCondition);
         }
 
         const { data, error, count } = await qb;
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase query error:", error);
+          throw error;
+        }
         if (!active) return;
 
         const mapped: EquipoOption[] = (data ?? []).map((row) => ({
@@ -116,7 +131,7 @@ export default function EquipoSelector({
       active = false;
       clearTimeout(timer);
     };
-  }, [query, open]);
+  }, [query, open, value?.id_equipo]);
 
   // Seleccionar un equipo
   const handleSelect = useCallback(
@@ -247,8 +262,29 @@ export default function EquipoSelector({
             {/* Sin resultados */}
             {!loading && !errorMsg && items.length === 0 && query && (
               <CommandEmpty className="py-6 text-center text-sm">
-                No se encontraron equipos para "{query}"
+                <div className="space-y-2">
+                  <p>No se encontraron equipos para "{query}"</p>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Sugerencias:</p>
+                    <ul className="list-disc list-inside">
+                      <li>Intenta con términos más cortos</li>
+                      <li>Verifica la ortografía</li>
+                      <li>Busca por código o nombre parcial</li>
+                      <li>Si tienes un equipo seleccionado, intenta limpiar la búsqueda</li>
+                    </ul>
+                  </div>
+                </div>
               </CommandEmpty>
+            )}
+
+            {/* Mensaje cuando no hay búsqueda */}
+            {!loading && !errorMsg && items.length === 0 && !query && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                <div className="space-y-2">
+                  <p>Escribe para buscar equipos</p>
+                  <p className="text-xs">Puedes buscar por código o nombre del equipo</p>
+                </div>
+              </div>
             )}
 
             {/* Lista de resultados */}
