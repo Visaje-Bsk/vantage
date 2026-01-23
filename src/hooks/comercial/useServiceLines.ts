@@ -34,6 +34,7 @@ export interface ServiceLine {
   claseCobro: ClaseCobro | "";
   valorMensual: string;
   cantidadLineas: string; // Cantidad de líneas
+  isConfirmed: boolean; // Indica si la línea fue confirmada por el usuario
 }
 
 // Línea de servicio inicial vacía
@@ -47,6 +48,7 @@ const INITIAL_SERVICE_LINE: ServiceLine = {
   claseCobro: "",
   valorMensual: "",
   cantidadLineas: "",
+  isConfirmed: false,
 };
 
 export const useServiceLines = () => {
@@ -118,12 +120,13 @@ export const useServiceLines = () => {
 
   /**
    * Obtiene solo las líneas válidas para guardar
-   * Una línea es válida si todos los campos están completos y la permanencia es 1-36
+   * Una línea es válida si está confirmada y tiene todos los campos completos
    * @returns Array de líneas válidas
    */
   const getValidLines = useCallback(() => {
     return serviceLines.filter(
       (l) =>
+        l.isConfirmed &&
         l.operadorId &&
         l.planId &&
         l.apnId &&
@@ -133,6 +136,68 @@ export const useServiceLines = () => {
         Number(l.valorMensual) > 0 &&
         Number(l.permanencia) >= 1 &&
         Number(l.permanencia) <= 36
+    );
+  }, [serviceLines]);
+
+  /**
+   * Confirma una línea de servicio
+   * Solo se puede confirmar si tiene operador, plan, APN, clase cobro, valor y permanencia válida
+   * @param id - ID local de la línea
+   * @returns true si se confirmó exitosamente, false si faltan datos
+   */
+  const confirmLine = useCallback((id: number): boolean => {
+    const line = serviceLines.find((l) => l.id_linea_detalle === id);
+    if (!line) return false;
+
+    // Validar que tenga todos los datos necesarios
+    const isValid =
+      line.operadorId &&
+      line.planId &&
+      line.apnId &&
+      line.permanencia &&
+      Number(line.permanencia) >= 1 &&
+      Number(line.permanencia) <= 36 &&
+      line.claseCobro &&
+      line.valorMensual &&
+      Number(line.valorMensual) > 0;
+
+    if (!isValid) return false;
+
+    setServiceLines((prev) =>
+      prev.map((l) => (l.id_linea_detalle === id ? { ...l, isConfirmed: true } : l))
+    );
+    return true;
+  }, [serviceLines]);
+
+  /**
+   * Desconfirma una línea de servicio (permite editar de nuevo)
+   * @param id - ID local de la línea
+   */
+  const unconfirmLine = useCallback((id: number) => {
+    setServiceLines((prev) =>
+      prev.map((l) => (l.id_linea_detalle === id ? { ...l, isConfirmed: false } : l))
+    );
+  }, []);
+
+  /**
+   * Verifica si una línea puede ser confirmada
+   * @param id - ID local de la línea
+   * @returns true si la línea tiene todos los datos necesarios
+   */
+  const canConfirmLine = useCallback((id: number): boolean => {
+    const line = serviceLines.find((l) => l.id_linea_detalle === id);
+    if (!line) return false;
+
+    return !!(
+      line.operadorId &&
+      line.planId &&
+      line.apnId &&
+      line.permanencia &&
+      Number(line.permanencia) >= 1 &&
+      Number(line.permanencia) <= 36 &&
+      line.claseCobro &&
+      line.valorMensual &&
+      Number(line.valorMensual) > 0
     );
   }, [serviceLines]);
 
@@ -153,6 +218,9 @@ export const useServiceLines = () => {
     setLines,
     resetLines,
     getValidLines,
+    confirmLine,
+    unconfirmLine,
+    canConfirmLine,
     clearDeletedIds,
   };
 };

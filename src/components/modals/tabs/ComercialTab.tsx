@@ -24,6 +24,7 @@ import EquipoSelector from "@/components/catalogs/EquipoSelector";
 import { ConfirmationDialog } from "@/components/modals/ConfirmationDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
 // Hooks compartidos
 import { useCurrencyFormatter } from "@/hooks/shared/useCurrencyFormatter";
@@ -104,9 +105,14 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   // Estado para el diálogo de confirmación de guardado
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
-  // Contar productos confirmados en UI (para validación local)
+  // Estado de carga inicial
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Contar productos y servicios confirmados en UI (para validación local)
   const confirmedProductsCount = products.productLines.filter(l => l.isConfirmed).length;
+  const confirmedServicesCount = services.serviceLines.filter(l => l.isConfirmed).length;
   const hasConfirmedProducts = confirmedProductsCount > 0;
+  const hasConfirmedServices = confirmedServicesCount > 0;
 
   // Memoizar objeto de orden para Data Gates (evita recálculos duplicados)
   const orderForValidation = useMemo(() => ({
@@ -144,7 +150,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   });
 
   // Determinar si el botón Guardar debe estar habilitado
-  const canSave = hasConfirmedProducts || unsavedChanges.hasUnsavedChanges;
+  const canSave = hasConfirmedProducts || hasConfirmedServices || unsavedChanges.hasUnsavedChanges;
 
   // ==================== FUNCIONES DE CARGA DE DATOS ====================
 
@@ -152,6 +158,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
    * Carga los datos iniciales de visualización (modo readonly)
    */
   const loadInitialDisplayData = async () => {
+    setIsInitialLoading(true);
     try {
       // Obtener datos básicos de la orden actual con joins mínimos
       // Incluir el perfil del ingeniero asignado directamente
@@ -318,6 +325,11 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     } catch (error) {
       console.error("Error loading initial display data:", error);
       toast.error("No se pudo cargar la información básica");
+    } finally {
+      // Pequeño delay para evitar parpadeos en cargas rápidas
+      setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 300);
     }
   };
 
@@ -703,6 +715,11 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
   // ==================== RENDER ====================
 
+  // Mostrar skeleton mientras carga
+  if (isInitialLoading) {
+    return <TabLoadingSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -1069,147 +1086,235 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                   {display.showLineasDetalle && (
               <CardContent className="space-y-4">
                 {services.serviceLines.map((line) => (
-                  <div key={line.id_linea_detalle} className="grid grid-cols-12 gap-4 items-start">
-                    <div className="col-span-1 flex justify-end pt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleRemoveServicioLine(line.id_linea_detalle)}
-                        disabled={services.serviceLines.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="col-span-11 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {/* Operador */}
-                        <div className="space-y-2">
-                          <Label>Operador</Label>
-                          <Select
-                            value={line.operadorId}
-                            onValueChange={(value) => services.updateLine(line.id_linea_detalle, "operadorId", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar operador" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {comercialData.operadores.map((op) => (
-                                <SelectItem key={op.id_operador} value={op.id_operador.toString()}>
-                                  {op.nombre_operador}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                  <div
+                    key={line.id_linea_detalle}
+                    className={`p-4 rounded-lg border-2 transition-all ${
+                      line.isConfirmed
+                        ? "bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-800"
+                        : "bg-muted/30 border-muted"
+                    }`}
+                  >
+                    {line.isConfirmed ? (
+                      // Vista de línea confirmada
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-1">
+                          <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                            <div>
+                              <span className="font-medium text-muted-foreground">Operador:</span>{" "}
+                              <span className="font-semibold">
+                                {comercialData.operadores.find(op => op.id_operador.toString() === line.operadorId)?.nombre_operador || "-"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-muted-foreground">Plan:</span>{" "}
+                              <span>
+                                {comercialData.planes.find(p => p.id_plan.toString() === line.planId)?.nombre_plan || "-"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-muted-foreground">APN:</span>{" "}
+                              <span>
+                                {comercialData.apns.find(a => a.id_apn.toString() === line.apnId)?.apn || "-"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-muted-foreground">Valor:</span>{" "}
+                              <span className="font-semibold">{formatCOP(line.valorMensual)}</span>
+                            </div>
+                          </div>
                         </div>
-
-                        {/* Plan */}
-                        <div className="space-y-2">
-                          <Label>Plan</Label>
-                          <Select
-                            value={line.planId}
-                            onValueChange={(value) => services.updateLine(line.id_linea_detalle, "planId", value)}
-                            disabled={!line.operadorId}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar plan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {comercialData.planes
-                                .filter(p => p.id_operador.toString() === line.operadorId)
-                                .map((plan) => (
-                                  <SelectItem key={plan.id_plan} value={plan.id_plan.toString()}>
-                                    {plan.nombre_plan}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
+                          <span>{line.cantidadLineas || "0"} líneas</span>
+                          <span>•</span>
+                          <span>{line.permanencia} meses</span>
+                          <span>•</span>
+                          <span>{line.claseCobro}</span>
                         </div>
-
-                        {/* APN */}
-                        <div className="space-y-2">
-                          <Label>APN</Label>
-                          <Select
-                            value={line.apnId}
-                            onValueChange={(value) => services.updateLine(line.id_linea_detalle, "apnId", value)}
-                            disabled={!line.operadorId}
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => services.unconfirmLine(line.id_linea_detalle)}
+                            title="Editar línea"
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar APN" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {comercialData.apns
-                                .filter(apn => apn.id_operador.toString() === line.operadorId)
-                                .map((apn) => (
-                                  <SelectItem key={apn.id_apn} value={apn.id_apn.toString()}>
-                                    {apn.apn}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Clase de Cobro */}
-                        <div className="space-y-2">
-                          <Label>Clase de Cobro</Label>
-                          <Select
-                            value={line.claseCobro}
-                            onValueChange={(value) => services.updateLine(line.id_linea_detalle, "claseCobro", value as ClaseCobro)}
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveServicioLine(line.id_linea_detalle)}
+                            disabled={services.serviceLines.length === 1 && !line.isConfirmed}
+                            title="Eliminar línea"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="mensual">Mensual</SelectItem>
-                              <SelectItem value="anual">Anual</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
+                    ) : (
+                      // Formulario de edición
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          {/* Operador */}
+                          <div className="space-y-2">
+                            <Label>Operador <span className="text-red-500">*</span></Label>
+                            <Select
+                              value={line.operadorId}
+                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "operadorId", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar operador" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {comercialData.operadores.map((op) => (
+                                  <SelectItem key={op.id_operador} value={op.id_operador.toString()}>
+                                    {op.nombre_operador}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Valor Mensual, Cantidad de Líneas y Permanencia */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="space-y-2 md:col-span-1">
-                          <Label>Valor Mensual</Label>
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="$0"
-                            value={formatCOP(line.valorMensual)}
-                            onChange={(e) => {
-                              const digits = e.target.value.replace(/[^0-9]/g, "");
-                              services.updateLine(line.id_linea_detalle, "valorMensual", digits);
-                            }}
-                          />
+                          {/* Plan */}
+                          <div className="space-y-2">
+                            <Label>Plan <span className="text-red-500">*</span></Label>
+                            <Select
+                              value={line.planId}
+                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "planId", value)}
+                              disabled={!line.operadorId}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar plan" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {comercialData.planes
+                                  .filter(p => p.id_operador.toString() === line.operadorId)
+                                  .map((plan) => (
+                                    <SelectItem key={plan.id_plan} value={plan.id_plan.toString()}>
+                                      {plan.nombre_plan}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* APN */}
+                          <div className="space-y-2">
+                            <Label>APN <span className="text-red-500">*</span></Label>
+                            <Select
+                              value={line.apnId}
+                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "apnId", value)}
+                              disabled={!line.operadorId}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar APN" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {comercialData.apns
+                                  .filter(apn => apn.id_operador.toString() === line.operadorId)
+                                  .map((apn) => (
+                                    <SelectItem key={apn.id_apn} value={apn.id_apn.toString()}>
+                                      {apn.apn}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Clase de Cobro */}
+                          <div className="space-y-2">
+                            <Label>Clase de Cobro <span className="text-red-500">*</span></Label>
+                            <Select
+                              value={line.claseCobro}
+                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "claseCobro", value as ClaseCobro)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="mensual">Mensual</SelectItem>
+                                <SelectItem value="anual">Anual</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div className="space-y-2 md:col-span-1">
-                          <Label>Cantidad de Líneas</Label>
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="0"
-                            value={line.cantidadLineas}
-                            onChange={(e) => {
-                              const digits = e.target.value.replace(/[^0-9]/g, "");
-                              services.updateLine(line.id_linea_detalle, "cantidadLineas", digits);
-                            }}
-                          />
-                        </div>
-                        <div className="space-y-2 md:col-span-1">
-                          <Label>Permanencia (meses)</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={36}
-                            placeholder="0"
-                            value={line.permanencia}
-                            onChange={(e) => handlePermanenciaChange(line.id_linea_detalle, e.target.value)}
-                          />
+
+                        {/* Valor Mensual, Cantidad de Líneas, Permanencia y Botones */}
+                        <div className="grid grid-cols-12 gap-4 items-end">
+                          <div className="col-span-6 md:col-span-3 space-y-2">
+                            <Label>Valor Mensual <span className="text-red-500">*</span></Label>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="$0"
+                              value={formatCOP(line.valorMensual)}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/[^0-9]/g, "");
+                                services.updateLine(line.id_linea_detalle, "valorMensual", digits);
+                              }}
+                            />
+                          </div>
+                          <div className="col-span-6 md:col-span-2 space-y-2">
+                            <Label>Cantidad de Líneas</Label>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="0"
+                              value={line.cantidadLineas}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/[^0-9]/g, "");
+                                services.updateLine(line.id_linea_detalle, "cantidadLineas", digits);
+                              }}
+                            />
+                          </div>
+                          <div className="col-span-6 md:col-span-2 space-y-2">
+                            <Label>Permanencia <span className="text-red-500">*</span></Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={36}
+                              placeholder="1-36"
+                              value={line.permanencia}
+                              onChange={(e) => handlePermanenciaChange(line.id_linea_detalle, e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-6 md:col-span-5 flex gap-2 justify-end">
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              onClick={() => {
+                                const confirmed = services.confirmLine(line.id_linea_detalle);
+                                if (!confirmed) {
+                                  toast.error("Completa operador, plan, APN, clase cobro, valor y permanencia antes de confirmar");
+                                }
+                              }}
+                              disabled={!services.canConfirmLine(line.id_linea_detalle)}
+                              className="bg-blue-600 hover:bg-blue-700"
+                              title="Confirmar línea"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Confirmar
+                            </Button>
+                            {services.serviceLines.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveServicioLine(line.id_linea_detalle)}
+                                title="Eliminar línea"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
 
@@ -1724,7 +1829,15 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
             {hasConfirmedProducts && (
               <div className="text-sm text-green-600 flex items-center gap-2 bg-green-50 px-3 py-2 rounded-md border border-green-200">
                 <CheckCircle2 className="w-4 h-4" />
-                {confirmedProductsCount} producto(s) confirmado(s)
+                {confirmedProductsCount} equipo(s) confirmado(s)
+              </div>
+            )}
+
+            {/* Indicador de líneas de servicio confirmadas */}
+            {hasConfirmedServices && (
+              <div className="text-sm text-blue-600 flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-md border border-blue-200">
+                <CheckCircle2 className="w-4 h-4" />
+                {confirmedServicesCount} línea(s) de servicio confirmada(s)
               </div>
             )}
 

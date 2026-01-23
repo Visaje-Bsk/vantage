@@ -87,6 +87,8 @@ function compareServiceLine(a: ServiceLine, b: ServiceLine): boolean {
     a.permanencia === b.permanencia &&
     a.claseCobro === b.claseCobro &&
     a.valorMensual === b.valorMensual &&
+    a.cantidadLineas === b.cantidadLineas &&
+    a.isConfirmed === b.isConfirmed &&
     a.id_orden_detalle === b.id_orden_detalle
   );
 }

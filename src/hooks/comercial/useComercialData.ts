@@ -234,6 +234,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 claseCobro: (ls?.clase_cobro as any) ?? "",
                 valorMensual: d.valor_unitario != null ? String(d.valor_unitario) : "",
                 cantidadLineas: ls?.cantidad_linea != null ? String(ls.cantidad_linea) : "",
+                isConfirmed: true, // Las líneas que vienen de BD ya están confirmadas
               };
             })
           : [
@@ -247,6 +248,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 claseCobro: "",
                 valorMensual: "",
                 cantidadLineas: "",
+                isConfirmed: false,
               },
             ];
 
