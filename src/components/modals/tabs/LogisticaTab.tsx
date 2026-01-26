@@ -137,8 +137,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           loadedIdTransportadora = despachoData.id_transportadora?.toString() || "";
           loadedFechaDespacho = despachoData.fecha_despacho || "";
           loadedObservacionesLogistica = despachoData.observaciones || "";
-          loadedFechaEntregaCliente = "";
-          loadedObservacionesProceso = "";
+          loadedFechaEntregaCliente = despachoData.fecha_entrega_cliente || "";
+          loadedObservacionesProceso = despachoData.observaciones_proceso || "";
 
           setValorFlete(loadedValorFlete);
           setNumeroGuia(loadedNumeroGuia);
@@ -208,35 +208,75 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Guardar datos de despacho_orden
-      const { error: despachoError } = await supabase
+      // Verificar si existe despacho_orden
+      const { data: existingDespacho } = await supabase
         .from('despacho_orden')
-        .upsert({
-          id_orden_pedido: order.id_orden_pedido,
-          id_tipo_despacho: 1, // Valor por defecto, debería venir de un selector
-          valor_servicio_flete: parseFloat(valorFlete) || 0,
-          numero_guia: numeroGuia,
-          id_transportadora: parseInt(idTransportadora) || null,
-          fecha_despacho: fechaDespacho || new Date().toISOString(),
-          observaciones: observacionesLogistica,
-        }, {
-          onConflict: 'id_orden_pedido'
-        });
+        .select('id_despacho_orden')
+        .eq('id_orden_pedido', order.id_orden_pedido)
+        .maybeSingle();
 
-      if (despachoError) throw despachoError;
+      // Guardar datos de despacho_orden (UPDATE o INSERT)
+      if (existingDespacho) {
+        const { error: despachoError } = await supabase
+          .from('despacho_orden')
+          .update({
+            valor_servicio_flete: parseFloat(valorFlete) || 0,
+            numero_guia: numeroGuia,
+            id_transportadora: parseInt(idTransportadora) || null,
+            fecha_despacho: fechaDespacho || null,
+            fecha_entrega_cliente: fechaEntregaCliente || null,
+            observaciones: observacionesLogistica,
+            observaciones_proceso: observacionesProceso,
+          })
+          .eq('id_orden_pedido', order.id_orden_pedido);
 
-      // Guardar datos de remision
-      const { error: remisionError } = await supabase
+        if (despachoError) throw despachoError;
+      } else {
+        const { error: despachoError } = await supabase
+          .from('despacho_orden')
+          .insert({
+            id_orden_pedido: order.id_orden_pedido,
+            id_tipo_despacho: 1,
+            valor_servicio_flete: parseFloat(valorFlete) || 0,
+            numero_guia: numeroGuia,
+            id_transportadora: parseInt(idTransportadora) || null,
+            fecha_despacho: fechaDespacho || null,
+            fecha_entrega_cliente: fechaEntregaCliente || null,
+            observaciones: observacionesLogistica,
+            observaciones_proceso: observacionesProceso,
+          });
+
+        if (despachoError) throw despachoError;
+      }
+
+      // Verificar si existe remision
+      const { data: existingRemision } = await supabase
         .from('remision')
-        .upsert({
-          id_orden_pedido: order.id_orden_pedido,
-          numero_remision: numeroRemision,
-          fecha_remision: new Date().toISOString(),
-        }, {
-          onConflict: 'id_orden_pedido'
-        });
+        .select('id_remision')
+        .eq('id_orden_pedido', order.id_orden_pedido)
+        .maybeSingle();
 
-      if (remisionError) throw remisionError;
+      // Guardar datos de remision (UPDATE o INSERT)
+      if (existingRemision) {
+        const { error: remisionError } = await supabase
+          .from('remision')
+          .update({
+            numero_remision: numeroRemision,
+          })
+          .eq('id_orden_pedido', order.id_orden_pedido);
+
+        if (remisionError) throw remisionError;
+      } else {
+        const { error: remisionError } = await supabase
+          .from('remision')
+          .insert({
+            id_orden_pedido: order.id_orden_pedido,
+            numero_remision: numeroRemision,
+            fecha_remision: new Date().toISOString(),
+          });
+
+        if (remisionError) throw remisionError;
+      }
 
       // Actualizar fecha de modificación de la orden
       await supabase
@@ -273,46 +313,86 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
     setShowConfirmDialog(true);
   };
 
-  const handleConfirmAvanzarFacturacion = async () => {
+  const handleConfirmCerrarOrden = async () => {
     setShowConfirmDialog(false);
     setSaving(true);
 
     try {
-        // Primero guardar todos los datos
+      // Verificar si existe despacho_orden
+      const { data: existingDespacho } = await supabase
+        .from('despacho_orden')
+        .select('id_despacho_orden')
+        .eq('id_orden_pedido', order.id_orden_pedido)
+        .maybeSingle();
+
+      // Guardar datos de despacho_orden (UPDATE o INSERT)
+      if (existingDespacho) {
         const { error: despachoError } = await supabase
           .from('despacho_orden')
-         .upsert({
-           id_orden_pedido: order.id_orden_pedido,
-           id_tipo_despacho: 1, // Valor por defecto, debería venir de un selector
-           valor_servicio_flete: parseFloat(valorFlete) || 0,
-           numero_guia: numeroGuia,
-           id_transportadora: parseInt(idTransportadora) || null,
-           fecha_despacho: fechaDespacho || new Date().toISOString(),
-           observaciones: observacionesLogistica,
-         }, {
-           onConflict: 'id_orden_pedido'
-         });
+          .update({
+            valor_servicio_flete: parseFloat(valorFlete) || 0,
+            numero_guia: numeroGuia,
+            id_transportadora: parseInt(idTransportadora) || null,
+            fecha_despacho: fechaDespacho || new Date().toISOString(),
+            fecha_entrega_cliente: fechaEntregaCliente || null,
+            observaciones: observacionesLogistica,
+            observaciones_proceso: observacionesProceso,
+          })
+          .eq('id_orden_pedido', order.id_orden_pedido);
 
-      if (despachoError) throw despachoError;
+        if (despachoError) throw despachoError;
+      } else {
+        const { error: despachoError } = await supabase
+          .from('despacho_orden')
+          .insert({
+            id_orden_pedido: order.id_orden_pedido,
+            id_tipo_despacho: 1,
+            valor_servicio_flete: parseFloat(valorFlete) || 0,
+            numero_guia: numeroGuia,
+            id_transportadora: parseInt(idTransportadora) || null,
+            fecha_despacho: fechaDespacho || new Date().toISOString(),
+            fecha_entrega_cliente: fechaEntregaCliente || null,
+            observaciones: observacionesLogistica,
+            observaciones_proceso: observacionesProceso,
+          });
 
-      const { error: remisionError } = await supabase
+        if (despachoError) throw despachoError;
+      }
+
+      // Verificar si existe remision
+      const { data: existingRemision } = await supabase
         .from('remision')
-        .upsert({
-          id_orden_pedido: order.id_orden_pedido,
-          numero_remision: numeroRemision,
-          fecha_remision: new Date().toISOString(),
-        }, {
-          onConflict: 'id_orden_pedido'
-        });
+        .select('id_remision')
+        .eq('id_orden_pedido', order.id_orden_pedido)
+        .maybeSingle();
 
-      if (remisionError) throw remisionError;
+      // Guardar datos de remision (UPDATE o INSERT)
+      if (existingRemision) {
+        const { error: remisionError } = await supabase
+          .from('remision')
+          .update({
+            numero_remision: numeroRemision,
+          })
+          .eq('id_orden_pedido', order.id_orden_pedido);
 
-      // Avanzar fase a Facturacion y cambiar estatus a 'enviada'
+        if (remisionError) throw remisionError;
+      } else {
+        const { error: remisionError } = await supabase
+          .from('remision')
+          .insert({
+            id_orden_pedido: order.id_orden_pedido,
+            numero_remision: numeroRemision,
+            fecha_remision: new Date().toISOString(),
+          });
+
+        if (remisionError) throw remisionError;
+      }
+
+      // CERRAR LA ORDEN - estatus = 'cerrada' (NO avanza a facturación)
       const { error: updateError } = await supabase
         .from('orden_pedido')
         .update({
-          fase: 'facturacion',
-          estatus: 'enviada',
+          estatus: 'cerrada',
           fecha_modificacion: new Date().toISOString(),
         })
         .eq('id_orden_pedido', order.id_orden_pedido);
@@ -332,15 +412,14 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       });
 
       onUpdateOrder(order.id_orden_pedido, {
-        fase: "facturacion",
-        estatus: "enviada",
+        estatus: "cerrada",
       });
 
       // Mostrar modal de éxito
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error cerrando orden:', error);
-      toast.error('Error al enviar orden a Facturación');
+      toast.error('Error al cerrar la orden');
     } finally {
       setSaving(false);
     }
@@ -563,12 +642,12 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       <ConfirmationDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
-        onConfirm={handleConfirmAvanzarFacturacion}
-        title="¿Enviar orden a Facturación?"
-        description="Esta acción enviará la orden a Facturación con estatus 'ENVIADA'. Podrá continuar editando los datos de facturación en la siguiente fase."
-        confirmText="Sí, enviar a Facturación"
+        onConfirm={handleConfirmCerrarOrden}
+        title="¿Cerrar la orden?"
+        description="Esta acción cerrará definitivamente la orden. La orden pasará al historial y no podrá editarse más."
+        confirmText="Sí, cerrar orden"
         cancelText="Cancelar"
-        variant="destructive"
+        variant="default"
       />
 
       {/* Modal de éxito */}

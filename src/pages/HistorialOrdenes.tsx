@@ -32,7 +32,7 @@ import { OrdenKanban, estatusBadge, STAGE_UI, FASE_TO_UI } from "@/types/kanban"
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "@/components/modals/ConfirmationDialog";
-import { OrderModal } from "@/components/modals/OrderModal";
+import { OrderSummaryModal } from "@/components/modals/OrderSummaryModal";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 type EstatusOrdenDB = Database["public"]["Enums"]["estatus_orden_enum"];
@@ -46,8 +46,8 @@ export default function HistorialOrdenes() {
   const [estatusFilter, setEstatusFilter] = useState<"all" | "cerrada" | "anulada">("all");
   const [showReopenDialog, setShowReopenDialog] = useState(false);
   const [selectedOrderToReopen, setSelectedOrderToReopen] = useState<OrdenKanban | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<OrdenKanban | null>(null);
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   const isAdmin = profile?.role === "admin";
 
@@ -169,16 +169,13 @@ export default function HistorialOrdenes() {
   };
 
   const handleViewOrder = (order: OrdenKanban) => {
-    setSelectedOrder(order);
-    setIsOrderModalOpen(true);
+    setSelectedOrderId(order.id_orden_pedido);
+    setIsSummaryModalOpen(true);
   };
 
-  const handleUpdateOrder = (orderId: number, updates: Partial<OrdenKanban>) => {
-    setOrdenes((prev) =>
-      prev.map((o) =>
-        o.id_orden_pedido === orderId ? { ...o, ...updates } : o
-      )
-    );
+  const handleDuplicateOrder = (newOrderId: number) => {
+    toast.success(`Orden duplicada con ID: ${newOrderId}`);
+    // Opcional: redirigir al kanban o refrescar la lista
   };
 
   const formatDate = (dateString: string | null): string => {
@@ -354,13 +351,12 @@ export default function HistorialOrdenes() {
         cancelText="Cancelar"
       />
 
-      {/* Modal para ver detalle de orden */}
-      <OrderModal
-        order={selectedOrder}
-        isOpen={isOrderModalOpen}
-        onClose={() => setIsOrderModalOpen(false)}
-        onUpdateOrder={handleUpdateOrder}
-        currentUserRole={profile?.role ?? "comercial"}
+      {/* Modal para ver resumen de orden */}
+      <OrderSummaryModal
+        orderId={selectedOrderId}
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        onDuplicate={handleDuplicateOrder}
       />
     </div>
   );
