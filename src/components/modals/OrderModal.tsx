@@ -30,7 +30,8 @@ import {
   Tag,
   Clock,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Copy
 } from "lucide-react";
 import { ComercialTab } from "./tabs/ComercialTab";
 import { InventariosTab } from "./tabs/InventariosTab";
@@ -42,6 +43,7 @@ import { ConfirmationDialog } from "./ConfirmationDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useDuplicateOrder } from "@/hooks/useDuplicateOrder";
 
 const NEXT_FASE: Record<OrdenStageUI, FaseOrdenDB | null> = {
   comercial: "inventarios",
@@ -67,6 +69,7 @@ interface OrderModalProps {
   onClose: () => void;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   currentUserRole?: string;
+  onOrderDuplicated?: (newOrderId: number) => void;
 }
 
 export function OrderModal({
@@ -74,7 +77,8 @@ export function OrderModal({
   isOpen,
   onClose,
   onUpdateOrder,
-  currentUserRole = "admin"
+  currentUserRole = "admin",
+  onOrderDuplicated
 }: OrderModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<OrdenStageUI>("comercial");
@@ -85,6 +89,9 @@ export function OrderModal({
   const [razonAnulacion, setRazonAnulacion] = useState("");
   const [showAdvanceConfirm, setShowAdvanceConfirm] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
+
+  // Hook para duplicar orden
+  const { duplicateOrder, isDuplicating } = useDuplicateOrder();
 
   // Estado dirty por cada tab
   const [tabDirtyStates, setTabDirtyStates] = useState<Record<OrdenStageUI, boolean>>({
@@ -177,8 +184,21 @@ export function OrderModal({
   }, [order?.created_by]);
 
   const isAdmin = (currentUserRole as AppRole) === "admin";
-  const canUserEditFase = (fase: FaseOrdenDB) => 
+  const isComercial = (currentUserRole as AppRole) === "comercial";
+  const canDuplicate = isAdmin || isComercial;
+  const canUserEditFase = (fase: FaseOrdenDB) =>
     isAdmin || (currentUserRole === REQUIRED_ROLE_BY_FASE[fase]);
+
+  // Manejar duplicación de orden
+  const handleDuplicate = async () => {
+    if (!order) return;
+
+    const newOrderId = await duplicateOrder(order.id_orden_pedido);
+    if (newOrderId) {
+      onClose();
+      onOrderDuplicated?.(newOrderId);
+    }
+  };
 
   const handleClose = () => {
     if (hasUnsavedChanges) {
@@ -459,6 +479,19 @@ export function OrderModal({
                 >
                   {estMeta.label}
                 </Badge>
+                {/* Botón de duplicar (admin y comercial, órdenes no anuladas) */}
+                {canDuplicate && order.estatus !== 'anulada' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDuplicate}
+                    disabled={isDuplicating}
+                    className="ml-2"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    {isDuplicating ? 'Duplicando...' : 'Duplicar'}
+                  </Button>
+                )}
                 {/* Botón de anular (solo admin y órdenes no cerradas/anuladas) */}
                 {isAdmin && order.estatus !== 'cerrada' && order.estatus !== 'anulada' && (
                   <Button

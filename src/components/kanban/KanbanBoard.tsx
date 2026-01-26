@@ -230,6 +230,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
     }
   };
 
+  // Función que se ejecuta cuando se duplica una orden
+  const handleOrderDuplicated = async (newOrderId: number) => {
+    // Reutilizamos la lógica de handleOrderCreated
+    await handleOrderCreated(newOrderId);
+  };
+
   // Re-apply filters when search term or status filter changes
   useEffect(() => {
     if (loading || allOrders.length === 0) return;
@@ -305,6 +311,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         onClose={() => setIsOrderModalOpen(false)}
         onUpdateOrder={handleUpdateOrder}
         currentUserRole={profile?.role ?? "comercial"}
+        onOrderDuplicated={handleOrderDuplicated}
       />
 
       {/* Modal para nueva orden */}
