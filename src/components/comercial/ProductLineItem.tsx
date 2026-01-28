@@ -21,7 +21,7 @@ interface ProductLineItemProps {
   line: ProductLine;
   onUpdate: (id: number, field: keyof ProductLine, value: unknown) => void;
   onRemove: (id: number) => void;
-  onConfirm: (id: number) => boolean;
+  onConfirm: (id: number, requirePermanencia: boolean) => boolean;
   onUnconfirm: (id: number) => void;
   canConfirm: boolean;
   canRemove: boolean;
@@ -29,6 +29,7 @@ interface ProductLineItemProps {
   formatCOP: (value: string | number) => string;
   digitsOnly: (value: string) => string;
   onQuantityChange: (id: number, value: string) => void;
+  isClaseRenta?: boolean;
 }
 
 function ProductLineItemComponent({
@@ -43,6 +44,7 @@ function ProductLineItemComponent({
   formatCOP,
   digitsOnly,
   onQuantityChange,
+  isClaseRenta = false,
 }: ProductLineItemProps) {
   // Handlers memoizados
   const handleEquipoChange = useCallback(
@@ -81,9 +83,17 @@ function ProductLineItemComponent({
     [line.id_linea_detalle, onUpdate]
   );
 
+  const handlePermanenciaChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value.replace(/\D/g, "");
+      onUpdate(line.id_linea_detalle, "permanencia", value);
+    },
+    [line.id_linea_detalle, onUpdate]
+  );
+
   const handleConfirm = useCallback(() => {
-    onConfirm(line.id_linea_detalle);
-  }, [line.id_linea_detalle, onConfirm]);
+    onConfirm(line.id_linea_detalle, isClaseRenta);
+  }, [line.id_linea_detalle, onConfirm, isClaseRenta]);
 
   const handleUnconfirm = useCallback(() => {
     onUnconfirm(line.id_linea_detalle);
@@ -100,7 +110,7 @@ function ProductLineItemComponent({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+            <div className={`flex-1 grid grid-cols-1 ${isClaseRenta ? "md:grid-cols-5" : "md:grid-cols-4"} gap-2 text-sm`}>
               <div>
                 <span className="font-medium text-muted-foreground">Equipo:</span>{" "}
                 <span className="font-semibold">
@@ -119,6 +129,12 @@ function ProductLineItemComponent({
                 <span className="font-medium text-muted-foreground">Valor:</span>{" "}
                 <span className="font-semibold">{formatCOP(line.valorUnitario)}</span>
               </div>
+              {isClaseRenta && (
+                <div>
+                  <span className="font-medium text-muted-foreground">Permanencia:</span>{" "}
+                  <span className="font-semibold">{line.permanencia} meses</span>
+                </div>
+              )}
             </div>
             {line.plantilla && line.plantillaText && (
               <div className="text-xs text-muted-foreground border-l pl-2">
@@ -182,7 +198,7 @@ function ProductLineItemComponent({
             />
             {quantityError && <p className="text-xs text-red-500">{quantityError}</p>}
           </div>
-          <div className="col-span-5 md:col-span-2 space-y-2">
+          <div className={`col-span-5 ${isClaseRenta ? "md:col-span-2" : "md:col-span-2"} space-y-2`}>
             <Label>
               Valor Unitario <span className="text-red-500">*</span>
             </Label>
@@ -194,7 +210,21 @@ function ProductLineItemComponent({
               onChange={handleValueChange}
             />
           </div>
-          <div className="col-span-2 md:col-span-3 flex gap-2 justify-end">
+          {isClaseRenta && (
+            <div className="col-span-4 md:col-span-1 space-y-2">
+              <Label>
+                Permanencia <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="Meses"
+                value={line.permanencia}
+                onChange={handlePermanenciaChange}
+              />
+            </div>
+          )}
+          <div className={`col-span-2 ${isClaseRenta ? "md:col-span-2" : "md:col-span-3"} flex gap-2 justify-end`}>
             <Button
               type="button"
               variant="default"
@@ -260,11 +290,13 @@ function arePropsEqual(prevProps: ProductLineItemProps, nextProps: ProductLineIt
   if (prev.isConfirmed !== next.isConfirmed) return false;
   if (prev.plantilla !== next.plantilla) return false;
   if (prev.plantillaText !== next.plantillaText) return false;
+  if (prev.permanencia !== next.permanencia) return false;
 
   // Comparar props de estado
   if (prevProps.canConfirm !== nextProps.canConfirm) return false;
   if (prevProps.canRemove !== nextProps.canRemove) return false;
   if (prevProps.quantityError !== nextProps.quantityError) return false;
+  if (prevProps.isClaseRenta !== nextProps.isClaseRenta) return false;
 
   return true;
 }

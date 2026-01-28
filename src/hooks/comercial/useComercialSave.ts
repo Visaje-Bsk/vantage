@@ -121,6 +121,7 @@ export const useComercialSave = (orderId: number) => {
           cantidad_linea: line.cantidad_linea || "",
           valor_unitario: line.valorUnitario,
           plantilla: line.plantilla && line.plantillaText ? line.plantillaText : "",
+          permanencia: line.permanencia || "",
         }));
 
         console.log("[useComercialSave] equiposData a enviar al RPC:", equiposData);

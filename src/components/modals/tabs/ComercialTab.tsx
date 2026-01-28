@@ -43,6 +43,7 @@ import { useComercialData } from "@/hooks/comercial/useComercialData";
 import { useComercialDisplay } from "@/hooks/comercial/useComercialDisplay";
 import { useUnsavedChanges } from "@/hooks/comercial/useUnsavedChanges";
 import { useComercialSave } from "@/hooks/comercial/useComercialSave";
+import { useClasesOrden } from "@/hooks/queries/useCatalogQueries";
 
 // Data Gates
 import { useDataGateValidation, useDataGateStatus } from "@/hooks/useDataGateValidation";
@@ -81,6 +82,15 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   // Pasar clienteId para que React Query cargue los proyectos automáticamente
   const comercialData = useComercialData(order.id_orden_pedido, form.formData.id_cliente);
   const display = useComercialDisplay();
+  const { data: clasesOrden } = useClasesOrden();
+
+  // Determinar si la clase de orden actual es "Renta" (requiere permanencia en equipos)
+  const isClaseRenta = useMemo(() => {
+    const claseOrdenId = form.formData.id_clase_orden || order.id_clase_orden?.toString();
+    if (!claseOrdenId || !clasesOrden) return false;
+    const claseOrden = clasesOrden.find(c => c.id_clase_orden === parseInt(claseOrdenId));
+    return claseOrden?.tipo_orden?.toLowerCase() === 'renta';
+  }, [form.formData.id_clase_orden, order.id_clase_orden, clasesOrden]);
 
   // Hooks de validación
   const validation = useComercialValidation();
@@ -927,7 +937,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
                         <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+                        <div className={`flex-1 grid grid-cols-1 ${isClaseRenta ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-2 text-sm`}>
                           <div>
                             <span className="font-medium text-muted-foreground">Equipo:</span>{" "}
                             <span className="font-semibold">{line.selectedEquipo?.nombre_equipo || line.selectedEquipo?.codigo}</span>
@@ -944,6 +954,12 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                             <span className="font-medium text-muted-foreground">Valor:</span>{" "}
                             <span className="font-semibold">{formatCOP(line.valorUnitario)}</span>
                           </div>
+                          {isClaseRenta && (
+                            <div>
+                              <span className="font-medium text-muted-foreground">Permanencia:</span>{" "}
+                              <span className="font-semibold">{line.permanencia} meses</span>
+                            </div>
+                          )}
                         </div>
                         {line.plantilla && line.plantillaText && (
                           <div className="text-xs text-muted-foreground border-l pl-2">
@@ -1000,7 +1016,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                             <p className="text-xs text-red-500">{validation.quantityErrors[line.id_linea_detalle]}</p>
                           )}
                         </div>
-                        <div className="col-span-5 md:col-span-2 space-y-2">
+                        <div className={`col-span-5 ${isClaseRenta ? 'md:col-span-2' : 'md:col-span-2'} space-y-2`}>
                           <Label>Valor Unitario <span className="text-red-500">*</span></Label>
                           <Input
                             type="text"
@@ -1013,18 +1029,36 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                             }}
                           />
                         </div>
-                        <div className="col-span-2 md:col-span-3 flex gap-2 justify-end">
+                        {isClaseRenta && (
+                          <div className="col-span-4 md:col-span-1 space-y-2">
+                            <Label>Permanencia <span className="text-red-500">*</span></Label>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="Meses"
+                              value={line.permanencia}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                products.updateLine(line.id_linea_detalle, "permanencia", value);
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div className={`col-span-2 ${isClaseRenta ? 'md:col-span-2' : 'md:col-span-3'} flex gap-2 justify-end`}>
                           <Button
                             type="button"
                             variant="default"
                             size="sm"
                             onClick={() => {
-                              const confirmed = products.confirmLine(line.id_linea_detalle);
+                              const confirmed = products.confirmLine(line.id_linea_detalle, isClaseRenta);
                               if (!confirmed) {
-                                toast.error("Completa equipo, cantidad y valor antes de confirmar");
+                                toast.error(isClaseRenta
+                                  ? "Completa equipo, cantidad, valor y permanencia antes de confirmar"
+                                  : "Completa equipo, cantidad y valor antes de confirmar"
+                                );
                               }
                             }}
-                            disabled={!products.canConfirmLine(line.id_linea_detalle)}
+                            disabled={!products.canConfirmLine(line.id_linea_detalle, isClaseRenta)}
                             className="bg-green-600 hover:bg-green-700"
                             title="Confirmar equipo"
                           >

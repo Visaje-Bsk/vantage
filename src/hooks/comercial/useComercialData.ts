@@ -189,7 +189,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 ? ({ id_equipo: eq.id_equipo, codigo: eq.codigo, nombre_equipo: eq.nombre_equipo } as EquipoOption)
                 : null;
 
-              const detalleWithPlantilla = d as typeof d & { plantilla?: string | null };
+              const detalleWithPlantilla = d as typeof d & { plantilla?: string | null; permanencia?: string | null };
 
               return {
                 id_linea_detalle: d.id_orden_detalle,
@@ -202,6 +202,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 plantilla: Boolean(detalleWithPlantilla.plantilla),
                 plantillaText: detalleWithPlantilla.plantilla ?? "",
                 isConfirmed: true, // Los equipos que vienen de BD ya están confirmados
+                permanencia: detalleWithPlantilla.permanencia ?? "",
               };
             })
           : [
@@ -216,6 +217,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 plantilla: false,
                 plantillaText: "",
                 isConfirmed: false,
+                permanencia: "",
               },
             ];
 

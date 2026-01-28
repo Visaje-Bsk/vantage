@@ -3,8 +3,9 @@
  *
  * Selector de equipos con búsqueda server-side y autocompletado.
  *
- * OPTIMIZADO:
- * - Usa Popover de Radix para posicionamiento inteligente (evita overflow)
+ * OPTIMIZADO v2:
+ * - Cache de resultados iniciales para evitar llamadas repetidas
+ * - Usa React Query para cache compartido entre instancias
  * - Navegación con teclado (ArrowUp/Down, Enter, Escape)
  * - Indicador de "más resultados disponibles"
  * - Loading spinner visible durante búsqueda
@@ -12,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,49 @@ interface EquipoSelectorProps {
 
 const MAX_VISIBLE_RESULTS = 15;
 const SEARCH_DEBOUNCE_MS = 300;
+const INITIAL_CACHE_SIZE = 50;
+
+// Función para buscar equipos - usada por React Query
+const fetchEquipos = async (searchTerm: string, selectedId?: number): Promise<{ items: EquipoOption[]; total: number }> => {
+  const term = searchTerm.trim();
+
+  let qb = supabase
+    .from("equipo")
+    .select("id_equipo, codigo, nombre_equipo", { count: "exact" })
+    .order("codigo", { ascending: true, nullsFirst: false })
+    .limit(INITIAL_CACHE_SIZE);
+
+  if (term) {
+    // Mejorar escaping para caracteres especiales
+    const escapedTerm = term
+      .replace(/\\/g, "\\\\")
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_")
+      .replace(/,/g, "\\,")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)")
+      .replace(/\./g, "\\.");
+
+    // Construir condición OR que siempre incluya el equipo seleccionado si existe
+    let orCondition = `codigo.ilike.%${escapedTerm}%,nombre_equipo.ilike.%${escapedTerm}%`;
+    if (selectedId) {
+      orCondition += `,id_equipo.eq.${selectedId}`;
+    }
+
+    qb = qb.or(orCondition);
+  }
+
+  const { data, error, count } = await qb;
+  if (error) throw error;
+
+  const items: EquipoOption[] = (data ?? []).map((row) => ({
+    id_equipo: row.id_equipo,
+    codigo: row.codigo ?? null,
+    nombre_equipo: row.nombre_equipo ?? null,
+  }));
+
+  return { items, total: count ?? 0 };
+};
 
 export default function EquipoSelector({
   value,
@@ -44,11 +89,8 @@ export default function EquipoSelector({
 }: EquipoSelectorProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<EquipoOption[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -59,79 +101,54 @@ export default function EquipoSelector({
     return value.nombre_equipo || value.codigo || "(sin nombre)";
   }, [value]);
 
-  // Buscar equipos con debounce
+  // Debounce del query
   useEffect(() => {
-    if (!open) return;
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-    let active = true;
-    const fetchItems = async () => {
-      setLoading(true);
-      setErrorMsg(null);
+  // React Query para cache de equipos iniciales (sin búsqueda)
+  const initialEquiposQuery = useQuery({
+    queryKey: ["equipos", "initial"],
+    queryFn: () => fetchEquipos(""),
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    enabled: open, // Solo cargar cuando se abre
+  });
 
-      try {
-        const term = query.trim();
-        
-        // Siempre incluir el equipo actualmente seleccionado
-        const includeSelectedId = value?.id_equipo;
-        
-        let qb = supabase
-          .from("equipo")
-          .select("id_equipo, codigo, nombre_equipo", { count: "exact" })
-          .order("codigo", { ascending: true, nullsFirst: false })
-          .limit(50); // Limitar resultados para performance
+  // React Query para búsqueda con debounce
+  const searchQuery = useQuery({
+    queryKey: ["equipos", "search", debouncedQuery, value?.id_equipo],
+    queryFn: () => fetchEquipos(debouncedQuery, value?.id_equipo),
+    staleTime: 30 * 1000, // 30 segundos para búsquedas
+    enabled: open && debouncedQuery.length > 0,
+  });
 
-        if (term) {
-          // Mejorar escaping para caracteres especiales
-          const escapedTerm = term
-            .replace(/\\/g, "\\\\")
-            .replace(/%/g, "\\%")
-            .replace(/_/g, "\\_")
-            .replace(/,/g, "\\,")
-            .replace(/\(/g, "\\(")
-            .replace(/\)/g, "\\)")
-            .replace(/\./g, "\\.");
-
-          // Construir condición OR que siempre incluya el equipo seleccionado si existe
-          let orCondition = `codigo.ilike.%${escapedTerm}%,nombre_equipo.ilike.%${escapedTerm}%`;
-          if (includeSelectedId) {
-            orCondition += `,id_equipo.eq.${includeSelectedId}`;
-          }
-          
-          qb = qb.or(orCondition);
-        }
-
-        const { data, error, count } = await qb;
-        if (error) {
-          console.error("Supabase query error:", error);
-          throw error;
-        }
-        if (!active) return;
-
-        const mapped: EquipoOption[] = (data ?? []).map((row) => ({
-          id_equipo: row.id_equipo,
-          codigo: row.codigo ?? null,
-          nombre_equipo: row.nombre_equipo ?? null,
-        }));
-
-        setItems(mapped);
-        setTotalCount(count ?? 0);
-        setSelectedIndex(0);
-      } catch (e) {
-        console.error("Error fetching equipos:", e);
-        setErrorMsg(e instanceof Error ? e.message : "Error al cargar equipos");
-        setItems([]);
-        setTotalCount(0);
-      } finally {
-        if (active) setLoading(false);
-      }
+  // Determinar qué datos mostrar
+  const { items, totalCount, loading, errorMsg } = useMemo(() => {
+    // Si hay búsqueda activa, usar resultados de búsqueda
+    if (debouncedQuery.length > 0) {
+      return {
+        items: searchQuery.data?.items ?? [],
+        totalCount: searchQuery.data?.total ?? 0,
+        loading: searchQuery.isLoading || searchQuery.isFetching,
+        errorMsg: searchQuery.error ? (searchQuery.error as Error).message : null,
+      };
+    }
+    // Sin búsqueda, usar cache inicial
+    return {
+      items: initialEquiposQuery.data?.items ?? [],
+      totalCount: initialEquiposQuery.data?.total ?? 0,
+      loading: initialEquiposQuery.isLoading,
+      errorMsg: initialEquiposQuery.error ? (initialEquiposQuery.error as Error).message : null,
     };
+  }, [debouncedQuery, searchQuery, initialEquiposQuery]);
 
-    const timer = setTimeout(fetchItems, SEARCH_DEBOUNCE_MS);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [query, open, value?.id_equipo]);
+  // Reset selectedIndex cuando cambian los items
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [items]);
 
   // Seleccionar un equipo
   const handleSelect = useCallback(

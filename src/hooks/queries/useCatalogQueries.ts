@@ -36,6 +36,7 @@ export const catalogKeys = {
   tiposDespacho: () => [...catalogKeys.all, "tipos-despacho"] as const,
   transportadoras: () => [...catalogKeys.all, "transportadoras"] as const,
   tiposPago: () => [...catalogKeys.all, "tipos-pago"] as const,
+  clasesOrden: () => [...catalogKeys.all, "clases-orden"] as const,
 };
 
 // staleTime: 5 minutos (catálogos cambian poco)
@@ -191,6 +192,31 @@ export function useTiposPago() {
         .from("tipo_pago")
         .select("id_tipo_pago, forma_pago, plazo, aprobado_cartera")
         .order("forma_pago");
+
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: CATALOG_STALE_TIME,
+  });
+}
+
+// Tipo para clase_orden
+export interface ClaseOrdenRow {
+  id_clase_orden: number;
+  tipo_orden: string;
+}
+
+/**
+ * Hook para cargar clases de orden
+ */
+export function useClasesOrden() {
+  return useQuery({
+    queryKey: catalogKeys.clasesOrden(),
+    queryFn: async (): Promise<ClaseOrdenRow[]> => {
+      const { data, error } = await supabase
+        .from("clase_orden")
+        .select("id_clase_orden, tipo_orden")
+        .order("tipo_orden");
 
       if (error) throw error;
       return data ?? [];

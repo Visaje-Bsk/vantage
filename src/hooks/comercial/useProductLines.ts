@@ -30,6 +30,7 @@ export interface ProductLine {
   plantillaText: string;
   isConfirmed: boolean; // Indica si el equipo fue confirmado por el usuario
   cantidad_linea: string; // Cantidad de líneas
+  permanencia: string; // Meses de permanencia (requerido cuando clase_orden es "Renta")
 }
 
 // Línea de producto inicial vacía
@@ -44,6 +45,7 @@ const INITIAL_PRODUCT_LINE: ProductLine = {
   plantillaText: "",
   isConfirmed: false,
   cantidad_linea: "",
+  permanencia: "",
 };
 
 export const useProductLines = () => {
@@ -134,9 +136,10 @@ export const useProductLines = () => {
    * Confirma una línea de producto
    * Solo se puede confirmar si tiene equipo, cantidad > 0 y valor > 0
    * @param id - ID local de la línea
+   * @param requirePermanencia - Si es true, también valida que permanencia > 0 (para clase Renta)
    * @returns true si se confirmó exitosamente, false si faltan datos
    */
-  const confirmLine = useCallback((id: number): boolean => {
+  const confirmLine = useCallback((id: number, requirePermanencia: boolean = false): boolean => {
     const line = productLines.find((l) => l.id_linea_detalle === id);
     if (!line) return false;
 
@@ -147,7 +150,8 @@ export const useProductLines = () => {
       line.cantidad &&
       Number(line.cantidad) > 0 &&
       line.valorUnitario &&
-      Number(line.valorUnitario) > 0;
+      Number(line.valorUnitario) > 0 &&
+      (!requirePermanencia || (line.permanencia && Number(line.permanencia) > 0));
 
     if (!isValid) return false;
 
@@ -170,9 +174,10 @@ export const useProductLines = () => {
   /**
    * Verifica si una línea puede ser confirmada
    * @param id - ID local de la línea
+   * @param requirePermanencia - Si es true, también valida que permanencia > 0 (para clase Renta)
    * @returns true si la línea tiene todos los datos necesarios
    */
-  const canConfirmLine = useCallback((id: number): boolean => {
+  const canConfirmLine = useCallback((id: number, requirePermanencia: boolean = false): boolean => {
     const line = productLines.find((l) => l.id_linea_detalle === id);
     if (!line) return false;
 
@@ -182,7 +187,8 @@ export const useProductLines = () => {
       line.cantidad &&
       Number(line.cantidad) > 0 &&
       line.valorUnitario &&
-      Number(line.valorUnitario) > 0
+      Number(line.valorUnitario) > 0 &&
+      (!requirePermanencia || (line.permanencia && Number(line.permanencia) > 0))
     );
   }, [productLines]);
 

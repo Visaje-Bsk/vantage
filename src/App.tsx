@@ -16,7 +16,20 @@ import Catalogos from "./pages/Catalogos";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Mantener datos en cache por más tiempo para catálogos
+      staleTime: 5 * 60 * 1000, // 5 minutos
+      // No refetch automático en ventana focus para catálogos
+      refetchOnWindowFocus: false,
+      // Reintentar solo una vez en caso de error
+      retry: 1,
+      // Mantener datos anteriores mientras se recargan
+      placeholderData: (previousData: unknown) => previousData,
+    },
+  },
+});
 
 const App = () => {
   return (

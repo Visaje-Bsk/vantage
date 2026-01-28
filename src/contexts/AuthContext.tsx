@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { usePrefetchCatalogs } from '@/hooks/queries/usePrefetchCatalogs';
 
 export type AppRole = 'admin' | 'comercial' | 'inventarios' | 'produccion' | 'logistica' | 'facturacion' | 'financiera';
 
@@ -31,6 +32,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Hook para precargar catálogos
+  const { prefetchAllCatalogs } = usePrefetchCatalogs();
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -65,6 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userProfile = await fetchProfile(session.user.id);
             setProfile(userProfile);
             setLoading(false);
+            // Precargar catálogos después del login exitoso
+            prefetchAllCatalogs();
           }, 0);
         } else {
           setProfile(null);
@@ -82,6 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchProfile(session.user.id).then((userProfile) => {
           setProfile(userProfile);
           setLoading(false);
+          // Precargar catálogos al restaurar sesión existente
+          prefetchAllCatalogs();
         });
       } else {
         setLoading(false);
@@ -89,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [prefetchAllCatalogs]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
