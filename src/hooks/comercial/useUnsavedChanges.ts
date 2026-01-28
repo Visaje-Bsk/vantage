@@ -15,11 +15,14 @@
  * - Items marcados para eliminar
  */
 
-import { useMemo, useCallback, useRef } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import type { ComercialFormData } from "./useComercialForm";
 import type { ProductLine } from "./useProductLines";
 import type { ServiceLine } from "./useServiceLines";
 import type { DespachoFormData } from "./useDespachoForm";
+
+// Throttle delay para evitar recálculos excesivos (ms)
+const THROTTLE_DELAY = 300;
 
 interface UnsavedChangesProps {
   isEditMode: boolean;
@@ -157,6 +160,11 @@ export const useUnsavedChanges = (props: UnsavedChangesProps) => {
     selectedResponsable: "",
   });
 
+  // Estado throttled para hasUnsavedChanges
+  const [throttledHasChanges, setThrottledHasChanges] = useState(false);
+  const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCalculatedRef = useRef(false);
+
   /**
    * Establece los estados iniciales para comparación
    * Debe llamarse al entrar en modo edición
@@ -185,10 +193,9 @@ export const useUnsavedChanges = (props: UnsavedChangesProps) => {
   }, []);
 
   /**
-   * Calcula si hay cambios sin guardar
-   * Usa comparación optimizada en lugar de JSON.stringify
+   * Función pura para calcular si hay cambios (sin hooks)
    */
-  const hasUnsavedChanges = useMemo(() => {
+  const calculateHasChanges = useCallback((): boolean => {
     const snapshot = snapshotRef.current;
 
     // Si no está en modo edición o no hay snapshots, no hay cambios
@@ -228,8 +235,34 @@ export const useUnsavedChanges = (props: UnsavedChangesProps) => {
     deletedServicioIds,
   ]);
 
+  /**
+   * Efecto throttled para actualizar el estado de cambios
+   * Solo recalcula después de THROTTLE_DELAY ms de inactividad
+   */
+  useEffect(() => {
+    // Limpiar timeout anterior
+    if (throttleTimeoutRef.current) {
+      clearTimeout(throttleTimeoutRef.current);
+    }
+
+    // Programar recálculo
+    throttleTimeoutRef.current = setTimeout(() => {
+      const hasChanges = calculateHasChanges();
+      if (hasChanges !== lastCalculatedRef.current) {
+        lastCalculatedRef.current = hasChanges;
+        setThrottledHasChanges(hasChanges);
+      }
+    }, THROTTLE_DELAY);
+
+    return () => {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+      }
+    };
+  }, [calculateHasChanges]);
+
   return {
-    hasUnsavedChanges,
+    hasUnsavedChanges: throttledHasChanges,
     setInitialStates,
     clearInitialStates,
     // Exponer snapshots para casos que los necesiten (readonly)

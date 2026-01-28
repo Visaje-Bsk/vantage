@@ -14,13 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { OrdenKanban } from "@/types/kanban";
-import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Trash2, Edit, Lock, Truck, Check, Pencil, CheckCircle2 } from "lucide-react";
+import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Edit, Lock, Truck, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
-import EquipoSelector from "@/components/catalogs/EquipoSelector";
 import { ConfirmationDialog } from "@/components/modals/ConfirmationDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -43,7 +41,12 @@ import { useComercialData } from "@/hooks/comercial/useComercialData";
 import { useComercialDisplay } from "@/hooks/comercial/useComercialDisplay";
 import { useUnsavedChanges } from "@/hooks/comercial/useUnsavedChanges";
 import { useComercialSave } from "@/hooks/comercial/useComercialSave";
+import { useMemoizedCatalogs } from "@/hooks/comercial/useMemoizedCatalogs";
 import { useClasesOrden } from "@/hooks/queries/useCatalogQueries";
+
+// Componentes memoizados de líneas
+import { ProductLineItem } from "@/components/comercial/ProductLineItem";
+import { ServiceLineItem } from "@/components/comercial/ServiceLineItem";
 
 // Data Gates
 import { useDataGateValidation, useDataGateStatus } from "@/hooks/useDataGateValidation";
@@ -52,7 +55,6 @@ import type { FaseOrdenDB } from "@/types/kanban";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
-type ClaseCobro = Database["public"]["Enums"]["clase_cobro"];
 
 interface ComercialTabProps {
   order: OrdenKanban;
@@ -82,6 +84,12 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   // Pasar clienteId para que React Query cargue los proyectos automáticamente
   const comercialData = useComercialData(order.id_orden_pedido, form.formData.id_cliente);
   const display = useComercialDisplay();
+
+  // Catálogos memoizados con Map para O(1) lookups por operador
+  const memoizedCatalogs = useMemoizedCatalogs({
+    planes: comercialData.planes,
+    apns: comercialData.apns,
+  });
   const { data: clasesOrden } = useClasesOrden();
 
   // Determinar si la clase de orden actual es "Renta" (requiere permanencia en equipos)
@@ -924,185 +932,21 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 // Modo edición - formularios interactivos
                 <>
               {products.productLines.map((line) => (
-                <div
+                <ProductLineItem
                   key={line.id_linea_detalle}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    line.isConfirmed
-                      ? "bg-green-50 border-green-300 dark:bg-green-950/20 dark:border-green-800"
-                      : "bg-muted/30 border-muted"
-                  }`}
-                >
-                  {line.isConfirmed ? (
-                    // Vista de equipo confirmado
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                        <div className={`flex-1 grid grid-cols-1 ${isClaseRenta ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-2 text-sm`}>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Equipo:</span>{" "}
-                            <span className="font-semibold">{line.selectedEquipo?.nombre_equipo || line.selectedEquipo?.codigo}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Código:</span>{" "}
-                            <span>{line.selectedEquipo?.codigo || "-"}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Cantidad:</span>{" "}
-                            <span className="font-semibold">{line.cantidad}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Valor:</span>{" "}
-                            <span className="font-semibold">{formatCOP(line.valorUnitario)}</span>
-                          </div>
-                          {isClaseRenta && (
-                            <div>
-                              <span className="font-medium text-muted-foreground">Permanencia:</span>{" "}
-                              <span className="font-semibold">{line.permanencia} meses</span>
-                            </div>
-                          )}
-                        </div>
-                        {line.plantilla && line.plantillaText && (
-                          <div className="text-xs text-muted-foreground border-l pl-2">
-                            Plantilla: {line.plantillaText}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2 ml-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => products.unconfirmLine(line.id_linea_detalle)}
-                          title="Editar equipo"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveProductLine(line.id_linea_detalle)}
-                          disabled={products.productLines.length === 1 && !line.isConfirmed}
-                          title="Eliminar equipo"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    // Formulario de edición
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-12 gap-4 items-end">
-                        <div className="col-span-12 md:col-span-5 space-y-2">
-                          <Label>Equipos <span className="text-red-500">*</span></Label>
-                          <EquipoSelector
-                            value={line.selectedEquipo}
-                            onChange={(val) => products.updateLine(line.id_linea_detalle, "selectedEquipo", val)}
-                            placeholder="Buscar por código o nombre..."
-                          />
-                        </div>
-                        <div className="col-span-5 md:col-span-2 space-y-2">
-                          <Label>Cantidad <span className="text-red-500">*</span></Label>
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="0"
-                            value={line.cantidad}
-                            onChange={(e) => handleQuantityChange(line.id_linea_detalle, e.target.value)}
-                            className={validation.quantityErrors[line.id_linea_detalle] ? "border-red-300" : ""}
-                          />
-                          {validation.quantityErrors[line.id_linea_detalle] && (
-                            <p className="text-xs text-red-500">{validation.quantityErrors[line.id_linea_detalle]}</p>
-                          )}
-                        </div>
-                        <div className={`col-span-5 ${isClaseRenta ? 'md:col-span-2' : 'md:col-span-2'} space-y-2`}>
-                          <Label>Valor Unitario <span className="text-red-500">*</span></Label>
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="$0"
-                            value={formatCOP(line.valorUnitario)}
-                            onChange={(e) => {
-                              const digits = digitsOnly(e.target.value);
-                              products.updateLine(line.id_linea_detalle, "valorUnitario", digits);
-                            }}
-                          />
-                        </div>
-                        {isClaseRenta && (
-                          <div className="col-span-4 md:col-span-1 space-y-2">
-                            <Label>Permanencia <span className="text-red-500">*</span></Label>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="Meses"
-                              value={line.permanencia}
-                              onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, '');
-                                products.updateLine(line.id_linea_detalle, "permanencia", value);
-                              }}
-                            />
-                          </div>
-                        )}
-                        <div className={`col-span-2 ${isClaseRenta ? 'md:col-span-2' : 'md:col-span-3'} flex gap-2 justify-end`}>
-                          <Button
-                            type="button"
-                            variant="default"
-                            size="sm"
-                            onClick={() => {
-                              const confirmed = products.confirmLine(line.id_linea_detalle, isClaseRenta);
-                              if (!confirmed) {
-                                toast.error(isClaseRenta
-                                  ? "Completa equipo, cantidad, valor y permanencia antes de confirmar"
-                                  : "Completa equipo, cantidad y valor antes de confirmar"
-                                );
-                              }
-                            }}
-                            disabled={!products.canConfirmLine(line.id_linea_detalle, isClaseRenta)}
-                            className="bg-green-600 hover:bg-green-700"
-                            title="Confirmar equipo"
-                          >
-                            <Check className="h-4 w-4 mr-1" />
-                            Confirmar
-                          </Button>
-                          {products.productLines.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveProductLine(line.id_linea_detalle)}
-                              title="Eliminar línea"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Plantilla section */}
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`plantilla-${line.id_linea_detalle}`}
-                            checked={line.plantilla}
-                            onCheckedChange={(checked) => products.updateLine(line.id_linea_detalle, "plantilla", checked)}
-                          />
-                          <Label htmlFor={`plantilla-${line.id_linea_detalle}`}>Plantilla</Label>
-                        </div>
-                        {line.plantilla && (
-                          <Input
-                            type="text"
-                            placeholder="Información de plantilla..."
-                            value={line.plantillaText}
-                            onChange={(e) => products.updateLine(line.id_linea_detalle, "plantillaText", e.target.value)}
-                            className="flex-1"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  line={line}
+                  onUpdate={products.updateLine}
+                  onRemove={handleRemoveProductLine}
+                  onConfirm={products.confirmLine}
+                  onUnconfirm={products.unconfirmLine}
+                  canConfirm={products.canConfirmLine(line.id_linea_detalle, isClaseRenta)}
+                  canRemove={products.productLines.length > 1}
+                  quantityError={validation.quantityErrors[line.id_linea_detalle]}
+                  formatCOP={formatCOP}
+                  digitsOnly={digitsOnly}
+                  onQuantityChange={handleQuantityChange}
+                  isClaseRenta={isClaseRenta}
+                />
               ))}
                   <Button variant="outline" size="sm" onClick={handleAddProductLine}>
                     <Plus className="w-4 h-4 mr-2" /> Agregar Equipo
@@ -1120,236 +964,21 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                   {display.showLineasDetalle && (
               <CardContent className="space-y-4">
                 {services.serviceLines.map((line) => (
-                  <div
+                  <ServiceLineItem
                     key={line.id_linea_detalle}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      line.isConfirmed
-                        ? "bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-800"
-                        : "bg-muted/30 border-muted"
-                    }`}
-                  >
-                    {line.isConfirmed ? (
-                      // Vista de línea confirmada
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 flex-1">
-                          <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                          <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
-                            <div>
-                              <span className="font-medium text-muted-foreground">Operador:</span>{" "}
-                              <span className="font-semibold">
-                                {comercialData.operadores.find(op => op.id_operador.toString() === line.operadorId)?.nombre_operador || "-"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-medium text-muted-foreground">Plan:</span>{" "}
-                              <span>
-                                {comercialData.planes.find(p => p.id_plan.toString() === line.planId)?.nombre_plan || "-"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-medium text-muted-foreground">APN:</span>{" "}
-                              <span>
-                                {comercialData.apns.find(a => a.id_apn.toString() === line.apnId)?.apn || "-"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-medium text-muted-foreground">Valor:</span>{" "}
-                              <span className="font-semibold">{formatCOP(line.valorMensual)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
-                          <span>{line.cantidadLineas || "0"} líneas</span>
-                          <span>•</span>
-                          <span>{line.permanencia} meses</span>
-                          <span>•</span>
-                          <span>{line.claseCobro}</span>
-                        </div>
-                        <div className="flex gap-2 ml-4">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => services.unconfirmLine(line.id_linea_detalle)}
-                            title="Editar línea"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveServicioLine(line.id_linea_detalle)}
-                            disabled={services.serviceLines.length === 1 && !line.isConfirmed}
-                            title="Eliminar línea"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      // Formulario de edición
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          {/* Operador */}
-                          <div className="space-y-2">
-                            <Label>Operador <span className="text-red-500">*</span></Label>
-                            <Select
-                              value={line.operadorId}
-                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "operadorId", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar operador" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {comercialData.operadores.map((op) => (
-                                  <SelectItem key={op.id_operador} value={op.id_operador.toString()}>
-                                    {op.nombre_operador}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Plan */}
-                          <div className="space-y-2">
-                            <Label>Plan <span className="text-red-500">*</span></Label>
-                            <Select
-                              value={line.planId}
-                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "planId", value)}
-                              disabled={!line.operadorId}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar plan" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {comercialData.planes
-                                  .filter(p => p.id_operador.toString() === line.operadorId)
-                                  .map((plan) => (
-                                    <SelectItem key={plan.id_plan} value={plan.id_plan.toString()}>
-                                      {plan.nombre_plan}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* APN */}
-                          <div className="space-y-2">
-                            <Label>APN <span className="text-red-500">*</span></Label>
-                            <Select
-                              value={line.apnId}
-                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "apnId", value)}
-                              disabled={!line.operadorId}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar APN" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {comercialData.apns
-                                  .filter(apn => apn.id_operador.toString() === line.operadorId)
-                                  .map((apn) => (
-                                    <SelectItem key={apn.id_apn} value={apn.id_apn.toString()}>
-                                      {apn.apn}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Clase de Cobro */}
-                          <div className="space-y-2">
-                            <Label>Clase de Cobro <span className="text-red-500">*</span></Label>
-                            <Select
-                              value={line.claseCobro}
-                              onValueChange={(value) => services.updateLine(line.id_linea_detalle, "claseCobro", value as ClaseCobro)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="mensual">Mensual</SelectItem>
-                                <SelectItem value="anual">Anual</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        {/* Valor Mensual, Cantidad de Líneas, Permanencia y Botones */}
-                        <div className="grid grid-cols-12 gap-4 items-end">
-                          <div className="col-span-6 md:col-span-3 space-y-2">
-                            <Label>Valor Mensual <span className="text-red-500">*</span></Label>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="$0"
-                              value={formatCOP(line.valorMensual)}
-                              onChange={(e) => {
-                                const digits = e.target.value.replace(/[^0-9]/g, "");
-                                services.updateLine(line.id_linea_detalle, "valorMensual", digits);
-                              }}
-                            />
-                          </div>
-                          <div className="col-span-6 md:col-span-2 space-y-2">
-                            <Label>Cantidad de Líneas</Label>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="0"
-                              value={line.cantidadLineas}
-                              onChange={(e) => {
-                                const digits = e.target.value.replace(/[^0-9]/g, "");
-                                services.updateLine(line.id_linea_detalle, "cantidadLineas", digits);
-                              }}
-                            />
-                          </div>
-                          <div className="col-span-6 md:col-span-2 space-y-2">
-                            <Label>Permanencia <span className="text-red-500">*</span></Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={36}
-                              placeholder="1-36"
-                              value={line.permanencia}
-                              onChange={(e) => handlePermanenciaChange(line.id_linea_detalle, e.target.value)}
-                            />
-                          </div>
-                          <div className="col-span-6 md:col-span-5 flex gap-2 justify-end">
-                            <Button
-                              type="button"
-                              variant="default"
-                              size="sm"
-                              onClick={() => {
-                                const confirmed = services.confirmLine(line.id_linea_detalle);
-                                if (!confirmed) {
-                                  toast.error("Completa operador, plan, APN, clase cobro, valor y permanencia antes de confirmar");
-                                }
-                              }}
-                              disabled={!services.canConfirmLine(line.id_linea_detalle)}
-                              className="bg-blue-600 hover:bg-blue-700"
-                              title="Confirmar línea"
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Confirmar
-                            </Button>
-                            {services.serviceLines.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveServicioLine(line.id_linea_detalle)}
-                                title="Eliminar línea"
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    line={line}
+                    operadores={comercialData.operadores}
+                    planesFiltrados={memoizedCatalogs.getPlanesByOperador(line.operadorId)}
+                    apnsFiltrados={memoizedCatalogs.getApnsByOperador(line.operadorId)}
+                    onUpdate={services.updateLine}
+                    onRemove={handleRemoveServicioLine}
+                    onConfirm={services.confirmLine}
+                    onUnconfirm={services.unconfirmLine}
+                    canConfirm={services.canConfirmLine(line.id_linea_detalle)}
+                    canRemove={services.serviceLines.length > 1}
+                    formatCOP={formatCOP}
+                    onPermanenciaChange={handlePermanenciaChange}
+                  />
                 ))}
 
                 <Button
