@@ -93,6 +93,11 @@ export function OrderModal({
   // Hook para duplicar orden
   const { duplicateOrder, isDuplicating } = useDuplicateOrder();
 
+  // Clase de orden (ya viene mapeada desde KanbanBoard)
+  const claseOrdenNombre = order?.tipo_orden && order.tipo_orden !== "Tipo no especificado"
+    ? order.tipo_orden
+    : null;
+
   // Estado dirty por cada tab
   const [tabDirtyStates, setTabDirtyStates] = useState<Record<OrdenStageUI, boolean>>({
     comercial: false,
@@ -464,6 +469,12 @@ export function OrderModal({
                 <DialogTitle className="text-2xl font-bold">
                   Orden #{order.consecutivo || order.id_orden_pedido}
                 </DialogTitle>
+                {/* Badge de clase de orden */}
+                {claseOrdenNombre && (
+                  <Badge variant="outline" className="font-medium px-3 py-1.5 text-sm">
+                    {claseOrdenNombre}
+                  </Badge>
+                )}
                 {/* Badge de fase con diseño moderno */}
                 <div className={`${stageMeta.color} rounded-lg px-4 py-2 shadow-md`}>
                   <span className="text-sm font-bold tracking-wide">

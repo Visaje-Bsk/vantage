@@ -169,12 +169,10 @@ export function AppSidebar() {
       {/* Header con branding mejorado */}
       <SidebarHeader className={`border-b border-sidebar-border/50 ${state === "collapsed" ? "p-3" : "p-6"}`}>
         <div className={`flex items-center ${state === "collapsed" ? "justify-center" : "space-x-3"}`}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-md">
-            <ShoppingCart className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <img src="/favicon.ico" alt="Vantage" className="h-10 w-auto rounded-lg" />
           {state === "collapsed" ? null : (
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold text-sidebar-foreground">Bismark</h1>
+              <h1 className="text-xl font-bold text-sidebar-foreground">Vantage</h1>
               <p className="text-xs text-sidebar-foreground/60 font-medium">Órdenes de Pedido</p>
             </div>
           )}

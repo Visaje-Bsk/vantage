@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OrdenKanban } from "@/types/kanban";
-import { Truck, DollarSign, FileText, CheckCircle2, AlertCircle, Calendar, ClipboardList } from "lucide-react";
+import { Truck, DollarSign, FileText, CheckCircle2, AlertCircle, Calendar, ClipboardList, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 import { ConfirmationDialog } from "../ConfirmationDialog";
@@ -40,13 +40,15 @@ interface LogisticaTabProps {
   onDirtyChange?: (isDirty: boolean) => void;
 }
 
+const MAX_REMISIONES = 5;
+
 interface LogisticaInitialState {
   valorFlete: string;
   numeroGuia: string;
   idTransportadora: string;
   fechaDespacho: string;
   observacionesLogistica: string;
-  numeroRemision: string;
+  remisiones: string[];
   fechaEntregaCliente: string;
   observacionesProceso: string;
 }
@@ -59,8 +61,9 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
   const [fechaDespacho, setFechaDespacho] = useState("");
   const [observacionesLogistica, setObservacionesLogistica] = useState("");
 
-  // Estado para remision
-  const [numeroRemision, setNumeroRemision] = useState("");
+  // Estado para remisiones (máximo 5)
+  const [remisiones, setRemisiones] = useState<string[]>([""]);
+  const [remisionCount, setRemisionCount] = useState(1);
 
   // Nuevos campos obligatorios
   const [fechaEntregaCliente, setFechaEntregaCliente] = useState("");
@@ -83,18 +86,21 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
   useEffect(() => {
     if (initialState === null) return;
 
+    const remisionesChanged = remisiones.length !== initialState.remisiones.length ||
+      remisiones.some((r, i) => r !== initialState.remisiones[i]);
+
     const hasChanges =
       valorFlete !== initialState.valorFlete ||
       numeroGuia !== initialState.numeroGuia ||
       idTransportadora !== initialState.idTransportadora ||
       fechaDespacho !== initialState.fechaDespacho ||
       observacionesLogistica !== initialState.observacionesLogistica ||
-      numeroRemision !== initialState.numeroRemision ||
+      remisionesChanged ||
       fechaEntregaCliente !== initialState.fechaEntregaCliente ||
       observacionesProceso !== initialState.observacionesProceso;
 
     onDirtyChange?.(hasChanges);
-  }, [valorFlete, numeroGuia, idTransportadora, fechaDespacho, observacionesLogistica, numeroRemision, fechaEntregaCliente, observacionesProceso, initialState, onDirtyChange]);
+  }, [valorFlete, numeroGuia, idTransportadora, fechaDespacho, observacionesLogistica, remisiones, fechaEntregaCliente, observacionesProceso, initialState, onDirtyChange]);
 
   // Cargar datos iniciales del tab
   useEffect(() => {
@@ -120,7 +126,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         let loadedIdTransportadora = "";
         let loadedFechaDespacho = "";
         let loadedObservacionesLogistica = "";
-        let loadedNumeroRemision = "";
+        let loadedRemisionesArr: string[] = [""];
         let loadedFechaEntregaCliente = "";
         let loadedObservacionesProceso = "";
 
@@ -157,8 +163,19 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           .maybeSingle();
 
         if (!remisionError && remisionData) {
-          loadedNumeroRemision = remisionData.numero_remision || "";
-          setNumeroRemision(loadedNumeroRemision);
+          const loadedRemisiones = [
+            remisionData.numero_remision || "",
+            remisionData.numero_remision_2 || "",
+            remisionData.numero_remision_3 || "",
+            remisionData.numero_remision_4 || "",
+            remisionData.numero_remision_5 || "",
+          ];
+          // Contar cuántas remisiones tienen valor (mínimo 1)
+          const count = Math.max(1, loadedRemisiones.filter(r => r.trim() !== "").length);
+          const trimmedRemisiones = loadedRemisiones.slice(0, count);
+          setRemisiones(trimmedRemisiones);
+          setRemisionCount(count);
+          loadedRemisionesArr = trimmedRemisiones;
         }
 
         // Guardar estado inicial
@@ -168,7 +185,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           idTransportadora: loadedIdTransportadora,
           fechaDespacho: loadedFechaDespacho,
           observacionesLogistica: loadedObservacionesLogistica,
-          numeroRemision: loadedNumeroRemision,
+          remisiones: [...loadedRemisionesArr],
           fechaEntregaCliente: loadedFechaEntregaCliente,
           observacionesProceso: loadedObservacionesProceso,
         });
@@ -181,7 +198,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           idTransportadora: "",
           fechaDespacho: "",
           observacionesLogistica: "",
-          numeroRemision: "",
+          remisiones: [""],
           fechaEntregaCliente: "",
           observacionesProceso: "",
         });
@@ -197,11 +214,12 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
   }, [order.id_orden_pedido]);
 
   // RF-8 CRITICAL: Todos los campos obligatorios para cerrar
+  // Solo la primera remisión es obligatoria
   const canClose =
     valorFlete.trim() !== "" &&
     numeroGuia.trim() !== "" &&
     idTransportadora.trim() !== "" &&
-    numeroRemision.trim() !== "" &&
+    (remisiones[0] || "").trim() !== "" &&
     fechaEntregaCliente.trim() !== "" &&
     observacionesProceso.trim() !== "";
 
@@ -257,12 +275,18 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         .maybeSingle();
 
       // Guardar datos de remision (UPDATE o INSERT)
+      const remisionPayload = {
+        numero_remision: remisiones[0] || "",
+        numero_remision_2: remisiones[1] || null,
+        numero_remision_3: remisiones[2] || null,
+        numero_remision_4: remisiones[3] || null,
+        numero_remision_5: remisiones[4] || null,
+      };
+
       if (existingRemision) {
         const { error: remisionError } = await supabase
           .from('remision')
-          .update({
-            numero_remision: numeroRemision,
-          })
+          .update(remisionPayload)
           .eq('id_orden_pedido', order.id_orden_pedido);
 
         if (remisionError) throw remisionError;
@@ -271,7 +295,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           .from('remision')
           .insert({
             id_orden_pedido: order.id_orden_pedido,
-            numero_remision: numeroRemision,
+            ...remisionPayload,
             fecha_remision: new Date().toISOString(),
           });
 
@@ -291,7 +315,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         idTransportadora,
         fechaDespacho,
         observacionesLogistica,
-        numeroRemision,
+        remisiones: [...remisiones],
         fechaEntregaCliente,
         observacionesProceso,
       });
@@ -367,12 +391,18 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         .maybeSingle();
 
       // Guardar datos de remision (UPDATE o INSERT)
+      const remisionPayloadClose = {
+        numero_remision: remisiones[0] || "",
+        numero_remision_2: remisiones[1] || null,
+        numero_remision_3: remisiones[2] || null,
+        numero_remision_4: remisiones[3] || null,
+        numero_remision_5: remisiones[4] || null,
+      };
+
       if (existingRemision) {
         const { error: remisionError } = await supabase
           .from('remision')
-          .update({
-            numero_remision: numeroRemision,
-          })
+          .update(remisionPayloadClose)
           .eq('id_orden_pedido', order.id_orden_pedido);
 
         if (remisionError) throw remisionError;
@@ -381,7 +411,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
           .from('remision')
           .insert({
             id_orden_pedido: order.id_orden_pedido,
-            numero_remision: numeroRemision,
+            ...remisionPayloadClose,
             fecha_remision: new Date().toISOString(),
           });
 
@@ -432,25 +462,71 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
 
   return (
     <div className="space-y-6">
-      {/* Remisión - Arriba de la información de despacho */}
+      {/* Remisiones - Arriba de la información de despacho */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            Remisión
+            Remisiones
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="numero-remision" className="flex items-center gap-2">
-              Número de Remisión <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="numero-remision"
-              placeholder="REM-2024-001234"
-              value={numeroRemision}
-              onChange={(e) => setNumeroRemision(e.target.value)}
-            />
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            {remisiones.slice(0, remisionCount).map((remision, index) => (
+              <div key={index} className="space-y-2">
+                <Label htmlFor={`numero-remision-${index}`} className="flex items-center gap-1 text-xs">
+                  {index === 0 ? (
+                    <>Remisión <span className="text-destructive">*</span></>
+                  ) : (
+                    <>Remisión {index + 1}</>
+                  )}
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    id={`numero-remision-${index}`}
+                    placeholder="REM-45646"
+                    value={remision}
+                    onChange={(e) => {
+                      const updated = [...remisiones];
+                      updated[index] = e.target.value;
+                      setRemisiones(updated);
+                    }}
+                    className="w-32"
+                  />
+                  {index > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => {
+                        const updated = remisiones.filter((_, i) => i !== index);
+                        setRemisiones(updated);
+                        setRemisionCount(prev => prev - 1);
+                      }}
+                      title="Quitar remisión"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {remisionCount < MAX_REMISIONES && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mb-0.5"
+                onClick={() => {
+                  setRemisiones(prev => [...prev, ""]);
+                  setRemisionCount(prev => prev + 1);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Agregar
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
