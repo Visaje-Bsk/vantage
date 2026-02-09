@@ -28,12 +28,22 @@ interface InventariosTabProps {
   onDirtyChange?: (isDirty: boolean) => void;
 }
 
+// Interface para equipos cargados directamente de BD
+interface EquipoDisplay {
+  id_orden_detalle: number;
+  nombre_equipo: string;
+  codigo: string;
+  cantidad: number;
+  valor_unitario: number;
+}
+
 export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: InventariosTabProps) {
   const [stockValidado, setStockValidado] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [lineasServicio, setLineasServicio] = useState<LineaServicioDisplay[]>([]);
+  const [equipos, setEquipos] = useState<EquipoDisplay[]>([]);
 
   // Estado inicial para detectar cambios
   const [initialState, setInitialState] = useState<{ stockValidado: boolean; observaciones: string } | null>(null);
@@ -79,6 +89,9 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
           setInitialState({ stockValidado: false, observaciones: "" });
         }
 
+        // Cargar equipos directamente de BD
+        await loadEquipos();
+
         // Cargar líneas de servicio
         await loadLineasServicio();
 
@@ -95,6 +108,37 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
     loadTabData();
   }, [order.id_orden_pedido]);
 
+  // Función para cargar equipos de la orden
+  const loadEquipos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("detalle_orden")
+        .select(`
+          id_orden_detalle,
+          cantidad,
+          valor_unitario,
+          equipo:equipo ( nombre_equipo, codigo )
+        `)
+        .eq("id_orden_pedido", order.id_orden_pedido)
+        .not("id_equipo", "is", null);
+
+      if (error) throw error;
+
+      const mapped: EquipoDisplay[] = (data ?? []).map((d: any) => ({
+        id_orden_detalle: d.id_orden_detalle,
+        nombre_equipo: d.equipo?.nombre_equipo || "N/A",
+        codigo: d.equipo?.codigo || "N/A",
+        cantidad: d.cantidad ?? 0,
+        valor_unitario: d.valor_unitario ?? 0,
+      }));
+
+      setEquipos(mapped);
+    } catch (error) {
+      console.error("Error cargando equipos:", error);
+      setEquipos([]);
+    }
+  };
+
   // Función para cargar líneas de servicio
   const loadLineasServicio = async () => {
     try {
@@ -104,7 +148,8 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
         .select(`
           id_orden_detalle,
           id_linea_detalle,
-          valor_unitario
+          valor_unitario,
+          cantidad
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
         .not("id_linea_detalle", "is", null);
@@ -133,7 +178,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
           id_linea_detalle,
           permanencia,
           clase_cobro,
-          cantidad_linea,
           operador:operador ( nombre_operador ),
           plan:plan ( nombre_plan ),
           apn:apn ( apn )
@@ -148,7 +192,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
           id_linea_detalle: number;
           permanencia: string | null;
           clase_cobro: string | null;
-          cantidad_linea: number | null;
           operador: { nombre_operador: string } | null;
           plan: { nombre_plan: string } | null;
           apn: { apn: string } | null;
@@ -161,7 +204,7 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
           apn: linea?.apn?.apn || "-",
           permanencia: linea?.permanencia || "-",
           clase_cobro: linea?.clase_cobro || "-",
-          cantidad_lineas: linea?.cantidad_linea ? String(linea.cantidad_linea) : "-",
+          cantidad_lineas: det.cantidad ? String(det.cantidad) : "-",
           valor_mensual: det.valor_unitario ?? 0,
         };
       });
@@ -207,9 +250,7 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
     return <TabLoadingSkeleton />;
   }
 
-  // Filtrar detalles para separar equipos de servicios
-  const equiposDetalles = order?.detalles?.filter((d: any) => d.equipo) ?? [];
-  const hasEquipos = equiposDetalles.length > 0;
+  const hasEquipos = equipos.length > 0;
   const hasLineasServicio = lineasServicio.length > 0;
 
   return (
@@ -235,13 +276,13 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
               </thead>
               <tbody>
                 {hasEquipos ? (
-                  equiposDetalles.map((detalle: any, idx: number) => (
-                    <tr key={idx} className="border-t">
-                      <td className="p-3">{detalle.equipo?.nombre_equipo || 'N/A'}</td>
-                      <td className="p-3">{detalle.equipo?.codigo || 'N/A'}</td>
-                      <td className="text-right p-3">{detalle.cantidad}</td>
+                  equipos.map((eq) => (
+                    <tr key={eq.id_orden_detalle} className="border-t">
+                      <td className="p-3">{eq.nombre_equipo}</td>
+                      <td className="p-3">{eq.codigo}</td>
+                      <td className="text-right p-3">{eq.cantidad}</td>
                       <td className="text-right p-3">
-                        ${detalle.valor_unitario?.toLocaleString()}
+                        ${eq.valor_unitario.toLocaleString()}
                       </td>
                     </tr>
                   ))

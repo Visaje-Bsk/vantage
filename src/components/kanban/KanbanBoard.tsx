@@ -80,6 +80,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         created_by: order.created_by,
         // Agregamos campos que pueden faltar en órdenes nuevas
         id_cliente: order.id_cliente,
+        id_clase_orden: order.id_clase_orden,
         id_proyecto: order.id_proyecto,
         estado_orden: order.estatus, // Para compatibilidad con el modal
         tipo_servicio: order.tipo_servicio?.nombre_tipo_servicio,
@@ -215,6 +216,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         nombre_tipo_servicio: newOrderData.tipo_servicio?.nombre_tipo_servicio,
          detalles: newOrderData.detalles,
          created_by: newOrderData.created_by,
+         id_cliente: newOrderData.id_cliente,
+         id_clase_orden: newOrderData.id_clase_orden,
       };
 
       // Refrescar todas las órdenes del kanban
