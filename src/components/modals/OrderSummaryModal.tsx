@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Copy, X } from "lucide-react";
 import { useOrderSummary } from "@/hooks/useOrderSummary";
 import { useDuplicateOrder } from "@/hooks/useDuplicateOrder";
+import { supabase } from "@/integrations/supabase/client";
 import { SummaryHeader } from "./order-summary/SummaryHeader";
 import { SummaryKPIs } from "./order-summary/SummaryKPIs";
 import { SummaryClienteProyecto } from "./order-summary/SummaryClienteProyecto";
@@ -19,7 +20,7 @@ interface OrderSummaryModalProps {
   orderId: number | null;
   isOpen: boolean;
   onClose: () => void;
-  onDuplicate?: (newOrderId: number) => void;
+  onDuplicate?: (newOrderId: number, consecutivo: string) => void;
 }
 
 function LoadingSkeleton() {
@@ -53,8 +54,17 @@ export function OrderSummaryModal({
 
     const newOrderId = await duplicateOrder(orderId);
     if (newOrderId) {
+      // Obtener el consecutivo asignado a la nueva orden
+      const { data: newOrder } = await supabase
+        .from("orden_pedido")
+        .select("consecutivo_code, consecutivo")
+        .eq("id_orden_pedido", newOrderId)
+        .single();
+
+      const consecutivo = newOrder?.consecutivo_code || String(newOrder?.consecutivo || newOrderId);
+
       onClose();
-      onDuplicate?.(newOrderId);
+      onDuplicate?.(newOrderId, consecutivo);
     }
   };
 

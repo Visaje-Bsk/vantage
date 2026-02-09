@@ -22,7 +22,7 @@ import type { ServiceLine } from "./useServiceLines";
 import type { DespachoFormData } from "./useDespachoForm";
 
 // Throttle delay para evitar recálculos excesivos (ms)
-const THROTTLE_DELAY = 300;
+const THROTTLE_DELAY = 500;
 
 interface UnsavedChangesProps {
   isEditMode: boolean;

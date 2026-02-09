@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +50,7 @@ export default function HistorialOrdenes() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
+  const navigate = useNavigate();
   const isAdmin = profile?.role === "admin";
 
   useEffect(() => {
@@ -173,9 +175,10 @@ export default function HistorialOrdenes() {
     setIsSummaryModalOpen(true);
   };
 
-  const handleDuplicateOrder = (newOrderId: number) => {
-    toast.success(`Orden duplicada con ID: ${newOrderId}`);
-    // Opcional: redirigir al kanban o refrescar la lista
+  const handleDuplicateOrder = (newOrderId: number, consecutivo: string) => {
+    toast.success(`Orden duplicada: #${consecutivo}`);
+    // Navegar a órdenes y abrir la nueva orden automáticamente
+    navigate("/ordenes", { state: { openOrderId: newOrderId } });
   };
 
   const formatDate = (dateString: string | null): string => {

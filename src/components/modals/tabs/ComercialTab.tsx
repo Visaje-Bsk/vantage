@@ -15,13 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { OrdenKanban } from "@/types/kanban";
-import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Edit, Lock, Truck, CheckCircle2 } from "lucide-react";
+import { Building2, FolderOpen, User, Save, Plus, ChevronDown, ChevronRight, Edit, Lock, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { ConfirmationDialog } from "@/components/modals/ConfirmationDialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { PhoneInput } from "@/components/ui/phone-input";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
 // Hooks compartidos
@@ -47,6 +46,8 @@ import { useClasesOrden } from "@/hooks/queries/useCatalogQueries";
 // Componentes memoizados de líneas
 import { ProductLineItem } from "@/components/comercial/ProductLineItem";
 import { ServiceLineItem } from "@/components/comercial/ServiceLineItem";
+import { DespachoSection } from "@/components/comercial/DespachoSection";
+import { ReadonlyProductosServicios } from "@/components/comercial/ReadonlyProductosServicios";
 
 // Data Gates
 import { useDataGateValidation, useDataGateStatus } from "@/hooks/useDataGateValidation";
@@ -126,33 +127,40 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   // Estado de carga inicial
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Contar productos y servicios confirmados en UI (para validación local)
-  const confirmedProductsCount = products.productLines.filter(l => l.isConfirmed).length;
-  const confirmedServicesCount = services.serviceLines.filter(l => l.isConfirmed).length;
-  const hasConfirmedProducts = confirmedProductsCount > 0;
-  const hasConfirmedServices = confirmedServicesCount > 0;
+  // Contar productos y servicios confirmados en UI (memoizado para evitar .filter() en cada render)
+  const { confirmedProductsCount, confirmedServicesCount, hasConfirmedProducts, hasConfirmedServices } = useMemo(() => {
+    const cpc = products.productLines.filter(l => l.isConfirmed).length;
+    const csc = services.serviceLines.filter(l => l.isConfirmed).length;
+    return { confirmedProductsCount: cpc, confirmedServicesCount: csc, hasConfirmedProducts: cpc > 0, hasConfirmedServices: csc > 0 };
+  }, [products.productLines, services.serviceLines]);
 
-  // Memoizar objeto de orden para Data Gates (evita recálculos duplicados)
+  // Memoizar solo los campos relevantes para DataGate (evita recálculos en keystrokes de campos no relevantes como OC u observaciones)
+  const validationClienteId = form.formData.id_cliente || order.id_cliente;
+  const validationClaseOrden = form.formData.id_clase_orden || order.id_clase_orden;
+  const validationTipoServicio = form.formData.id_tipo_servicio || order.id_tipo_servicio;
+
+  const confirmedProductDetails = useMemo(() => {
+    if (!hasConfirmedProducts) return order.detalles;
+    return products.productLines.filter(l => l.isConfirmed).map(l => ({
+      cantidad: Number(l.cantidad),
+      valor_unitario: Number(l.valorUnitario),
+    }));
+  }, [hasConfirmedProducts, products.productLines, order.detalles]);
+
   const orderForValidation = useMemo(() => ({
     ...order,
-    id_cliente: form.formData.id_cliente || order.id_cliente,
-    id_clase_orden: form.formData.id_clase_orden || order.id_clase_orden,
-    id_tipo_servicio: form.formData.id_tipo_servicio || order.id_tipo_servicio,
+    id_cliente: validationClienteId,
+    id_clase_orden: validationClaseOrden,
+    id_tipo_servicio: validationTipoServicio,
     id_ingeniero_asignado: responsable.selectedResponsable || null,
-    detalles: hasConfirmedProducts
-      ? products.productLines.filter(l => l.isConfirmed).map(l => ({
-          cantidad: Number(l.cantidad),
-          valor_unitario: Number(l.valorUnitario),
-        }))
-      : order.detalles,
+    detalles: confirmedProductDetails,
   }), [
     order,
-    form.formData.id_cliente,
-    form.formData.id_clase_orden,
-    form.formData.id_tipo_servicio,
+    validationClienteId,
+    validationClaseOrden,
+    validationTipoServicio,
     responsable.selectedResponsable,
-    hasConfirmedProducts,
-    products.productLines,
+    confirmedProductDetails,
   ]);
 
   // Hooks de Data Gates - Usar objeto memoizado
@@ -999,464 +1007,34 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 )}
                 </>
               ) : (
-                // Modo solo lectura - mostrar información existente
-                <div className="space-y-4">
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm">Equipos Configurados</h4>
-                    {products.productLines.length > 0 && products.productLines.some(line => line.selectedEquipo) ? (
-                      <div className="space-y-2">
-                        {products.productLines
-                          .filter(line => line.selectedEquipo)
-                          .map((line, idx) => (
-                          <div key={idx} className="p-3 bg-muted/30 rounded-lg">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
-                              <div>
-                                <span className="font-medium">Equipo:</span> {line.selectedEquipo?.nombre_equipo}
-                              </div>
-                              <div>
-                                <span className="font-medium">Código:</span> {line.selectedEquipo?.codigo}
-                              </div>
-                              <div>
-                                <span className="font-medium">Cantidad:</span> {line.cantidad || "0"}
-                              </div>
-                              <div>
-                                <span className="font-medium">Valor:</span> {formatCOP(line.valorUnitario)}
-                              </div>
-                            </div>
-                            {line.plantilla && line.plantillaText && (
-                              <div className="mt-2 p-2 bg-muted/50 rounded text-xs border-l-2 border-blue-500">
-                                <span className="font-medium">Plantilla:</span> {line.plantillaText}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-                        No hay equipos configurados
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm">Líneas de Servicio</h4>
-                    {services.serviceLines.length > 0 && services.serviceLines.some(line => line.operadorId) ? (
-                      <div className="space-y-2">
-                        {services.serviceLines
-                          .filter(line => line.operadorId)
-                          .map((line, idx) => {
-                            const operadorNombre = comercialData.operadores.length > 0
-                              ? comercialData.operadores.find(op => op.id_operador.toString() === line.operadorId)?.nombre_operador
-                              : null;
-                            const planNombre = comercialData.planes.length > 0
-                              ? comercialData.planes.find(p => p.id_plan.toString() === line.planId)?.nombre_plan
-                              : null;
-                            const apnNombre = comercialData.apns.length > 0
-                              ? comercialData.apns.find(a => a.id_apn.toString() === line.apnId)?.apn
-                              : null;
-
-                            return (
-                              <div key={idx} className="p-3 bg-muted/30 rounded-lg">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                                  <div>
-                                    <span className="font-medium">Operador:</span> {operadorNombre || `ID: ${line.operadorId}`}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Plan:</span> {planNombre || `ID: ${line.planId}`}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">APN:</span> {apnNombre || `ID: ${line.apnId}`}
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm mt-2">
-                                  <div>
-                                    <span className="font-medium">Permanencia:</span> {line.permanencia} meses
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Clase Cobro:</span> {line.claseCobro}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Cantidad Líneas:</span> {line.cantidadLineas || "0"}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Valor:</span> {formatCOP(line.valorMensual)}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    ) : (
-                      <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-                        No hay líneas de servicio configuradas
-                      </div>
-                    )}
-                  </div>
-                </div>
+                // Modo solo lectura - componente memoizado
+                <ReadonlyProductosServicios
+                  productLines={products.productLines}
+                  serviceLines={services.serviceLines}
+                  operadores={comercialData.operadores}
+                  planes={comercialData.planes}
+                  apns={comercialData.apns}
+                  formatCOP={formatCOP}
+                />
               )}
             </CardContent>
           </Card>
 
           {/* ==================== INFORMACIÓN DE DESPACHO ==================== */}
-          {despacho.despachoForm.id_tipo_despacho && (() => {
-            const tipoSeleccionado = comercialData.tiposDespacho.find(t => t.id_tipo_despacho.toString() === despacho.despachoForm.id_tipo_despacho);
-            const requiereDireccion = tipoSeleccionado?.requiere_direccion ?? false;
-            const requiereTransportadora = tipoSeleccionado?.requiere_transportadora ?? false;
-
-            return (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Truck className="w-4 h-4" />
-                    Información de Despacho
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {editMode.isEditMode ? (
-                    <div className="space-y-4">
-                      {/* Tipo de Despacho */}
-                      <div className="space-y-2">
-                        <Label>Tipo de Despacho</Label>
-                        <Select
-                          value={despacho.despachoForm.id_tipo_despacho}
-                          onValueChange={(value) => despacho.updateField("id_tipo_despacho", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar tipo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {comercialData.tiposDespacho.map((tipo) => (
-                              <SelectItem key={tipo.id_tipo_despacho} value={tipo.id_tipo_despacho.toString()}>
-                                {tipo.nombre_tipo}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Campos de Dirección */}
-                      {requiereDireccion && (
-                        <>
-                          <div className="space-y-2">
-                            <Label>Dirección de Envío</Label>
-                            <Textarea
-                              value={despacho.despachoForm.direccion}
-                              onChange={(e) => despacho.updateField("direccion", e.target.value)}
-                              placeholder="Dirección completa de entrega"
-                              rows={2}
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Ciudad</Label>
-                            <Input
-                              value={despacho.despachoForm.ciudad}
-                              onChange={(e) => despacho.updateField("ciudad", e.target.value)}
-                              placeholder="Ciudad"
-                            />
-                          </div>
-
-                          <div className="border-t pt-4">
-                            <h4 className="text-sm font-semibold mb-3">Contacto de Entrega</h4>
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label>Nombre del Contacto</Label>
-                                <Input
-                                  value={despacho.despachoForm.nombre_contacto}
-                                  onChange={(e) => despacho.updateField("nombre_contacto", e.target.value)}
-                                  placeholder="Nombre completo"
-                                />
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label>Teléfono</Label>
-                                  <PhoneInput
-                                    value={despacho.despachoForm.telefono_contacto}
-                                    onChange={(value) => {
-                                      despacho.updateField("telefono_contacto", value);
-                                      if (value) {
-                                        const phoneValidation = validation.validatePhone(value);
-                                        validation.setPhoneError(phoneValidation.error || "");
-                                      } else {
-                                        validation.setPhoneError("");
-                                      }
-                                    }}
-                                    onBlur={() => {
-                                      const phoneValidation = validation.validatePhone(despacho.despachoForm.telefono_contacto);
-                                      validation.setPhoneError(phoneValidation.error || "");
-                                    }}
-                                    placeholder="320 242 2311"
-                                    error={validation.phoneError}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Email Principal</Label>
-                                  <Input
-                                    type="email"
-                                    value={despacho.despachoForm.email_contacto}
-                                    onChange={(e) => {
-                                      const value = e.target.value;
-                                      despacho.updateField("email_contacto", value);
-                                      if (value) {
-                                        const emailValidation = validation.validateEmail(value);
-                                        validation.setEmailError(emailValidation.error || "");
-                                      } else {
-                                        validation.setEmailError("");
-                                      }
-                                    }}
-                                    onBlur={(e) => {
-                                      const emailValidation = validation.validateEmail(e.target.value);
-                                      validation.setEmailError(emailValidation.error || "");
-                                    }}
-                                    placeholder="usuario@ejemplo.com"
-                                    className={validation.emailError ? "border-red-300" : ""}
-                                  />
-                                  {validation.emailError && (
-                                    <p className="text-xs text-red-500">{validation.emailError}</p>
-                                  )}
-                                </div>
-                              </div>
-                              {/* Emails adicionales */}
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label>Email Secundario (opcional)</Label>
-                                  <Input
-                                    type="email"
-                                    value={despacho.despachoForm.email_contacto2}
-                                    onChange={(e) => despacho.updateField("email_contacto2", e.target.value)}
-                                    placeholder="usuario2@ejemplo.com"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Email Terciario (opcional)</Label>
-                                  <Input
-                                    type="email"
-                                    value={despacho.despachoForm.email_contacto3}
-                                    onChange={(e) => despacho.updateField("email_contacto3", e.target.value)}
-                                    placeholder="usuario3@ejemplo.com"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Transportadora */}
-                      {requiereTransportadora && (
-                        <div className="space-y-2">
-                          <Label>Transportadora</Label>
-                          <Select
-                            value={despacho.despachoForm.id_transportadora}
-                            onValueChange={(value) => despacho.updateField("id_transportadora", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar transportadora" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {comercialData.transportadoras.map((transportadora) => (
-                                <SelectItem key={transportadora.id_transportadora} value={transportadora.id_transportadora.toString()}>
-                                  {transportadora.nombre_transportadora}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-
-                      {/* Información de Pago */}
-                      <div className="border-t pt-4">
-                        <h4 className="text-sm font-semibold mb-3">Información de Pago</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Tipo de Pago</Label>
-                            <Select
-                              value={despacho.despachoForm.id_tipo_pago}
-                              onValueChange={(value) => despacho.updateField("id_tipo_pago", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar tipo de pago" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {comercialData.tiposPago.map((tipo) => (
-                                  <SelectItem key={tipo.id_tipo_pago} value={tipo.id_tipo_pago.toString()}>
-                                    {tipo.forma_pago}{tipo.plazo ? ` (${tipo.plazo})` : ""}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Pago del Flete</Label>
-                            <Select
-                              value={despacho.despachoForm.pago_flete}
-                              onValueChange={(value) => despacho.updateField("pago_flete", value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar tipo" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="no_aplica">No Aplica</SelectItem>
-                                <SelectItem value="pago_contraentrega">Pago Contraentrega</SelectItem>
-                                <SelectItem value="paga_bismark_factura_cliente">Paga Bismark y lo factura al cliente</SelectItem>
-                                <SelectItem value="flete_costo_negocio">Flete es Costo del Negocio</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Observaciones */}
-                      <div className="space-y-2">
-                        <Label>Observaciones de Despacho</Label>
-                        <Textarea
-                          placeholder="Observaciones especiales para el despacho..."
-                          value={despacho.despachoForm.observaciones}
-                          onChange={(e) => despacho.updateField("observaciones", e.target.value)}
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    // Vista readonly
-                    <div className="space-y-3">
-                      <div className="space-y-3">
-                        <div className="space-y-1">
-                          <Label className="text-sm font-medium">Tipo de Despacho</Label>
-                          <div className="p-2 bg-muted/30 rounded text-sm">
-                            {tipoSeleccionado?.nombre_tipo || "Sin definir"}
-                          </div>
-                        </div>
-
-                        {requiereDireccion && (
-                          <>
-                            <div className="space-y-1">
-                              <Label className="text-sm font-medium">Dirección</Label>
-                              <div className="p-2 bg-muted/30 rounded text-sm">
-                                {despacho.despachoForm.direccion || "Sin definir"}
-                              </div>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-sm font-medium">Ciudad</Label>
-                              <div className="p-2 bg-muted/30 rounded text-sm">
-                                {despacho.despachoForm.ciudad || "Sin definir"}
-                              </div>
-                            </div>
-                            {(despacho.despachoForm.nombre_contacto || despacho.despachoForm.telefono_contacto || despacho.despachoForm.email_contacto) && (
-                              <div className="border-t pt-3 space-y-2">
-                                <h4 className="text-sm font-semibold">Contacto de Entrega</h4>
-                                {despacho.despachoForm.nombre_contacto && (
-                                  <div className="space-y-1">
-                                    <Label className="text-sm font-medium">Nombre</Label>
-                                    <div className="p-2 bg-muted/30 rounded text-sm">
-                                      {despacho.despachoForm.nombre_contacto}
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="grid grid-cols-2 gap-4">
-                                  {despacho.despachoForm.telefono_contacto && (
-                                    <div className="space-y-1">
-                                      <Label className="text-sm font-medium">Teléfono</Label>
-                                      <div className="p-2 bg-muted/30 rounded text-sm">
-                                        {despacho.despachoForm.telefono_contacto}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {despacho.despachoForm.email_contacto && (
-                                    <div className="space-y-1">
-                                      <Label className="text-sm font-medium">Email Principal</Label>
-                                      <div className="p-2 bg-muted/30 rounded text-sm">
-                                        {despacho.despachoForm.email_contacto}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                {/* Emails adicionales en readonly */}
-                                {(despacho.despachoForm.email_contacto2 || despacho.despachoForm.email_contacto3) && (
-                                  <div className="grid grid-cols-2 gap-4">
-                                    {despacho.despachoForm.email_contacto2 && (
-                                      <div className="space-y-1">
-                                        <Label className="text-sm font-medium">Email Secundario</Label>
-                                        <div className="p-2 bg-muted/30 rounded text-sm">
-                                          {despacho.despachoForm.email_contacto2}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {despacho.despachoForm.email_contacto3 && (
-                                      <div className="space-y-1">
-                                        <Label className="text-sm font-medium">Email Terciario</Label>
-                                        <div className="p-2 bg-muted/30 rounded text-sm">
-                                          {despacho.despachoForm.email_contacto3}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </>
-                        )}
-
-                        {requiereTransportadora && (
-                          <div className="space-y-1">
-                            <Label className="text-sm font-medium">Transportadora</Label>
-                            <div className="p-2 bg-muted/30 rounded text-sm">
-                              {comercialData.transportadoras.find(t => t.id_transportadora.toString() === despacho.despachoForm.id_transportadora)?.nombre_transportadora || "Sin definir"}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Información de Pago - Readonly */}
-                        {(despacho.despachoForm.id_tipo_pago || despacho.despachoForm.pago_flete) && (
-                          <div className="border-t pt-3 space-y-2">
-                            <h4 className="text-sm font-semibold">Información de Pago</h4>
-                            <div className="grid grid-cols-2 gap-4">
-                              {despacho.despachoForm.id_tipo_pago && (
-                                <div className="space-y-1">
-                                  <Label className="text-sm font-medium">Tipo de Pago</Label>
-                                  <div className="p-2 bg-muted/30 rounded text-sm">
-                                    {(() => {
-                                      const tipoPago = comercialData.tiposPago.find(t => t.id_tipo_pago.toString() === despacho.despachoForm.id_tipo_pago);
-                                      return tipoPago ? `${tipoPago.forma_pago}${tipoPago.plazo ? ` (${tipoPago.plazo})` : ""}` : "Sin definir";
-                                    })()}
-                                  </div>
-                                </div>
-                              )}
-                              {despacho.despachoForm.pago_flete && (
-                                <div className="space-y-1">
-                                  <Label className="text-sm font-medium">Pago del Flete</Label>
-                                  <div className="p-2 bg-muted/30 rounded text-sm">
-                                    {(() => {
-                                      const pagoFleteLabels: Record<string, string> = {
-                                        "no_aplica": "No Aplica",
-                                        "pago_contraentrega": "Pago Contraentrega",
-                                        "paga_bismark_factura_cliente": "Paga Bismark y lo factura al cliente",
-                                        "flete_costo_negocio": "Flete es Costo del Negocio",
-                                      };
-                                      return pagoFleteLabels[despacho.despachoForm.pago_flete] || despacho.despachoForm.pago_flete;
-                                    })()}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {despacho.despachoForm.observaciones && (
-                          <div className="space-y-1">
-                            <Label className="text-sm font-medium">Observaciones</Label>
-                            <div className="p-2 bg-muted/30 rounded text-sm">
-                              {despacho.despachoForm.observaciones}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })()}
+          <DespachoSection
+            despachoForm={despacho.despachoForm}
+            isEditMode={editMode.isEditMode}
+            tiposDespacho={comercialData.tiposDespacho}
+            transportadoras={comercialData.transportadoras}
+            tiposPago={comercialData.tiposPago}
+            updateField={despacho.updateField}
+            emailError={validation.emailError}
+            phoneError={validation.phoneError}
+            validateEmail={validation.validateEmail}
+            validatePhone={validation.validatePhone}
+            setEmailError={validation.setEmailError}
+            setPhoneError={validation.setPhoneError}
+          />
 
           {/* ==================== OBSERVACIONES COMERCIALES ==================== */}
           <div className="space-y-2">

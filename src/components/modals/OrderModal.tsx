@@ -648,58 +648,70 @@ export function OrderModal({
                 })}
               </TabsList>
 
-              {/* Contenido SCROLLEABLE con fondo gris */}
+              {/* Contenido SCROLLEABLE con fondo gris — Lazy mount: solo el tab activo se monta */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 bg-black/10 border-radius ">
                 <TabsContent value="comercial" className="mt-4">
-                  <ComercialTab
-                    order={order}
-                    onUpdateOrder={onUpdateOrder}
-                    onRequestClose={handleClose}
-                    onUnsavedChangesChange={(isDirty) => {
-                      setHasUnsavedChanges(isDirty);
-                      handleTabDirtyChange("comercial", isDirty);
-                    }}
-                  />
+                  {activeTab === "comercial" && (
+                    <ComercialTab
+                      order={order}
+                      onUpdateOrder={onUpdateOrder}
+                      onRequestClose={handleClose}
+                      onUnsavedChangesChange={(isDirty) => {
+                        setHasUnsavedChanges(isDirty);
+                        handleTabDirtyChange("comercial", isDirty);
+                      }}
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="inventarios" className="mt-4">
-                  <InventariosTab
-                    order={order}
-                    onUpdateOrder={onUpdateOrder}
-                    onDirtyChange={(isDirty) => handleTabDirtyChange("inventarios", isDirty)}
-                  />
+                  {activeTab === "inventarios" && (
+                    <InventariosTab
+                      order={order}
+                      onUpdateOrder={onUpdateOrder}
+                      onDirtyChange={(isDirty) => handleTabDirtyChange("inventarios", isDirty)}
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="produccion" className="mt-4">
-                  <ProduccionTab
-                    order={order}
-                    onUpdateOrder={onUpdateOrder}
-                    onDirtyChange={(isDirty) => handleTabDirtyChange("produccion", isDirty)}
-                  />
+                  {activeTab === "produccion" && (
+                    <ProduccionTab
+                      order={order}
+                      onUpdateOrder={onUpdateOrder}
+                      onDirtyChange={(isDirty) => handleTabDirtyChange("produccion", isDirty)}
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="logistica" className="mt-4">
-                  <LogisticaTab
-                    order={order}
-                    onUpdateOrder={onUpdateOrder}
-                    onDirtyChange={(isDirty) => handleTabDirtyChange("logistica", isDirty)}
-                  />
+                  {activeTab === "logistica" && (
+                    <LogisticaTab
+                      order={order}
+                      onUpdateOrder={onUpdateOrder}
+                      onDirtyChange={(isDirty) => handleTabDirtyChange("logistica", isDirty)}
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="facturacion" className="mt-4">
-                  <FacturacionTab
-                    order={order}
-                    onUpdateOrder={onUpdateOrder}
-                    onDirtyChange={(isDirty) => handleTabDirtyChange("facturacion", isDirty)}
-                  />
+                  {activeTab === "facturacion" && (
+                    <FacturacionTab
+                      order={order}
+                      onUpdateOrder={onUpdateOrder}
+                      onDirtyChange={(isDirty) => handleTabDirtyChange("facturacion", isDirty)}
+                    />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="financiera" className="mt-4">
-                  <FinancieraTab
-                    order={order}
-                    onUpdateOrder={onUpdateOrder}
-                    onDirtyChange={(isDirty) => handleTabDirtyChange("financiera", isDirty)}
-                  />
+                  {activeTab === "financiera" && (
+                    <FinancieraTab
+                      order={order}
+                      onUpdateOrder={onUpdateOrder}
+                      onDirtyChange={(isDirty) => handleTabDirtyChange("financiera", isDirty)}
+                    />
+                  )}
                 </TabsContent>
               </div>
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import KanbanBoard from '@/components/kanban/KanbanBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,9 +17,26 @@ import {
 
 const Ordenes: React.FC = () => {
   const { profile: currentUserProfile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
   const [isNuevaOrdenModalOpen, setIsNuevaOrdenModalOpen] = useState(false);
+
+  // Capturar el ID de orden a abrir desde navigation state (ej: duplicación desde historial)
+  // Se usa useRef para consumirlo una sola vez y evitar race conditions con navigate replace
+  const pendingOpenOrderId = useRef<number | null>(
+    (location.state as { openOrderId?: number } | null)?.openOrderId ?? null
+  );
+  const [openOrderId] = useState(() => pendingOpenOrderId.current);
+
+  // Limpiar el state del historial para evitar re-apertura en refresh
+  useEffect(() => {
+    if (pendingOpenOrderId.current) {
+      pendingOpenOrderId.current = null;
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [navigate, location.pathname]);
 
   const canCreateOrders = currentUserProfile?.role === 'comercial' || currentUserProfile?.role === 'admin';
 
@@ -82,6 +99,7 @@ const Ordenes: React.FC = () => {
           statusFilter={statusFilter}
           isNuevaOrdenModalOpen={isNuevaOrdenModalOpen}
           onNuevaOrdenModalChange={setIsNuevaOrdenModalOpen}
+          openOrderId={openOrderId}
         />
       </div>
     </div>

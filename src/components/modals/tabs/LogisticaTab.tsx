@@ -436,7 +436,7 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         idTransportadora,
         fechaDespacho,
         observacionesLogistica,
-        numeroRemision,
+        remisiones: [...remisiones],
         fechaEntregaCliente,
         observacionesProceso,
       });

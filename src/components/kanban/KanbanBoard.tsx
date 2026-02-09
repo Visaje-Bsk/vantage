@@ -15,9 +15,10 @@ interface KanbanBoardProps {
   statusFilter: EstatusOrdenDB | 'all';
   isNuevaOrdenModalOpen: boolean;
   onNuevaOrdenModalChange: (open: boolean) => void;
+  openOrderId?: number | null;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, statusFilter, isNuevaOrdenModalOpen, onNuevaOrdenModalChange }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, statusFilter, isNuevaOrdenModalOpen, onNuevaOrdenModalChange, openOrderId }) => {
   const { profile } = useAuth();
   const [allOrders, setAllOrders] = useState<OrdenKanban[]>([]); // Mantener todas las órdenes originales
   const [columns, setColumns] = useState<KanbanColumnType[]>([]);
@@ -245,6 +246,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
     applyIntoColumns(allOrders);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, statusFilter]);
+
+  // Abrir orden automáticamente cuando se navega desde otra página (ej: duplicación desde historial)
+  useEffect(() => {
+    if (openOrderId && !loading) {
+      handleOrderCreated(openOrderId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openOrderId, loading]);
 
   if (loading) {
     return (
