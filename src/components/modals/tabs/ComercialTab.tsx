@@ -712,8 +712,12 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     const isNewOrder = !order.fecha_modificacion;
     if (isNewOrder) {
       editMode.setIsEditMode(true);
-      // Para órdenes nuevas, cargar datos de edición después
-      setTimeout(() => loadEditModeData(), 100);
+      // Para órdenes nuevas, cargar datos de edición y tomar snapshot inicial
+      setTimeout(() => {
+        loadEditModeData().then(() => {
+          unsavedChanges.setInitialStates();
+        });
+      }, 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

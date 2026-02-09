@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ClienteSelector, { type ClienteOption } from '@/components/catalogs/ClienteSelector';
 import { Building2, Save, Plus, Truck } from 'lucide-react';
+import { ConfirmationDialog } from '@/components/modals/ConfirmationDialog';
 import type { Database } from '@/integrations/supabase/types';
 
 interface NuevaOrdenModalProps {
@@ -74,6 +75,7 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
   const [tiposServicio, setTiposServicio] = useState<Array<TipoServicio>>([]);
   const [transportadoras, setTransportadoras] = useState<Array<Transportadora>>([]);
   const [loading, setLoading] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   
   const [formData, setFormData] = useState({
     id_proyecto: '',
@@ -99,10 +101,42 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
   const [comerciales, setComerciales] = useState<Array<{ user_id: string; label: string; role: AppRole }>>([]);
   const [selectedComercialAdicional, setSelectedComercialAdicional] = useState<string>('');
 
+  // Detectar si el formulario tiene datos ingresados
+  const hasFormData =
+    !!selectedCliente ||
+    !!formData.id_clase_orden ||
+    !!formData.id_tipo_pago ||
+    !!formData.id_tipo_servicio ||
+    !!formData.id_tipo_despacho ||
+    !!formData.id_proyecto ||
+    !!formData.orden_compra ||
+    !!formData.observaciones_orden ||
+    !!selectedComercial ||
+    !!selectedComercialAdicional ||
+    !!despachoData.direccion ||
+    !!despachoData.nombre_contacto;
+
+  // Manejar intento de cierre
+  const handleCloseAttempt = (openState: boolean) => {
+    if (!openState && hasFormData) {
+      setShowCloseConfirm(true);
+      return;
+    }
+    if (!openState) {
+      resetForm();
+    }
+    onOpenChange(openState);
+  };
+
+  const confirmClose = () => {
+    setShowCloseConfirm(false);
+    resetForm();
+    onOpenChange(false);
+  };
+
   useEffect(() => {
     if (open) {
       loadInitialData();
-      resetForm();
     }
   }, [open]);
 
@@ -403,7 +437,8 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
       // Pass the new order ID to the parent component
       onOrderCreated(orderId);
 
-      // Close the modal
+      // Reset y cerrar modal
+      resetForm();
       onOpenChange(false);
 
     } catch (error) {
@@ -415,8 +450,22 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleCloseAttempt}>
+      <DialogContent
+        className="max-w-6xl max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          if (hasFormData) {
+            e.preventDefault();
+            setShowCloseConfirm(true);
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (hasFormData) {
+            e.preventDefault();
+            setShowCloseConfirm(true);
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="w-5 h-5" />
@@ -749,10 +798,10 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
 
           {/* Actions */}
           <div className="flex justify-end space-x-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleCloseAttempt(false)}
               disabled={loading}
             >
               Cancelar
@@ -767,6 +816,18 @@ export function NuevaOrdenModal({ open, onOpenChange, onOrderCreated }: NuevaOrd
           </div>
         </div>
       </DialogContent>
+
+      <ConfirmationDialog
+        open={showCloseConfirm}
+        onOpenChange={setShowCloseConfirm}
+        title="Datos sin guardar"
+        description="Tienes información ingresada en el formulario. Si cierras ahora, perderás todos los datos."
+        confirmText="Cerrar sin guardar"
+        cancelText="Continuar editando"
+        variant="destructive"
+        onConfirm={confirmClose}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
     </Dialog>
   );
 }

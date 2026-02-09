@@ -205,8 +205,11 @@ export function OrderModal({
     }
   };
 
+  // Verificar si algún tab tiene cambios sin guardar
+  const anyTabDirty = hasUnsavedChanges || Object.values(tabDirtyStates).some(Boolean);
+
   const handleClose = () => {
-    if (hasUnsavedChanges) {
+    if (anyTabDirty) {
       setShowCloseConfirm(true);
       return;
     }
@@ -449,13 +452,13 @@ export function OrderModal({
         <DialogContent 
           className="max-w-6xl max-h-[95vh] overflow-hidden flex flex-col p-0 gap-0"
           onPointerDownOutside={(e) => {
-            if (hasUnsavedChanges) {
+            if (anyTabDirty) {
               e.preventDefault();
               setShowCloseConfirm(true);
             }
           }}
           onEscapeKeyDown={(e) => {
-            if (hasUnsavedChanges) {
+            if (anyTabDirty) {
               e.preventDefault();
               setShowCloseConfirm(true);
             }
