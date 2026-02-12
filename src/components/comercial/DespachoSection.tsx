@@ -6,11 +6,12 @@
  * cuando cambian datos del formulario principal o las líneas de producto.
  */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Truck } from "lucide-react";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -63,6 +64,23 @@ function DespachoSectionComponent({
   const requiereDireccion = tipoSeleccionado?.requiere_direccion ?? false;
   const requiereTransportadora = tipoSeleccionado?.requiere_transportadora ?? false;
 
+  // Opciones memoizadas para SearchableSelect
+  const tipoDespachoOptions = useMemo(() =>
+    tiposDespacho.map(t => ({ value: t.id_tipo_despacho.toString(), label: t.nombre_tipo })),
+    [tiposDespacho]
+  );
+  const transportadoraOptions = useMemo(() =>
+    transportadoras.map(t => ({ value: t.id_transportadora.toString(), label: t.nombre_transportadora })),
+    [transportadoras]
+  );
+  const tipoPagoOptions = useMemo(() =>
+    tiposPago.map(t => ({
+      value: t.id_tipo_pago.toString(),
+      label: `${t.forma_pago}${t.plazo ? ` (${t.plazo})` : ""}`,
+    })),
+    [tiposPago]
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -77,21 +95,14 @@ function DespachoSectionComponent({
             {/* Tipo de Despacho */}
             <div className="space-y-2">
               <Label>Tipo de Despacho</Label>
-              <Select
+              <SearchableSelect
+                options={tipoDespachoOptions}
                 value={despachoForm.id_tipo_despacho}
                 onValueChange={(value) => updateField("id_tipo_despacho", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tiposDespacho.map((tipo) => (
-                    <SelectItem key={tipo.id_tipo_despacho} value={tipo.id_tipo_despacho.toString()}>
-                      {tipo.nombre_tipo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Seleccionar tipo"
+                searchPlaceholder="Buscar tipo de despacho..."
+                emptyMessage="No se encontraron tipos"
+              />
             </div>
 
             {/* Campos de Dirección */}
@@ -206,21 +217,14 @@ function DespachoSectionComponent({
             {requiereTransportadora && (
               <div className="space-y-2">
                 <Label>Transportadora</Label>
-                <Select
+                <SearchableSelect
+                  options={transportadoraOptions}
                   value={despachoForm.id_transportadora}
                   onValueChange={(value) => updateField("id_transportadora", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar transportadora" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {transportadoras.map((transportadora) => (
-                      <SelectItem key={transportadora.id_transportadora} value={transportadora.id_transportadora.toString()}>
-                        {transportadora.nombre_transportadora}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Seleccionar transportadora"
+                  searchPlaceholder="Buscar transportadora..."
+                  emptyMessage="No se encontraron transportadoras"
+                />
               </div>
             )}
 
@@ -230,21 +234,14 @@ function DespachoSectionComponent({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Tipo de Pago</Label>
-                  <Select
+                  <SearchableSelect
+                    options={tipoPagoOptions}
                     value={despachoForm.id_tipo_pago}
                     onValueChange={(value) => updateField("id_tipo_pago", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar tipo de pago" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tiposPago.map((tipo) => (
-                        <SelectItem key={tipo.id_tipo_pago} value={tipo.id_tipo_pago.toString()}>
-                          {tipo.forma_pago}{tipo.plazo ? ` (${tipo.plazo})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Seleccionar tipo de pago"
+                    searchPlaceholder="Buscar tipo de pago..."
+                    emptyMessage="No se encontraron tipos de pago"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Pago del Flete</Label>

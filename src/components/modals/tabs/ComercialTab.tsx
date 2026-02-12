@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { OrdenKanban } from "@/types/kanban";
@@ -100,6 +100,32 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
     const claseOrden = clasesOrden.find(c => c.id_clase_orden === parseInt(claseOrdenId));
     return claseOrden?.tipo_orden?.toLowerCase() === 'renta';
   }, [form.formData.id_clase_orden, order.id_clase_orden, clasesOrden]);
+
+  // Opciones memoizadas para SearchableSelect
+  const clienteOptions = useMemo(() =>
+    comercialData.clientes.map(c => ({
+      value: c.id_cliente.toString(),
+      label: c.nombre_cliente,
+      sublabel: c.nit,
+    })),
+    [comercialData.clientes]
+  );
+
+  const proyectoOptions = useMemo(() =>
+    comercialData.proyectos.map(p => ({
+      value: p.id_proyecto.toString(),
+      label: p.nombre_proyecto,
+    })),
+    [comercialData.proyectos]
+  );
+
+  const ingenieroOptions = useMemo(() =>
+    responsable.asignables.map(u => ({
+      value: u.user_id,
+      label: u.label,
+    })),
+    [responsable.asignables]
+  );
 
   // Hooks de validación
   const validation = useComercialValidation();
@@ -851,22 +877,15 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                     <Building2 className="w-4 h-4" />
                     Cliente
                   </Label>
-                  <Select
+                  <SearchableSelect
+                    options={clienteOptions}
                     value={form.formData.id_cliente}
                     onValueChange={handleClienteChange}
+                    placeholder="Seleccionar cliente"
+                    searchPlaceholder="Buscar cliente..."
                     disabled={editMode.isFieldsLocked}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {comercialData.clientes.map((c) => (
-                        <SelectItem key={c.id_cliente} value={c.id_cliente.toString()}>
-                          {c.nombre_cliente} — {c.nit}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    emptyMessage="No se encontraron clientes"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -874,54 +893,30 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                     <FolderOpen className="w-4 h-4" />
                     Proyecto
                   </Label>
-                  <Select
+                  <SearchableSelect
+                    options={proyectoOptions}
                     value={form.formData.id_proyecto}
                     onValueChange={(value) => form.updateField("id_proyecto", value)}
+                    placeholder="Seleccionar proyecto"
+                    searchPlaceholder="Buscar proyecto..."
                     disabled={!form.formData.id_cliente}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar proyecto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no_aplica" className="text-muted-foreground italic">
-                        No aplica
-                      </SelectItem>
-                      {comercialData.proyectos.map((p) => (
-                        <SelectItem key={p.id_proyecto} value={p.id_proyecto.toString()}>
-                          {p.nombre_proyecto}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    emptyMessage="No se encontraron proyectos"
+                    prependOption={{ value: "no_aplica", label: "No aplica" }}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Ingeniero asignado</Label>
-                <Select
+                <SearchableSelect
+                  options={ingenieroOptions}
                   value={responsable.selectedResponsable || ""}
                   onValueChange={(v) => responsable.setSelectedResponsable(v)}
+                  placeholder="Seleccionar usuario"
+                  searchPlaceholder="Buscar ingeniero..."
                   disabled={editMode.isFieldsLocked}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar usuario">
-                      {/* Mostrar el nombre del ingeniero si está disponible */}
-                      {responsable.selectedResponsable && responsable.asignables.length > 0
-                        ? responsable.asignables.find(u => u.user_id === responsable.selectedResponsable)?.label || display.displayData.ingeniero_nombre || "Cargando..."
-                        : responsable.selectedResponsable && display.displayData.ingeniero_nombre
-                          ? display.displayData.ingeniero_nombre
-                          : "Seleccionar usuario"
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {responsable.asignables.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  emptyMessage="No se encontraron ingenieros"
+                />
               </div>
 
               <div className="space-y-2">

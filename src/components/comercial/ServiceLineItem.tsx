@@ -5,7 +5,7 @@
  * Optimizado para evitar re-renders innecesarios cuando cambian otras líneas.
  */
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Check, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 import type { ServiceLine } from "@/hooks/comercial/useServiceLines";
 import type { Database } from "@/integrations/supabase/types";
@@ -121,6 +122,20 @@ function ServiceLineItemComponent({
     onRemove(line.id_linea_detalle);
   }, [line.id_linea_detalle, onRemove]);
 
+  // Opciones memoizadas para SearchableSelect
+  const operadorOptions = useMemo(() =>
+    operadores.map(op => ({ value: op.id_operador.toString(), label: op.nombre_operador })),
+    [operadores]
+  );
+  const planOptions = useMemo(() =>
+    planesFiltrados.map(p => ({ value: p.id_plan.toString(), label: p.nombre_plan })),
+    [planesFiltrados]
+  );
+  const apnOptions = useMemo(() =>
+    apnsFiltrados.map(a => ({ value: a.id_apn.toString(), label: a.apn })),
+    [apnsFiltrados]
+  );
+
   // Obtener nombres para mostrar en modo confirmado
   const operadorNombre = operadores.find(
     (op) => op.id_operador.toString() === line.operadorId
@@ -202,18 +217,14 @@ function ServiceLineItemComponent({
             <Label>
               Operador <span className="text-red-500">*</span>
             </Label>
-            <Select value={line.operadorId} onValueChange={handleOperadorChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar operador" />
-              </SelectTrigger>
-              <SelectContent>
-                {operadores.map((op) => (
-                  <SelectItem key={op.id_operador} value={op.id_operador.toString()}>
-                    {op.nombre_operador}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={operadorOptions}
+              value={line.operadorId}
+              onValueChange={handleOperadorChange}
+              placeholder="Seleccionar operador"
+              searchPlaceholder="Buscar operador..."
+              emptyMessage="No se encontraron operadores"
+            />
           </div>
 
           {/* Plan */}
@@ -221,22 +232,15 @@ function ServiceLineItemComponent({
             <Label>
               Plan <span className="text-red-500">*</span>
             </Label>
-            <Select
+            <SearchableSelect
+              options={planOptions}
               value={line.planId}
               onValueChange={handlePlanChange}
+              placeholder="Seleccionar plan"
+              searchPlaceholder="Buscar plan..."
               disabled={!line.operadorId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar plan" />
-              </SelectTrigger>
-              <SelectContent>
-                {planesFiltrados.map((plan) => (
-                  <SelectItem key={plan.id_plan} value={plan.id_plan.toString()}>
-                    {plan.nombre_plan}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              emptyMessage="No se encontraron planes"
+            />
           </div>
 
           {/* APN */}
@@ -244,22 +248,15 @@ function ServiceLineItemComponent({
             <Label>
               APN <span className="text-red-500">*</span>
             </Label>
-            <Select
+            <SearchableSelect
+              options={apnOptions}
               value={line.apnId}
               onValueChange={handleApnChange}
+              placeholder="Seleccionar APN"
+              searchPlaceholder="Buscar APN..."
               disabled={!line.operadorId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar APN" />
-              </SelectTrigger>
-              <SelectContent>
-                {apnsFiltrados.map((apn) => (
-                  <SelectItem key={apn.id_apn} value={apn.id_apn.toString()}>
-                    {apn.apn}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              emptyMessage="No se encontraron APNs"
+            />
           </div>
 
           {/* Clase de Cobro */}
