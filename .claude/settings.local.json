@@ -4,7 +4,9 @@
       "Bash(npx supabase db remote:*)",
       "Bash(del:*)",
       "Bash(del TYPESCRIPT_TYPES_REFERENCE.md)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
