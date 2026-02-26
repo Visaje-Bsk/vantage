@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,7 +36,11 @@ interface EquipoDisplay {
   valor_unitario: number;
 }
 
-export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: InventariosTabProps) {
+export interface TabSaveHandle {
+  save: () => Promise<void>;
+}
+
+export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(function InventariosTab({ order, onUpdateOrder, onDirtyChange }, ref) {
   const [stockValidado, setStockValidado] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
@@ -245,6 +248,8 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
     }
   };
 
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
     return <TabLoadingSkeleton />;
@@ -414,16 +419,6 @@ export function InventariosTab({ order, onUpdateOrder, onDirtyChange }: Inventar
         </Alert>
       )}
 
-      {/* Botones de acción */}
-      <div className="flex gap-3 justify-end pt-4 border-t">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          variant="outline"
-        >
-          Guardar Cambios
-        </Button>
-      </div>
     </div>
   );
-}
+});

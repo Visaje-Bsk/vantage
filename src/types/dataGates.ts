@@ -100,7 +100,7 @@ export const DATA_GATE_CONFIG: Record<FaseOrdenDB, PhaseDataGateConfig> = {
   produccion: {
     phase: 'produccion',
     phaseName: 'Producción',
-    nextPhase: 'logistica',
+    nextPhase: 'financiera',
     requiredFields: [
       {
         field: 'observaciones_produccion',

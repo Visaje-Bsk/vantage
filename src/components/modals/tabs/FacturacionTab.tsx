@@ -12,7 +12,7 @@
  * - Al menos una factura es requerida para avanzar a Logística
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -65,7 +65,11 @@ const createEmptyFactura = (tipo: TipoFactura): FacturaData => ({
   fecha_trm: "",
 });
 
-export function FacturacionTab({ order, onUpdateOrder, onDirtyChange }: FacturacionTabProps) {
+export interface TabSaveHandle {
+  save: () => Promise<void>;
+}
+
+export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(function FacturacionTab({ order, onUpdateOrder, onDirtyChange }, ref) {
   // Estado para las facturas (una por cada tipo)
   const [facturas, setFacturas] = useState<FacturaData[]>([]);
   const [saving, setSaving] = useState(false);
@@ -262,42 +266,7 @@ export function FacturacionTab({ order, onUpdateOrder, onDirtyChange }: Facturac
     }
   };
 
-  const handleAvanzarLogistica = async () => {
-    if (!hasAtLeastOneCompleteFactura) {
-      toast.error("Debe completar al menos una factura antes de avanzar a Logística");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Primero guardar todas las facturas
-      await handleSave();
-
-      // Avanzar fase a Logística y cambiar estatus a 'facturada'
-      const { error } = await supabase
-        .from("orden_pedido")
-        .update({
-          fase: "logistica",
-          estatus: "facturada",
-          fecha_modificacion: new Date().toISOString(),
-        })
-        .eq("id_orden_pedido", order.id_orden_pedido);
-
-      if (error) throw error;
-
-      onUpdateOrder(order.id_orden_pedido, {
-        fase: "logistica",
-        estatus: "facturada",
-      });
-
-      toast.success("Facturas emitidas y orden enviada a Logística exitosamente");
-    } catch (error) {
-      console.error("Error avanzando a Logística:", error);
-      toast.error("Error al avanzar a Logística");
-    } finally {
-      setSaving(false);
-    }
-  };
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
 
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
@@ -470,19 +439,6 @@ export function FacturacionTab({ order, onUpdateOrder, onDirtyChange }: Facturac
         </Alert>
       )}
 
-      {/* Botones de acción */}
-      <div className="flex gap-3 justify-end pt-4 border-t">
-        <Button onClick={handleSave} disabled={saving} variant="outline">
-          Guardar Cambios
-        </Button>
-        <Button
-          onClick={handleAvanzarLogistica}
-          disabled={!hasAtLeastOneCompleteFactura || saving}
-          className="bg-success hover:bg-success/90"
-        >
-          {hasAtLeastOneCompleteFactura ? "Enviar a Logística" : "Completar Campos"}
-        </Button>
-      </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,7 +31,8 @@ import {
   Clock,
   XCircle,
   AlertTriangle,
-  Copy
+  Copy,
+  Save
 } from "lucide-react";
 import { ComercialTab } from "./tabs/ComercialTab";
 import { InventariosTab } from "./tabs/InventariosTab";
@@ -39,6 +40,7 @@ import { ProduccionTab } from "./tabs/ProduccionTab";
 import { LogisticaTab } from "./tabs/LogisticaTab";
 import { FacturacionTab } from "./tabs/FacturacionTab";
 import { FinancieraTab } from "./tabs/FinancieraTab";
+import type { TabSaveHandle } from "./tabs/ProduccionTab";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +95,35 @@ export function OrderModal({
   // Hook para duplicar orden
   const { duplicateOrder, isDuplicating } = useDuplicateOrder();
 
+  // Refs para guardar desde el footer
+  const inventariosRef = useRef<TabSaveHandle>(null);
+  const produccionRef = useRef<TabSaveHandle>(null);
+  const logisticaRef = useRef<TabSaveHandle>(null);
+  const facturacionRef = useRef<TabSaveHandle>(null);
+  const financieraRef = useRef<TabSaveHandle>(null);
+
+  const tabRefs: Record<string, React.RefObject<TabSaveHandle | null>> = {
+    inventarios: inventariosRef,
+    produccion: produccionRef,
+    logistica: logisticaRef,
+    facturacion: facturacionRef,
+    financiera: financieraRef,
+  };
+
+  // Guardar cambios del tab activo desde el footer
+  const [isSavingFromFooter, setIsSavingFromFooter] = useState(false);
+  const handleSaveFromFooter = async () => {
+    const ref = tabRefs[activeTab];
+    if (ref?.current) {
+      setIsSavingFromFooter(true);
+      try {
+        await ref.current.save();
+      } finally {
+        setIsSavingFromFooter(false);
+      }
+    }
+  };
+
   // Clase de orden (ya viene mapeada desde KanbanBoard)
   const claseOrdenNombre = order?.tipo_orden && order.tipo_orden !== "Tipo no especificado"
     ? order.tipo_orden
@@ -135,6 +166,11 @@ export function OrderModal({
             cantidad,
             valor_unitario,
             equipo ( nombre_equipo, codigo )
+          ),
+          produccion:orden_produccion (
+            observaciones_produccion,
+            numero_produccion,
+            fecha_produccion
           )
         `)
         .eq("id_orden_pedido", order.id_orden_pedido)
@@ -378,7 +414,10 @@ export function OrderModal({
         };
 
         const tableProperty = tableMap[table] || table;
-        return orderData[tableProperty]?.[field];
+        const related = orderData[tableProperty];
+        // Supabase puede retornar array (1:N) — tomar primer elemento
+        const record = Array.isArray(related) ? related[0] : related;
+        return record?.[field];
       }
 
       return orderData[field];
@@ -667,6 +706,7 @@ export function OrderModal({
                 <TabsContent value="inventarios" className="mt-4">
                   {activeTab === "inventarios" && (
                     <InventariosTab
+                      ref={inventariosRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("inventarios", isDirty)}
@@ -677,6 +717,7 @@ export function OrderModal({
                 <TabsContent value="produccion" className="mt-4">
                   {activeTab === "produccion" && (
                     <ProduccionTab
+                      ref={produccionRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("produccion", isDirty)}
@@ -687,6 +728,7 @@ export function OrderModal({
                 <TabsContent value="logistica" className="mt-4">
                   {activeTab === "logistica" && (
                     <LogisticaTab
+                      ref={logisticaRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("logistica", isDirty)}
@@ -697,6 +739,7 @@ export function OrderModal({
                 <TabsContent value="facturacion" className="mt-4">
                   {activeTab === "facturacion" && (
                     <FacturacionTab
+                      ref={facturacionRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("facturacion", isDirty)}
@@ -707,6 +750,7 @@ export function OrderModal({
                 <TabsContent value="financiera" className="mt-4">
                   {activeTab === "financiera" && (
                     <FinancieraTab
+                      ref={financieraRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("financiera", isDirty)}
@@ -715,14 +759,20 @@ export function OrderModal({
                 </TabsContent>
               </div>
 
-              {/* Footer con botón de avanzar - FIJO al fondo - USA FASE REAL DE LA ORDEN */}
+              {/* Footer con botones de guardar y avanzar - FIJO al fondo */}
               {(() => {
                 const currentFaseUI = FASE_TO_UI[order.fase as FaseOrdenDB] ?? "comercial";
                 const nextFase = NEXT_FASE[currentFaseUI];
                 const canAdvance = nextFase && canUserEditFase(order.fase as FaseOrdenDB);
                 const hasDirtyChanges = tabDirtyStates[currentFaseUI];
 
-                return canAdvance ? (
+                // El botón de guardar se muestra para tabs que tienen ref (no comercial)
+                const activeTabHasRef = activeTab in tabRefs;
+                const activeTabIsDirty = tabDirtyStates[activeTab];
+                const showSaveButton = activeTabHasRef && activeTabIsDirty;
+
+                // Mostrar footer si hay botón de guardar O botón de avanzar
+                return (showSaveButton || canAdvance) ? (
                   <div className="border-t bg-background px-6 py-4 shrink-0">
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-sm text-muted-foreground">
@@ -731,20 +781,36 @@ export function OrderModal({
                             <AlertTriangle className="w-4 h-4" />
                             Debes guardar los cambios antes de avanzar
                           </span>
-                        ) : (
+                        ) : canAdvance ? (
                           <>¿Completaste todas las tareas de <strong>{STAGE_UI[currentFaseUI].label}</strong>?</>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {showSaveButton && (
+                          <Button
+                            onClick={handleSaveFromFooter}
+                            variant="outline"
+                            size="lg"
+                            className="gap-2 shadow-sm"
+                            disabled={isSavingFromFooter}
+                          >
+                            <Save className="w-4 h-4" />
+                            {isSavingFromFooter ? "Guardando..." : "Guardar Cambios"}
+                          </Button>
+                        )}
+                        {canAdvance && (
+                          <Button
+                            onClick={handleAdvanceStageClick}
+                            size="lg"
+                            className="gap-2 shadow-sm"
+                            disabled={isAdvancing || hasDirtyChanges}
+                            title={hasDirtyChanges ? "Guarda los cambios antes de avanzar" : undefined}
+                          >
+                            {isAdvancing ? "Avanzando..." : `Avanzar a ${STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}`}
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
                         )}
                       </div>
-                      <Button
-                        onClick={handleAdvanceStageClick}
-                        size="lg"
-                        className="gap-2 shadow-sm"
-                        disabled={isAdvancing || hasDirtyChanges}
-                        title={hasDirtyChanges ? "Guarda los cambios antes de avanzar" : undefined}
-                      >
-                        {isAdvancing ? "Avanzando..." : `Avanzar a ${STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}`}
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
                     </div>
                   </div>
                 ) : null;

@@ -12,7 +12,7 @@
  * - Última fase del flujo Kanban
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -53,7 +53,11 @@ interface LogisticaInitialState {
   observacionesProceso: string;
 }
 
-export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaTabProps) {
+export interface TabSaveHandle {
+  save: () => Promise<void>;
+}
+
+export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(function LogisticaTab({ order, onUpdateOrder, onDirtyChange }, ref) {
   // Estado para despacho_orden
   const [valorFlete, setValorFlete] = useState("");
   const [numeroGuia, setNumeroGuia] = useState("");
@@ -328,6 +332,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       setSaving(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
 
   const handleCerrarOrden = () => {
     if (!canClose) {
@@ -694,15 +700,8 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
         </Alert>
       )}
 
-      {/* Botones de acción */}
+      {/* Botón de cerrar orden (acción especial de logística) */}
       <div className="flex gap-3 justify-end pt-4 border-t">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          variant="outline"
-        >
-          Guardar Cambios
-        </Button>
         <Button
           onClick={handleCerrarOrden}
           disabled={!canClose || saving}
@@ -736,4 +735,4 @@ export function LogisticaTab({ order, onUpdateOrder, onDirtyChange }: LogisticaT
       />
     </div>
   );
-}
+});

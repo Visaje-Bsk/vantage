@@ -11,15 +11,14 @@
  * - Fecha de producción (auto-generada)
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrdenKanban } from "@/types/kanban";
-import { Settings, CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { CheckCircle2, AlertCircle, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 
@@ -28,13 +27,17 @@ import { useDataGateValidation } from "@/hooks/useDataGateValidation";
 import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
 import type { FaseOrdenDB } from "@/types/kanban";
 
+export interface TabSaveHandle {
+  save: () => Promise<void>;
+}
+
 interface ProduccionTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
 }
 
-export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: ProduccionTabProps) {
+export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(function ProduccionTab({ order, onUpdateOrder, onDirtyChange }, ref) {
   const [observaciones, setObservaciones] = useState("");
   const [numeroProduccion, setNumeroProduccion] = useState("");
   const [saving, setSaving] = useState(false);
@@ -112,19 +115,36 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Crear o actualizar orden_produccion
-      const { error } = await supabase
+      // Verificar si ya existe un registro de producción
+      const { data: existing } = await supabase
         .from('orden_produccion')
-        .upsert({
-          id_orden_pedido: order.id_orden_pedido,
-          observaciones_produccion: observaciones,
-          numero_produccion: numeroProduccion,
-          fecha_produccion: new Date().toISOString(),
-        }, {
-          onConflict: 'id_orden_pedido'
-        });
+        .select('id_orden_produccion')
+        .eq('id_orden_pedido', order.id_orden_pedido)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (existing) {
+        // UPDATE existente
+        const { error } = await supabase
+          .from('orden_produccion')
+          .update({
+            observaciones_produccion: observaciones,
+            numero_produccion: numeroProduccion,
+            fecha_produccion: new Date().toISOString(),
+          })
+          .eq('id_orden_produccion', existing.id_orden_produccion);
+        if (error) throw error;
+      } else {
+        // INSERT nuevo
+        const { error } = await supabase
+          .from('orden_produccion')
+          .insert({
+            id_orden_pedido: order.id_orden_pedido,
+            observaciones_produccion: observaciones,
+            numero_produccion: numeroProduccion,
+            fecha_produccion: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
 
       // Actualizar fecha de modificación de la orden
       await supabase
@@ -144,49 +164,7 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
     }
   };
 
-  const handleAvanzarFinanciera = async () => {
-    if (!canAdvance) {
-      alert('Debe completar las observaciones y el número de producción antes de avanzar');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Primero guardar los datos de producción
-      await supabase
-        .from('orden_produccion')
-        .upsert({
-          id_orden_pedido: order.id_orden_pedido,
-          observaciones_produccion: observaciones,
-          numero_produccion: numeroProduccion,
-          fecha_produccion: new Date().toISOString(),
-        }, {
-          onConflict: 'id_orden_pedido'
-        });
-
-      // Avanzar fase a Financiera
-      const { error } = await supabase
-        .from('orden_pedido')
-        .update({
-          fase: 'financiera',
-          fecha_modificacion: new Date().toISOString(),
-        })
-        .eq('id_orden_pedido', order.id_orden_pedido);
-
-      if (error) throw error;
-
-      // Marcar como limpio
-      setInitialState({ observaciones, numeroProduccion });
-
-      onUpdateOrder(order.id_orden_pedido, { fase: 'financiera' });
-      alert('Orden enviada a Financiera exitosamente');
-    } catch (error) {
-      console.error('Error avanzando a Financiera:', error);
-      alert('Error al avanzar a Financiera');
-    } finally {
-      setSaving(false);
-    }
-  };
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
 
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
@@ -260,23 +238,6 @@ export function ProduccionTab({ order, onUpdateOrder, onDirtyChange }: Produccio
         </Alert>
       )}
 
-      {/* Botones de acción */}
-      <div className="flex gap-3 justify-end pt-4 border-t">
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          variant="outline"
-        >
-          Guardar Cambios
-        </Button>
-        <Button
-          onClick={handleAvanzarFinanciera}
-          disabled={!canAdvance || saving}
-          className="bg-success hover:bg-success/90"
-        >
-          {canAdvance ? 'Enviar a Financiera' : 'Completar Campos'}
-        </Button>
-      </div>
     </div>
   );
-}
+});

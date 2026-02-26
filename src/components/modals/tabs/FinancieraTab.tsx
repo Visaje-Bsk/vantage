@@ -14,9 +14,8 @@
  * - Avanza a Facturación solo si estado = OK o N/A
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -91,7 +90,11 @@ interface FinancieraInitialState {
   observaciones: string;
 }
 
-export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: FinancieraTabProps) {
+export interface TabSaveHandle {
+  save: () => Promise<void>;
+}
+
+export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(function FinancieraTab({ order, onUpdateOrder, onDirtyChange }, ref) {
   const [estadoValidacionPago, setEstadoValidacionPago] = useState<EstadoValidacionPago>("");
   const [medioPago, setMedioPago] = useState<MedioPago>("");
   const [idTipoPago, setIdTipoPago] = useState<string>("");
@@ -238,52 +241,7 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
     }
   };
 
-  const handleAvanzarFacturacion = async () => {
-    if (!canAdvance) {
-      toast.error('El estado de validación debe ser "OK" o "N/A" para avanzar a Facturación');
-      return;
-    }
-
-    if (!canSave) {
-      toast.error('Complete los campos obligatorios antes de avanzar');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Guardar todos los campos financieros y avanzar fase
-      const { error } = await supabase
-        .from('orden_pedido')
-        .update({
-          estado_validacion_pago: estadoValidacionPago || null,
-          medio_pago: medioPago || null,
-          id_tipo_pago: idTipoPago ? parseInt(idTipoPago) : null,
-          pago_flete: pagoFlete || null,
-          observaciones_financieras: observaciones,
-          fase: 'facturacion',
-          fecha_modificacion: new Date().toISOString(),
-        })
-        .eq('id_orden_pedido', order.id_orden_pedido);
-
-      if (error) throw error;
-
-      setInitialState({
-        estadoValidacionPago,
-        medioPago,
-        idTipoPago,
-        pagoFlete,
-        observaciones,
-      });
-
-      onUpdateOrder(order.id_orden_pedido, { fase: 'facturacion' });
-      toast.success('Orden enviada a Facturación exitosamente');
-    } catch (error) {
-      console.error('Error avanzando a Facturación:', error);
-      toast.error('Error al avanzar a Facturación');
-    } finally {
-      setSaving(false);
-    }
-  };
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
 
   if (isInitialLoading) {
     return <TabLoadingSkeleton />;
@@ -464,25 +422,6 @@ export function FinancieraTab({ order, onUpdateOrder, onDirtyChange }: Financier
         </Alert>
       )}
 
-      {/* Botones de acción */}
-      <div className="flex gap-3 justify-end pt-4 border-t">
-        <Button
-          onClick={handleSave}
-          disabled={saving || !canSave}
-          variant="outline"
-        >
-          Guardar Cambios
-        </Button>
-        <Button
-          onClick={handleAvanzarFacturacion}
-          disabled={!canAdvance || !canSave || saving}
-          className="bg-success hover:bg-success/90"
-        >
-          {canAdvance && canSave
-            ? '✓ Enviar a Facturación'
-            : 'Completar Validación'}
-        </Button>
-      </div>
     </div>
   );
-}
+});
