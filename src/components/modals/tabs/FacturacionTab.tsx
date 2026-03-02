@@ -29,6 +29,7 @@ interface FacturacionTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  readOnly?: boolean;
 }
 
 // Tipos de factura disponibles
@@ -69,7 +70,7 @@ export interface TabSaveHandle {
   save: () => Promise<void>;
 }
 
-export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(function FacturacionTab({ order, onUpdateOrder, onDirtyChange }, ref) {
+export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(function FacturacionTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
   // Estado para las facturas (una por cada tipo)
   const [facturas, setFacturas] = useState<FacturaData[]>([]);
   const [saving, setSaving] = useState(false);
@@ -266,7 +267,7 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
     }
   };
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+  useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [handleSave, readOnly]);
 
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
@@ -274,7 +275,7 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Facturas por tipo */}
       {activeTipos.map((tipo) => {
         const factura = facturas.find((f) => f.tipo_factura === tipo);
@@ -287,14 +288,14 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
 
         return (
           <Card key={tipo} className={isComplete ? "border-success/50" : ""}>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <IconComponent className="h-4 w-4" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <IconComponent className="h-3.5 w-3.5" />
                   {config.label}
-                  {isComplete && <CheckCircle2 className="h-4 w-4 text-success" />}
+                  {isComplete && <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
                 </span>
-                {activeTipos.length > 1 && (
+                {activeTipos.length > 1 && !readOnly && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -306,43 +307,46 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <CardContent className="space-y-2 pt-0">
+              <div className="grid grid-cols-2 gap-2">
                 {/* Número de Factura */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1.5 text-xs">
                     Número de Factura <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     placeholder="FE-2024-001234"
                     value={factura.numero_factura}
                     onChange={(e) => updateFactura(tipo, "numero_factura", e.target.value)}
+                    disabled={readOnly}
                   />
                 </div>
 
                 {/* Fecha de Factura */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <Calendar className="h-3 w-3" />
                     Fecha de Factura <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     type="date"
                     value={factura.fecha_factura}
                     onChange={(e) => updateFactura(tipo, "fecha_factura", e.target.value)}
+                    disabled={readOnly}
                   />
                 </div>
               </div>
 
               {/* Moneda Base */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1.5 text-xs">
+                  <DollarSign className="h-3 w-3" />
                   Moneda Base <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={factura.moneda_base}
                   onValueChange={(value) => updateFactura(tipo, "moneda_base", value)}
+                  disabled={readOnly}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar moneda" />
@@ -356,15 +360,15 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
 
               {/* TRM - Solo si es USD */}
               {needsTrm && (
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="font-semibold">TRM (Obligatoria para USD)</span>
+                <div className="space-y-2 p-2 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    <span className="text-xs font-semibold">TRM (Obligatoria para USD)</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-1.5 text-xs">
                         TRM Aplicada <span className="text-destructive">*</span>
                       </Label>
                       <Input
@@ -373,18 +377,20 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
                         placeholder="4375.86"
                         value={factura.trm_aplicada}
                         onChange={(e) => updateFactura(tipo, "trm_aplicada", e.target.value)}
+                        disabled={readOnly}
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-1.5 text-xs">
+                        <Calendar className="h-3 w-3" />
                         Fecha de TRM <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         type="date"
                         value={factura.fecha_trm}
                         onChange={(e) => updateFactura(tipo, "fecha_trm", e.target.value)}
+                        disabled={readOnly}
                       />
                     </div>
                   </div>
@@ -396,7 +402,7 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
       })}
 
       {/* Botón para agregar más tipos de factura */}
-      {availableTipos.length > 0 && (
+      {availableTipos.length > 0 && !readOnly && (
         <div className="flex gap-2 flex-wrap">
           <span className="text-sm text-muted-foreground py-2">Agregar factura:</span>
           {availableTipos.map((tipo) => {

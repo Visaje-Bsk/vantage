@@ -80,6 +80,7 @@ interface FinancieraTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  readOnly?: boolean;
 }
 
 interface FinancieraInitialState {
@@ -94,7 +95,7 @@ export interface TabSaveHandle {
   save: () => Promise<void>;
 }
 
-export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(function FinancieraTab({ order, onUpdateOrder, onDirtyChange }, ref) {
+export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(function FinancieraTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
   const [estadoValidacionPago, setEstadoValidacionPago] = useState<EstadoValidacionPago>("");
   const [medioPago, setMedioPago] = useState<MedioPago>("");
   const [idTipoPago, setIdTipoPago] = useState<string>("");
@@ -241,30 +242,31 @@ export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(funct
     }
   };
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+  useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [handleSave, readOnly]);
 
   if (isInitialLoading) {
     return <TabLoadingSkeleton />;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Estado de Validación de Pago */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" />
             Validación de Pago
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="estado-validacion" className="flex items-center gap-2">
+        <CardContent className="space-y-2 pt-0">
+          <div className="space-y-1">
+            <Label htmlFor="estado-validacion" className="flex items-center gap-1.5 text-xs">
               Estado de Validación <span className="text-destructive">*</span>
             </Label>
             <Select
               value={estadoValidacionPago}
               onValueChange={(value) => setEstadoValidacionPago(value as EstadoValidacionPago)}
+              disabled={readOnly}
             >
               <SelectTrigger id="estado-validacion">
                 <SelectValue placeholder="Seleccionar estado" />
@@ -286,20 +288,21 @@ export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(funct
 
       {/* Medio de Pago */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Wallet className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Wallet className="h-3.5 w-3.5" />
             Medio de Pago
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="medio-pago" className="flex items-center gap-2">
+        <CardContent className="space-y-2 pt-0">
+          <div className="space-y-1">
+            <Label htmlFor="medio-pago" className="flex items-center gap-1.5 text-xs">
               Medio de Pago <span className="text-destructive">*</span>
             </Label>
             <Select
               value={medioPago}
               onValueChange={(value) => setMedioPago(value as MedioPago)}
+              disabled={readOnly}
             >
               <SelectTrigger id="medio-pago">
                 <SelectValue placeholder="Seleccionar medio de pago" />
@@ -318,20 +321,21 @@ export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(funct
 
       {/* Tipo de Pago */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Banknote className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Banknote className="h-3.5 w-3.5" />
             Tipo de Pago
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="tipo-pago" className="flex items-center gap-2">
+        <CardContent className="space-y-2 pt-0">
+          <div className="space-y-1">
+            <Label htmlFor="tipo-pago" className="flex items-center gap-1.5 text-xs">
               Tipo de Pago <span className="text-destructive">*</span>
             </Label>
             <Select
               value={idTipoPago}
               onValueChange={(value) => setIdTipoPago(value)}
+              disabled={readOnly}
             >
               <SelectTrigger id="tipo-pago">
                 <SelectValue placeholder="Seleccionar tipo de pago" />
@@ -350,18 +354,19 @@ export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(funct
 
       {/* Pago del Flete */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Truck className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Truck className="h-3.5 w-3.5" />
             Pago del Flete
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="pago-flete">Tipo de Pago del Flete</Label>
+        <CardContent className="space-y-2 pt-0">
+          <div className="space-y-1">
+            <Label htmlFor="pago-flete" className="text-xs">Tipo de Pago del Flete</Label>
             <Select
               value={pagoFlete}
               onValueChange={(value) => setPagoFlete(value as PagoFlete)}
+              disabled={readOnly}
             >
               <SelectTrigger id="pago-flete">
                 <SelectValue placeholder="Seleccionar tipo" />
@@ -379,14 +384,15 @@ export const FinancieraTab = forwardRef<TabSaveHandle, FinancieraTabProps>(funct
       </Card>
 
       {/* Observaciones Financieras */}
-      <div className="space-y-2">
-        <Label htmlFor="observaciones-financieras">Observaciones (Opcional)</Label>
+      <div className="space-y-1">
+        <Label htmlFor="observaciones-financieras" className="text-xs">Observaciones (Opcional)</Label>
         <Textarea
           id="observaciones-financieras"
           placeholder="Detalles del pago, referencia bancaria, notas adicionales..."
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
-          rows={4}
+          rows={3}
+          disabled={readOnly}
         />
       </div>
 

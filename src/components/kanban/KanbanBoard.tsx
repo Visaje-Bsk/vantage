@@ -273,7 +273,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
         <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-4">
           <div className="flex gap-3 h-full" style={{ minWidth: 'max-content' }}>
             {columns.map((column) => (
-              <div key={column.id} className="w-[210px] flex-shrink-0 flex flex-col h-full">
+              <div key={column.id} className="w-[220px] flex-shrink-0 flex flex-col h-full">
                 {/* Header columna */}
                 <div className={`${column.bgColor} border-l-4 ${column.borderColor} rounded-lg shadow-sm mb-3 px-3 py-2`}>
                   <div className="flex items-center justify-between">

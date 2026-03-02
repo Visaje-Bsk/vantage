@@ -40,7 +40,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, columnColor }) => {
   };
 
   return (
-    <div className="group relative bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-150 cursor-pointer overflow-hidden">
+    <div className="group relative bg-card border border-border/50 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-150 cursor-pointer" style={{ contain: 'paint' }}>
       {/* Barra lateral izquierda de color por fase */}
       <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${columnColor || 'bg-primary'}`} />
 
@@ -56,7 +56,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, columnColor }) => {
         </p>
 
         {/* Fila 3: Proyecto */}
-        <p className="text-[11px] text-muted-foreground truncate mb-2 min-h-[16px]">
+        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight mb-2 min-h-[16px]">
           {order.proyecto_nombre || ''}
         </p>
 

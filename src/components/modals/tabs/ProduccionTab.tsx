@@ -35,9 +35,10 @@ interface ProduccionTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  readOnly?: boolean;
 }
 
-export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(function ProduccionTab({ order, onUpdateOrder, onDirtyChange }, ref) {
+export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(function ProduccionTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
   const [observaciones, setObservaciones] = useState("");
   const [numeroProduccion, setNumeroProduccion] = useState("");
   const [saving, setSaving] = useState(false);
@@ -164,7 +165,7 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(funct
     }
   };
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+  useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [handleSave, readOnly]);
 
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
@@ -172,25 +173,25 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(funct
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Número de Producción Sapiens */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
             Orden de Producción
           </CardTitle>
         </CardHeader>
-        
+
         {/* Data Gates Validation */}
-        <DataGateAlert 
+        <DataGateAlert
           errors={dataGateValidation.errors}
           canAdvance={dataGateValidation.canAdvance}
           phaseName="Producción"
         />
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="numero-produccion" className="flex items-center gap-2">
+        <CardContent className="space-y-2 pt-0">
+          <div className="space-y-1">
+            <Label htmlFor="numero-produccion" className="flex items-center gap-1.5 text-xs">
               Número de OP <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -198,14 +199,15 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(funct
               placeholder="OP-2024-001234"
               value={numeroProduccion}
               onChange={(e) => setNumeroProduccion(e.target.value)}
+              disabled={readOnly}
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Observaciones de Producción */}
-      <div className="space-y-2">
-        <Label htmlFor="observaciones" className="flex items-center gap-2">
+      <div className="space-y-1">
+        <Label htmlFor="observaciones" className="flex items-center gap-1.5 text-xs">
           Observaciones de Producción <span className="text-destructive">*</span>
         </Label>
         <Textarea
@@ -213,7 +215,8 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(funct
           placeholder="Configuraciones realizadas y resultados de pruebas..."
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
-          rows={6}
+          rows={4}
+          disabled={readOnly}
         />
       </div>
 

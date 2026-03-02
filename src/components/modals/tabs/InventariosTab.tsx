@@ -25,6 +25,7 @@ interface InventariosTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  readOnly?: boolean;
 }
 
 // Interface para equipos cargados directamente de BD
@@ -40,7 +41,7 @@ export interface TabSaveHandle {
   save: () => Promise<void>;
 }
 
-export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(function InventariosTab({ order, onUpdateOrder, onDirtyChange }, ref) {
+export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(function InventariosTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
   const [stockValidado, setStockValidado] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
@@ -248,7 +249,7 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
     }
   };
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+  useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [handleSave, readOnly]);
 
   // Mostrar skeleton mientras carga
   if (isInitialLoading) {
@@ -259,41 +260,41 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
   const hasLineasServicio = lineasServicio.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Equipos de la orden */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Package className="w-4 h-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Package className="w-3.5 h-3.5" />
             Equipos en la Orden
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead className="bg-muted">
                 <tr>
-                  <th className="text-left p-3">Producto</th>
-                  <th className="text-left p-3">Código</th>
-                  <th className="text-right p-3">Cantidad</th>
-                  <th className="text-right p-3">Valor Unit.</th>
+                  <th className="text-left p-2">Producto</th>
+                  <th className="text-left p-2">Código</th>
+                  <th className="text-right p-2">Cantidad</th>
+                  <th className="text-right p-2">Valor Unit.</th>
                 </tr>
               </thead>
               <tbody>
                 {hasEquipos ? (
                   equipos.map((eq) => (
                     <tr key={eq.id_orden_detalle} className="border-t">
-                      <td className="p-3">{eq.nombre_equipo}</td>
-                      <td className="p-3">{eq.codigo}</td>
-                      <td className="text-right p-3">{eq.cantidad}</td>
-                      <td className="text-right p-3">
+                      <td className="p-2">{eq.nombre_equipo}</td>
+                      <td className="p-2">{eq.codigo}</td>
+                      <td className="text-right p-2">{eq.cantidad}</td>
+                      <td className="text-right p-2">
                         ${eq.valor_unitario.toLocaleString()}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="p-3 text-center text-muted-foreground">
+                    <td colSpan={4} className="p-2 text-center text-muted-foreground">
                       No hay equipos registrados
                     </td>
                   </tr>
@@ -306,18 +307,18 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
 
       {/* Líneas de Servicio */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Radio className="w-4 h-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Radio className="w-3.5 h-3.5" />
             Líneas de Servicio
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           {hasLineasServicio ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {lineasServicio.map((linea, idx) => (
-                <div key={idx} className="p-4 bg-muted/30 rounded-lg border">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div key={idx} className="p-2 bg-muted/30 rounded-lg border">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                     <div>
                       <span className="font-medium text-muted-foreground">Operador:</span>{" "}
                       <span className="font-semibold">{linea.operador_nombre}</span>
@@ -331,7 +332,7 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
                       <span>{linea.apn}</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mt-2 pt-2 border-t border-muted">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mt-1.5 pt-1.5 border-t border-muted">
                     <div>
                       <span className="font-medium text-muted-foreground">Permanencia:</span>{" "}
                       <span>{linea.permanencia} meses</span>
@@ -353,7 +354,7 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
               ))}
             </div>
           ) : (
-            <div className="p-4 text-center text-muted-foreground bg-muted/30 rounded-lg">
+            <div className="p-2 text-center text-xs text-muted-foreground bg-muted/30 rounded-lg">
               No hay líneas de servicio registradas
             </div>
           )}
@@ -362,23 +363,24 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
 
       {/* Checkbox de validación */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-start space-x-3 p-4 border rounded-lg bg-muted/30">
+        <CardContent className="pt-3">
+          <div className="flex items-start space-x-2 p-2 border rounded-lg bg-muted/30">
             <Checkbox
               id="stock-validado"
               checked={stockValidado}
               onCheckedChange={(checked) => setStockValidado(checked as boolean)}
               className="mt-1"
+              disabled={readOnly}
             />
             <div className="flex-1">
               <Label
                 htmlFor="stock-validado"
-                className="text-base font-semibold cursor-pointer flex items-center gap-2"
+                className="text-sm font-semibold cursor-pointer flex items-center gap-1.5"
               >
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-3.5 w-3.5" />
                 Stock Completo y Validado
               </Label>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Confirmo que he realizado el picking físico y que el stock del pedido está completo.
               </p>
             </div>
@@ -387,14 +389,15 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
       </Card>
 
       {/* Observaciones */}
-      <div className="space-y-2">
-        <Label htmlFor="observaciones">Observaciones (Opcional)</Label>
+      <div className="space-y-1">
+        <Label htmlFor="observaciones" className="text-xs">Observaciones (Opcional)</Label>
         <Textarea
           id="observaciones"
           placeholder="Agregue cualquier observación sobre el inventario..."
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
-          rows={4}
+          rows={3}
+          disabled={readOnly}
         />
       </div>
 

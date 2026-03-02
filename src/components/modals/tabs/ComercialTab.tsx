@@ -63,9 +63,10 @@ interface ComercialTabProps {
   onRequestClose?: () => void;
   onTabChange?: (canChange: boolean) => void;
   onUnsavedChangesChange?: (hasChanges: boolean) => void;
+  readOnly?: boolean;
 }
 
-export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange, onUnsavedChangesChange }: ComercialTabProps) {
+export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange, onUnsavedChangesChange, readOnly = false }: ComercialTabProps) {
   // ==================== HOOKS DE ESTADO ====================
 
   // Hooks compartidos
@@ -777,32 +778,34 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-lg">
-              <User className="w-5 h-5" />
+            <span className="flex items-center gap-1.5 text-sm">
+              <User className="w-3.5 h-3.5" />
               Información Comercial
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {editMode.isFieldsLocked && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Lock className="w-4 h-4" />
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Lock className="w-3 h-3" />
                   Campos bloqueados
                 </div>
               )}
 
               {!editMode.isEditMode ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleEditToggle}
-                  disabled={loading}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
+                !readOnly && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEditToggle}
+                    disabled={loading}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Editar
+                  </Button>
+                )
               ) : (
                 <div className="flex gap-2">
                   <Button
@@ -826,27 +829,27 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           phaseName="Comercial"
         />
         
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-3 pt-0">
           {!editMode.isEditMode ? (
             // ==================== MODO READONLY ====================
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <Building2 className="w-3 h-3" />
                     Cliente
                   </Label>
-                  <div className="p-3 bg-muted/50 rounded-md text-sm">
+                  <div className="p-2 bg-muted/50 rounded-md text-xs">
                     {display.displayData.cliente_nombre || "Sin asignar"}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4" />
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <FolderOpen className="w-3 h-3" />
                     Proyecto
                   </Label>
-                  <div className="p-3 bg-muted/50 rounded-md text-sm">
+                  <div className="p-2 bg-muted/50 rounded-md text-xs">
                     {display.displayData.proyecto_nombre || (
                       <span className="text-muted-foreground italic">No aplica</span>
                     )}
@@ -854,27 +857,27 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Ingeniero asignado</Label>
-                <div className="p-3 bg-muted/50 rounded-md text-sm">
+              <div className="space-y-1">
+                <Label className="text-xs">Ingeniero asignado</Label>
+                <div className="p-2 bg-muted/50 rounded-md text-xs">
                   {display.displayData.ingeniero_nombre || "Sin asignar"}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Código OC</Label>
-                <div className="p-3 bg-muted/50 rounded-md text-sm">
+              <div className="space-y-1">
+                <Label className="text-xs">Código OC</Label>
+                <div className="p-2 bg-muted/50 rounded-md text-xs">
                   {display.displayData.orden_compra || "Sin definir"}
                 </div>
               </div>
             </div>
           ) : (
             // ==================== MODO EDICIÓN ====================
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <Building2 className="w-3 h-3" />
                     Cliente
                   </Label>
                   <SearchableSelect
@@ -888,9 +891,9 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4" />
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <FolderOpen className="w-3 h-3" />
                     Proyecto
                   </Label>
                   <SearchableSelect
@@ -906,8 +909,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Ingeniero asignado</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Ingeniero asignado</Label>
                 <SearchableSelect
                   options={ingenieroOptions}
                   value={responsable.selectedResponsable || ""}
@@ -919,8 +922,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Código OC</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Código OC</Label>
                 <Input
                   type="text"
                   placeholder="Código de Orden de Compra"
@@ -933,8 +936,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
           {/* ==================== PRODUCTOS Y SERVICIOS ==================== */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Productos y Servicios</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Productos y Servicios</CardTitle></CardHeader>
+            <CardContent className="space-y-3 pt-0">
               {editMode.isEditMode ? (
                 // Modo edición - formularios interactivos
                 <>
@@ -1004,6 +1007,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
               ) : (
                 // Modo solo lectura - componente memoizado
                 <ReadonlyProductosServicios
+
                   productLines={products.productLines}
                   serviceLines={services.serviceLines}
                   operadores={comercialData.operadores}
@@ -1032,10 +1036,10 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
           />
 
           {/* ==================== OBSERVACIONES COMERCIALES ==================== */}
-          <div className="space-y-2">
-            <Label>Observaciones Comerciales</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Observaciones Comerciales</Label>
             {!editMode.isEditMode ? (
-              <div className="p-3 bg-muted/50 rounded-md text-sm min-h-[100px]">
+              <div className="p-2 bg-muted/50 rounded-md text-xs min-h-[60px]">
                 {display.displayData.observaciones || "Sin observaciones"}
               </div>
             ) : (
@@ -1043,7 +1047,7 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
                 value={form.formData.observaciones_orden}
                 onChange={(e) => form.updateField("observaciones_orden", e.target.value)}
                 placeholder="Observaciones comerciales, condiciones especiales, acuerdos..."
-                rows={4}
+                rows={3}
               />
             )}
           </div>
@@ -1053,8 +1057,8 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
       {/* ==================== BARRA DE GUARDADO ==================== */}
       {editMode.isEditMode && (
-        <div className="bg-muted/50 border rounded-lg p-4 mt-4">
-          <div className="flex items-center gap-4 flex-wrap">
+        <div className="bg-muted/50 border rounded-lg p-2 mt-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Alerta de Data Gate compacta */}
             {!dataGateValidation.canAdvance && dataGateValidation.errors.length > 0 && (
               <DataGateAlert
@@ -1067,16 +1071,16 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
 
             {/* Indicador de productos confirmados */}
             {hasConfirmedProducts && (
-              <div className="text-sm text-green-600 flex items-center gap-2 bg-green-50 px-3 py-2 rounded-md border border-green-200">
-                <CheckCircle2 className="w-4 h-4" />
+              <div className="text-xs text-green-600 flex items-center gap-1.5 bg-green-50 px-2 py-1 rounded-md border border-green-200">
+                <CheckCircle2 className="w-3 h-3" />
                 {confirmedProductsCount} equipo(s) confirmado(s)
               </div>
             )}
 
             {/* Indicador de líneas de servicio confirmadas */}
             {hasConfirmedServices && (
-              <div className="text-sm text-blue-600 flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-md border border-blue-200">
-                <CheckCircle2 className="w-4 h-4" />
+              <div className="text-xs text-blue-600 flex items-center gap-1.5 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">
+                <CheckCircle2 className="w-3 h-3" />
                 {confirmedServicesCount} línea(s) de servicio confirmada(s)
               </div>
             )}
@@ -1095,10 +1099,10 @@ export function ComercialTab({ order, onUpdateOrder, onRequestClose, onTabChange
               <Button
                 disabled={isSaving || !canSave}
                 variant="default"
-                size="lg"
-                className="min-w-[250px]"
+                size="sm"
+                className="min-w-[200px]"
               >
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-3.5 h-3.5 mr-1.5" />
                 {isSaving ? "Guardando..." : "Guardar Información Comercial"}
               </Button>
             </ConfirmDialog>

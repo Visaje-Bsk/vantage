@@ -230,6 +230,12 @@ export function OrderModal({
   const canUserEditFase = (fase: FaseOrdenDB) =>
     isAdmin || (currentUserRole === REQUIRED_ROLE_BY_FASE[fase]);
 
+  const canEditTab = (tabKey: OrdenStageUI): boolean => {
+    if (isAdmin) return true;
+    const tabFase = UI_TO_FASE[tabKey];
+    return tabFase === (order?.fase as FaseOrdenDB) && canUserEditFase(order?.fase as FaseOrdenDB);
+  };
+
   // Manejar duplicación de orden
   const handleDuplicate = async () => {
     if (!order) return;
@@ -504,29 +510,29 @@ export function OrderModal({
           }}
         >
           {/* Header mejorado con borde de fase */}
-          <div className={`border-l-8 ${stageMeta.borderColor}`}>
-            <DialogHeader className={`${stageMeta.bgColor} px-6 py-5 space-y-4`}>
-              {/* Primera fila: Título, badges y botón anular */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <DialogTitle className="text-2xl font-bold">
+          <div className={`border-l-4 ${stageMeta.borderColor}`}>
+            <DialogHeader className={`${stageMeta.bgColor} px-4 py-3 space-y-2`}>
+              {/* Primera fila: Título, badges y botones */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <DialogTitle className="text-base font-bold">
                   Orden #{order.consecutivo || order.id_orden_pedido}
                 </DialogTitle>
                 {/* Badge de clase de orden */}
                 {claseOrdenNombre && (
-                  <Badge variant="outline" className="font-medium px-3 py-1.5 text-sm">
+                  <Badge variant="outline" className="font-medium px-2 py-0.5 text-xs">
                     {claseOrdenNombre}
                   </Badge>
                 )}
                 {/* Badge de fase con diseño moderno */}
-                <div className={`${stageMeta.color} rounded-lg px-4 py-2 shadow-md`}>
-                  <span className="text-sm font-bold tracking-wide">
+                <div className={`${stageMeta.color} rounded px-2.5 py-1 shadow-sm`}>
+                  <span className="text-xs font-bold tracking-wide">
                     {stageMeta.label}
                   </span>
                 </div>
                 {/* Badge de estatus */}
                 <Badge
                   className={cn(
-                    "font-medium px-3 py-1.5 shadow-sm",
+                    "font-medium px-2 py-0.5 text-xs shadow-sm",
                     estMeta.color
                   )}
                 >
@@ -539,9 +545,9 @@ export function OrderModal({
                     size="sm"
                     onClick={handleDuplicate}
                     disabled={isDuplicating}
-                    className="ml-2"
+                    className="h-6 px-2 text-xs"
                   >
-                    <Copy className="w-4 h-4 mr-2" />
+                    <Copy className="w-3 h-3 mr-1" />
                     {isDuplicating ? 'Duplicando...' : 'Duplicar'}
                   </Button>
                 )}
@@ -551,10 +557,10 @@ export function OrderModal({
                     variant="destructive"
                     size="sm"
                     onClick={() => setShowAnularConfirm(true)}
-                    className="ml-2"
+                    className="h-6 px-2 text-xs"
                   >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Anular Orden
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Anular
                   </Button>
                 )}
               </div>
@@ -562,45 +568,45 @@ export function OrderModal({
             <Separator />
 
             {/* Segunda fila: Información en grid responsive */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-              <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs text-muted-foreground font-medium">Cliente</span>
-                  <span className="font-semibold truncate">
+                  <span className="text-[10px] text-muted-foreground font-medium">Cliente</span>
+                  <span className="text-xs font-semibold truncate">
                     {order.nombre_cliente || "Sin asignar"}
                   </span>
                 </div>
               </div>
 
               {order.proyecto_nombre && (
-                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-muted-foreground font-medium">Proyecto</span>
-                    <span className="font-semibold truncate">
+                    <span className="text-[10px] text-muted-foreground font-medium">Proyecto</span>
+                    <span className="text-xs font-semibold truncate">
                       {order.proyecto_nombre}
                     </span>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                <User className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs text-muted-foreground font-medium">Comercial</span>
-                  <span className="font-semibold truncate">
+                  <span className="text-[10px] text-muted-foreground font-medium">Comercial</span>
+                  <span className="text-xs font-semibold truncate">
                     {createdByName || "Sin asignar"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs text-muted-foreground font-medium">Creada</span>
-                  <span className="font-semibold">
-                    {order.fecha_creacion 
+                  <span className="text-[10px] text-muted-foreground font-medium">Creada</span>
+                  <span className="text-xs font-semibold">
+                    {order.fecha_creacion
                       ? new Date(order.fecha_creacion).toLocaleDateString('es-ES', {
                           day: '2-digit',
                           month: 'short',
@@ -613,11 +619,11 @@ export function OrderModal({
               </div>
 
               {wasUpdated && (
-                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                  <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-muted-foreground font-medium">Actualizada</span>
-                    <span className="font-semibold">
+                    <span className="text-[10px] text-muted-foreground font-medium">Actualizada</span>
+                    <span className="text-xs font-semibold">
                       {new Date(order.fecha_modificacion!).toLocaleDateString('es-ES', {
                         day: '2-digit',
                         month: 'short',
@@ -629,11 +635,11 @@ export function OrderModal({
               )}
 
               {order.nombre_tipo_servicio && (
-                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                  <Tag className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                  <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-muted-foreground font-medium">Servicio</span>
-                    <span className="font-semibold truncate">
+                    <span className="text-[10px] text-muted-foreground font-medium">Servicio</span>
+                    <span className="text-xs font-semibold truncate">
                       {order.nombre_tipo_servicio}
                     </span>
                   </div>
@@ -641,11 +647,11 @@ export function OrderModal({
               )}
 
               {order.orden_compra && (
-                <div className="flex items-center gap-2 p-2.5 rounded-md bg-background/50 border">
-                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex items-center gap-1.5 p-1.5 rounded-md bg-background/50 border">
+                  <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-muted-foreground font-medium">Orden de Compra</span>
-                    <span className="font-semibold truncate">
+                    <span className="text-[10px] text-muted-foreground font-medium">Orden de Compra</span>
+                    <span className="text-xs font-semibold truncate">
                       {order.orden_compra}
                     </span>
                   </div>
@@ -663,38 +669,42 @@ export function OrderModal({
               className="flex-1 flex flex-col overflow-hidden"
             >
               {/* Tabs FIJAS (no scrollean) */}
-              <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1 mx-6 mt-4 mb-2 h-auto p-1 bg-muted/50 shrink-0">
+              <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-0.5 mx-4 mt-2 mb-1 h-auto p-0.5 bg-muted/50 shrink-0">
                 {Object.entries(STAGE_UI).map(([key, config]) => {
                   const Icon = config.icon ?? User;
                   const isActive = activeTab === key;
+                  const tabEditable = canEditTab(key as OrdenStageUI);
                   return (
-                    <TabsTrigger 
-                      key={key} 
+                    <TabsTrigger
+                      key={key}
                       value={key}
+                      title={!tabEditable ? "Solo lectura" : undefined}
                       className={cn(
-                        "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2",
-                        "px-2 py-2 sm:px-3 sm:py-2.5",
-                        "text-xs sm:text-sm font-medium",
+                        "flex flex-row items-center justify-center gap-1",
+                        "px-1.5 py-1.5",
+                        "text-xs font-medium",
                         "transition-all duration-200",
                         "data-[state=active]:bg-background data-[state=active]:shadow-sm",
-                        isActive && "ring-2 ring-primary/20"
+                        isActive && "ring-2 ring-primary/20",
+                        !tabEditable && "opacity-50"
                       )}
                     >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate text-center sm:text-left">{config.label}</span>
+                      <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{config.label}</span>
                     </TabsTrigger>
                   );
                 })}
               </TabsList>
 
               {/* Contenido SCROLLEABLE con fondo gris — Lazy mount: solo el tab activo se monta */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 bg-black/10 border-radius ">
-                <TabsContent value="comercial" className="mt-4">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 bg-black/10">
+                <TabsContent value="comercial" className="mt-3">
                   {activeTab === "comercial" && (
                     <ComercialTab
                       order={order}
                       onUpdateOrder={onUpdateOrder}
                       onRequestClose={handleClose}
+                      readOnly={!canEditTab("comercial")}
                       onUnsavedChangesChange={(isDirty) => {
                         setHasUnsavedChanges(isDirty);
                         handleTabDirtyChange("comercial", isDirty);
@@ -703,56 +713,61 @@ export function OrderModal({
                   )}
                 </TabsContent>
 
-                <TabsContent value="inventarios" className="mt-4">
+                <TabsContent value="inventarios" className="mt-3">
                   {activeTab === "inventarios" && (
                     <InventariosTab
                       ref={inventariosRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
+                      readOnly={!canEditTab("inventarios")}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("inventarios", isDirty)}
                     />
                   )}
                 </TabsContent>
 
-                <TabsContent value="produccion" className="mt-4">
+                <TabsContent value="produccion" className="mt-3">
                   {activeTab === "produccion" && (
                     <ProduccionTab
                       ref={produccionRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
+                      readOnly={!canEditTab("produccion")}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("produccion", isDirty)}
                     />
                   )}
                 </TabsContent>
 
-                <TabsContent value="logistica" className="mt-4">
+                <TabsContent value="logistica" className="mt-3">
                   {activeTab === "logistica" && (
                     <LogisticaTab
                       ref={logisticaRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
+                      readOnly={!canEditTab("logistica")}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("logistica", isDirty)}
                     />
                   )}
                 </TabsContent>
 
-                <TabsContent value="facturacion" className="mt-4">
+                <TabsContent value="facturacion" className="mt-3">
                   {activeTab === "facturacion" && (
                     <FacturacionTab
                       ref={facturacionRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
+                      readOnly={!canEditTab("facturacion")}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("facturacion", isDirty)}
                     />
                   )}
                 </TabsContent>
 
-                <TabsContent value="financiera" className="mt-4">
+                <TabsContent value="financiera" className="mt-3">
                   {activeTab === "financiera" && (
                     <FinancieraTab
                       ref={financieraRef}
                       order={order}
                       onUpdateOrder={onUpdateOrder}
+                      readOnly={!canEditTab("financiera")}
                       onDirtyChange={(isDirty) => handleTabDirtyChange("financiera", isDirty)}
                     />
                   )}
@@ -773,41 +788,41 @@ export function OrderModal({
 
                 // Mostrar footer si hay botón de guardar O botón de avanzar
                 return (showSaveButton || canAdvance) ? (
-                  <div className="border-t bg-background px-6 py-4 shrink-0">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="text-sm text-muted-foreground">
+                  <div className="border-t bg-background px-4 py-2 shrink-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-muted-foreground">
                         {hasDirtyChanges ? (
-                          <span className="flex items-center gap-2 text-amber-600">
-                            <AlertTriangle className="w-4 h-4" />
-                            Debes guardar los cambios antes de avanzar
+                          <span className="flex items-center gap-1.5 text-amber-600">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            Guarda los cambios antes de avanzar
                           </span>
                         ) : canAdvance ? (
                           <>¿Completaste todas las tareas de <strong>{STAGE_UI[currentFaseUI].label}</strong>?</>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         {showSaveButton && (
                           <Button
                             onClick={handleSaveFromFooter}
                             variant="outline"
-                            size="lg"
-                            className="gap-2 shadow-sm"
+                            size="sm"
+                            className="gap-1.5 shadow-sm"
                             disabled={isSavingFromFooter}
                           >
-                            <Save className="w-4 h-4" />
+                            <Save className="w-3.5 h-3.5" />
                             {isSavingFromFooter ? "Guardando..." : "Guardar Cambios"}
                           </Button>
                         )}
                         {canAdvance && (
                           <Button
                             onClick={handleAdvanceStageClick}
-                            size="lg"
-                            className="gap-2 shadow-sm"
+                            size="sm"
+                            className="gap-1.5 shadow-sm"
                             disabled={isAdvancing || hasDirtyChanges}
                             title={hasDirtyChanges ? "Guarda los cambios antes de avanzar" : undefined}
                           >
                             {isAdvancing ? "Avanzando..." : `Avanzar a ${STAGE_UI[uiTabFromFase(nextFase as FaseOrdenDB)].label}`}
-                            <ArrowRight className="w-4 h-4" />
+                            <ArrowRight className="w-3.5 h-3.5" />
                           </Button>
                         )}
                       </div>

@@ -38,6 +38,7 @@ interface LogisticaTabProps {
   order: OrdenKanban;
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  readOnly?: boolean;
 }
 
 const MAX_REMISIONES = 5;
@@ -57,7 +58,7 @@ export interface TabSaveHandle {
   save: () => Promise<void>;
 }
 
-export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(function LogisticaTab({ order, onUpdateOrder, onDirtyChange }, ref) {
+export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(function LogisticaTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
   // Estado para despacho_orden
   const [valorFlete, setValorFlete] = useState("");
   const [numeroGuia, setNumeroGuia] = useState("");
@@ -333,7 +334,7 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
     }
   };
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+  useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [handleSave, readOnly]);
 
   const handleCerrarOrden = () => {
     if (!canClose) {
@@ -467,16 +468,16 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Remisiones - Arriba de la información de despacho */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
             Remisiones
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2 pt-0">
           <div className="flex flex-wrap items-end gap-3">
             {remisiones.slice(0, remisionCount).map((remision, index) => (
               <div key={index} className="space-y-2">
@@ -498,8 +499,9 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
                       setRemisiones(updated);
                     }}
                     className="w-32"
+                    disabled={readOnly}
                   />
-                  {index > 0 && (
+                  {index > 0 && !readOnly && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -518,7 +520,7 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
                 </div>
               </div>
             ))}
-            {remisionCount < MAX_REMISIONES && (
+            {remisionCount < MAX_REMISIONES && !readOnly && (
               <Button
                 type="button"
                 variant="outline"
@@ -539,17 +541,17 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
 
       {/* Despacho y Flete */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Truck className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Truck className="h-3.5 w-3.5" />
             Información de Despacho
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-2 pt-0">
           {/* Valor del Flete */}
-          <div className="space-y-2">
-            <Label htmlFor="valor-flete" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
+          <div className="space-y-1">
+            <Label htmlFor="valor-flete" className="flex items-center gap-1.5 text-xs">
+              <DollarSign className="h-3 w-3" />
               Valor del Flete <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -559,12 +561,13 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
               placeholder="50000"
               value={valorFlete}
               onChange={(e) => setValorFlete(e.target.value)}
+              disabled={readOnly}
             />
           </div>
 
           {/* Número de Guía */}
-          <div className="space-y-2">
-            <Label htmlFor="numero-guia" className="flex items-center gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="numero-guia" className="flex items-center gap-1.5 text-xs">
               Número de Guía <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -572,6 +575,7 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
               placeholder="Ej: SERV-2024-001234"
               value={numeroGuia}
               onChange={(e) => setNumeroGuia(e.target.value)}
+              disabled={readOnly}
             />
             <p className="text-xs text-muted-foreground">
               Número de seguimiento de la transportadora
@@ -579,13 +583,14 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
           </div>
 
           {/* Transportadora */}
-          <div className="space-y-2">
-            <Label htmlFor="id-transportadora" className="flex items-center gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="id-transportadora" className="flex items-center gap-1.5 text-xs">
               Transportadora <span className="text-destructive">*</span>
             </Label>
             <Select
               value={idTransportadora}
               onValueChange={(value) => setIdTransportadora(value)}
+              disabled={readOnly}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccione una transportadora" />
@@ -607,13 +612,14 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
           </div>
 
           {/* Fecha de Despacho */}
-          <div className="space-y-2">
-            <Label htmlFor="fecha-despacho">Fecha de Despacho</Label>
+          <div className="space-y-1">
+            <Label htmlFor="fecha-despacho" className="text-xs">Fecha de Despacho</Label>
             <Input
               id="fecha-despacho"
               type="datetime-local"
               value={fechaDespacho}
               onChange={(e) => setFechaDespacho(e.target.value)}
+              disabled={readOnly}
             />
             <p className="text-xs text-muted-foreground">
               Fecha y hora de recolección/envío (se auto-genera si se deja en blanco)
@@ -621,14 +627,15 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
           </div>
 
           {/* Observaciones Logística */}
-          <div className="space-y-2">
-            <Label htmlFor="observaciones-logistica">Observaciones de Logística (Opcional)</Label>
+          <div className="space-y-1">
+            <Label htmlFor="observaciones-logistica" className="text-xs">Observaciones de Logística (Opcional)</Label>
             <Textarea
               id="observaciones-logistica"
               placeholder="Instrucciones especiales de entrega, horarios, contactos..."
               value={observacionesLogistica}
               onChange={(e) => setObservacionesLogistica(e.target.value)}
-              rows={3}
+              rows={2}
+              disabled={readOnly}
             />
           </div>
         </CardContent>
@@ -636,16 +643,16 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
 
       {/* Entrega al Cliente */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5" />
             Entrega al Cliente
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-2 pt-0">
           {/* Fecha de Entrega al Cliente */}
-          <div className="space-y-2">
-            <Label htmlFor="fecha-entrega-cliente" className="flex items-center gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="fecha-entrega-cliente" className="flex items-center gap-1.5 text-xs">
               Fecha de Entrega al Cliente <span className="text-destructive">*</span>
             </Label>
             <Input
@@ -653,6 +660,7 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
               type="datetime-local"
               value={fechaEntregaCliente}
               onChange={(e) => setFechaEntregaCliente(e.target.value)}
+              disabled={readOnly}
             />
             <p className="text-xs text-muted-foreground">
               Fecha y hora real en que el cliente recibió el pedido
@@ -660,9 +668,9 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
           </div>
 
           {/* Observaciones del Proceso */}
-          <div className="space-y-2">
-            <Label htmlFor="observaciones-proceso" className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
+          <div className="space-y-1">
+            <Label htmlFor="observaciones-proceso" className="flex items-center gap-1.5 text-xs">
+              <ClipboardList className="h-3 w-3" />
               Observaciones del Proceso <span className="text-destructive">*</span>
             </Label>
             <Textarea
@@ -670,7 +678,8 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
               placeholder="Resumen del proceso de entrega, incidencias, confirmación de recepción..."
               value={observacionesProceso}
               onChange={(e) => setObservacionesProceso(e.target.value)}
-              rows={4}
+              rows={3}
+              disabled={readOnly}
             />
             <p className="text-xs text-muted-foreground">
               Documento obligatorio de cierre del proceso completo
@@ -701,17 +710,19 @@ export const LogisticaTab = forwardRef<TabSaveHandle, LogisticaTabProps>(functio
       )}
 
       {/* Botón de cerrar orden (acción especial de logística) */}
-      <div className="flex gap-3 justify-end pt-4 border-t">
-        <Button
-          onClick={handleCerrarOrden}
-          disabled={!canClose || saving}
-          className="bg-success hover:bg-success/90"
-        >
-          {canClose
-            ? 'Cerrar Orden'
-            : 'Completar Campos Primero'}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex gap-2 justify-end pt-2 border-t">
+          <Button
+            onClick={handleCerrarOrden}
+            disabled={!canClose || saving}
+            className="bg-success hover:bg-success/90"
+          >
+            {canClose
+              ? 'Cerrar Orden'
+              : 'Completar Campos Primero'}
+          </Button>
+        </div>
+      )}
 
       {/* Modal de confirmación */}
       <ConfirmationDialog
