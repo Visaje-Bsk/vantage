@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { usePrefetchCatalogs } from '@/hooks/queries/usePrefetchCatalogs';
 
-export type AppRole = 'admin' | 'comercial' | 'inventarios' | 'produccion' | 'logistica' | 'facturacion' | 'financiera';
+export type AppRole = 'admin' | 'comercial' | 'inventarios' | 'produccion' | 'logistica' | 'facturacion' | 'financiera' | 'ingenieria';
 
 interface Profile {
   user_id: string;

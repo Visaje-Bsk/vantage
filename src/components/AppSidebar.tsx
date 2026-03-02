@@ -55,19 +55,19 @@ const menuItems: MenuItem[] = [
     title: 'Dashboard',
     icon: <LayoutDashboard className="w-5 h-5" />,
     href: '/dashboard',
-    roles: ['admin', 'comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera'],
+    roles: ['admin', 'comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera', 'ingenieria'],
   },
   {
     title: 'Órdenes',
     icon: <ShoppingCart className="w-5 h-5" />,
     href: '/ordenes',
-    roles: ['admin', 'comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera'],
+    roles: ['admin', 'comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera', 'ingenieria'],
   },
   {
     title: 'Historial',
     icon: <Archive className="w-5 h-5" />,
     href: '/ordenes/historial',
-    roles: ['admin', 'comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera'],
+    roles: ['admin', 'comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera', 'ingenieria'],
   },
   {
     title: 'Productos',
@@ -79,7 +79,7 @@ const menuItems: MenuItem[] = [
     title: 'Catálogos',
     icon: <Database className="w-5 h-5" />,
     href: '/catalogos',
-    roles: ['comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera'],
+    roles: ['comercial', 'inventarios', 'produccion', 'logistica', 'facturacion', 'financiera', 'ingenieria'],
   },
   {
     title: 'Administración',
