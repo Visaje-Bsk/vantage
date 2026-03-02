@@ -166,49 +166,49 @@ export function AppSidebar() {
       collapsible="icon"
       className="bg-sidebar border-r shadow-lg"
     >
-      {/* Header con branding mejorado */}
-      <SidebarHeader className={`border-b border-sidebar-border/50 ${state === "collapsed" ? "p-3" : "p-6"}`}>
-        <div className={`flex items-center ${state === "collapsed" ? "justify-center" : "space-x-3"}`}>
-          <img src="/favicon.ico" alt="Vantage" className="h-10 w-auto rounded-lg" />
+      {/* Header con branding */}
+      <SidebarHeader className={`border-b border-sidebar-border/50 ${state === "collapsed" ? "p-2" : "p-4"}`}>
+        <div className={`flex items-center ${state === "collapsed" ? "justify-center" : "space-x-2"}`}>
+          <img src="/favicon.ico" alt="Vantage" className="h-7 w-auto rounded-md" />
           {state === "collapsed" ? null : (
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold text-sidebar-foreground">Vantage</h1>
+              <h1 className="text-base font-bold text-sidebar-foreground">Vantage</h1>
               <p className="text-xs text-sidebar-foreground/60 font-medium">Órdenes de Pedido</p>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className={`${state === "collapsed" ? "px-3" : "px-4"} py-6`}>
-        {/* Información del usuario mejorada */}
+      <SidebarContent className={`${state === "collapsed" ? "px-2" : "px-3"} py-3`}>
+        {/* Información del usuario */}
         {state === "collapsed" ? null : profile && (
-          <div className="mb-6 p-4 bg-white/10 rounded-xl border border-white/10">
-            <div className="flex items-center space-x-3">
-              <Avatar className="h-10 w-10 ring-2 ring-white/20">
+          <div className="mb-3 p-3 bg-white/10 rounded-lg border border-white/10">
+            <div className="flex items-center space-x-2">
+              <Avatar className="h-8 w-8 ring-2 ring-white/20">
                 <AvatarImage src="/placeholder-avatar.jpg" alt={profile.nombre} />
-                <AvatarFallback className="bg-secondary text-white font-semibold">
+                <AvatarFallback className="bg-secondary text-white font-semibold text-xs">
                   {getUserInitials(profile.nombre)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2">
-                  <p className="text-sm font-semibold text-white truncate">
+                <div className="flex items-center space-x-1.5">
+                  <p className="text-xs font-semibold text-white truncate">
                     {capitalize(profile.nombre)}
                   </p>
                   <Badge
                     variant="secondary"
-                    className="text-xs px-2 py-0.5 rounded-full font-medium bg-white/20 text-white border-0"
+                    className="text-xs px-1.5 py-0 rounded-full font-medium bg-white/20 text-white border-0 leading-5"
                   >
                     {capitalize(profile.role || '')}
                   </Badge>
                 </div>
-                <div className="flex items-center space-x-1 mt-1">
+                <div className="flex items-center space-x-1 mt-0.5">
                   <Clock className="w-3 h-3 text-white/60" />
                   <p className="text-xs text-white/60 truncate">
                     {formatTime()} • COL
                   </p>
                 </div>
-                <p className="text-xs text-white/50 mt-0.5 capitalize truncate">
+                <p className="text-xs text-white/50 capitalize truncate">
                   {formatDate()}
                 </p>
               </div>
@@ -216,20 +216,20 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Menú de navegación mejorado con tabs blancos */}
+        {/* Menú de navegación */}
         <SidebarGroup>
-          <SidebarGroupLabel className="px-3 py-2 text-xs font-semibold text-white uppercase tracking-wider mb-2">
+          <SidebarGroupLabel className="px-2 py-1 text-xs font-semibold text-white uppercase tracking-wider mb-1">
             Navegación
           </SidebarGroupLabel>
-          <SidebarGroupContent className="mt-2">
-            <SidebarMenu className="space-y-2">
+          <SidebarGroupContent className="mt-1">
+            <SidebarMenu className="space-y-1">
               {userMenuItems.map((item) => {
                 const isItemActive = isLinkActive(item.href);
                 return (
                   <SidebarMenuItem key={item.title} className={state === "collapsed" ? "flex justify-center" : ""}>
                     <NavLink
                       to={item.href}
-                      className={`${state === "collapsed" ? "flex items-center justify-center w-12 h-12 p-4" : "flex items-center justify-between px-3 py-2.5"} rounded-lg transition-all duration-200 ${
+                      className={`${state === "collapsed" ? "flex items-center justify-center w-10 h-10 p-0" : "flex items-center justify-between px-3 py-2"} rounded-lg transition-all duration-200 ${
                         isItemActive
                           ? 'bg-[#0097a7] text-white font-semibold shadow-md'
                           : 'bg-white/90 text-gray-700 hover:bg-[#0097a7] hover:text-white hover:shadow-md'
@@ -241,8 +241,8 @@ export function AppSidebar() {
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center space-x-3">
-                            <div className="text-current">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-current [&>svg]:w-4 [&>svg]:h-4">
                               {item.icon}
                             </div>
                             <span className="font-medium text-sm text-current">{item.title}</span>
@@ -263,15 +263,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer mejorado */}
-      <SidebarFooter className={`border-t border-sidebar-border/50 ${state === "collapsed" ? "p-3 flex flex-col items-center" : "p-4"} space-y-2`}>
-        <SidebarTrigger className={`${state === "collapsed" ? "w-12 h-12 p-0" : "w-full h-10"} bg-white/90 text-gray-700 hover:bg-primary hover:text-white rounded-lg transition-all duration-200 shadow-sm flex items-center justify-center`} />
+      {/* Footer */}
+      <SidebarFooter className={`border-t border-sidebar-border/50 ${state === "collapsed" ? "p-2 flex flex-col items-center" : "p-3"} space-y-1.5`}>
+        <SidebarTrigger className={`${state === "collapsed" ? "w-10 h-10 p-0" : "w-full h-8"} bg-white/90 text-gray-700 hover:bg-primary hover:text-white rounded-lg transition-all duration-200 shadow-sm flex items-center justify-center [&>svg]:mx-auto`} />
         <Button
           variant="ghost"
           onClick={() => setShowLogoutConfirm(true)}
-          className={`${state === "collapsed" ? "w-12 h-12 p-0" : "w-full py-2.5 px-3 justify-start"} bg-white/90 text-gray-700 hover:bg-destructive hover:text-white rounded-lg transition-all duration-200 group shadow-sm flex items-center justify-center`}
+          className={`${state === "collapsed" ? "w-10 h-10 p-0" : "w-full h-8 py-0 px-3 justify-start"} bg-white/90 text-gray-700 hover:bg-destructive hover:text-white rounded-lg transition-all duration-200 group shadow-sm flex items-center gap-2`}
         >
-          <LogOut className={`${state === "collapsed" ? "w-5 h-5" : "w-4 h-4"} transition-colors duration-200 ${state === "collapsed" ? "" : "mr-3"}`} />
+          <LogOut className="w-4 h-4 transition-colors duration-200 shrink-0" />
           {state === "collapsed" ? null : (
             <span className="font-medium text-sm">
               Cerrar Sesión

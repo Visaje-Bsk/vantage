@@ -4,10 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { OrdenKanban, KanbanColumnType, OrdenStageUI, FaseOrdenDB, EstatusOrdenDB, UI_TO_FASE, STAGE_UI } from "@/types/kanban";
+import { OrdenKanban, KanbanColumnType, OrdenStageUI, FaseOrdenDB, EstatusOrdenDB, UI_TO_FASE, STAGE_UI, estatusBadge } from "@/types/kanban";
 import { OrderModal } from '../modals/OrderModal';
 import { OrderCard } from './OrderCard';
 import { NuevaOrdenModal } from './NuevaOrdenModal';
+import type { ViewMode } from '@/pages/Ordenes';
 
 interface KanbanBoardProps {
   onOrderClick: (order: OrdenKanban) => void;
@@ -16,9 +17,10 @@ interface KanbanBoardProps {
   isNuevaOrdenModalOpen: boolean;
   onNuevaOrdenModalChange: (open: boolean) => void;
   openOrderId?: number | null;
+  viewMode?: ViewMode;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, statusFilter, isNuevaOrdenModalOpen, onNuevaOrdenModalChange, openOrderId }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, statusFilter, isNuevaOrdenModalOpen, onNuevaOrdenModalChange, openOrderId, viewMode = 'columns' }) => {
   const { profile } = useAuth();
   const [allOrders, setAllOrders] = useState<OrdenKanban[]>([]); // Mantener todas las órdenes originales
   const [columns, setColumns] = useState<KanbanColumnType[]>([]);
@@ -265,56 +267,150 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
 
   return (
     <div className="h-full flex flex-col bg-background">
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
-        <div className="flex gap-4 min-w-max h-full">
-          {columns.map((column) => (
-            <div key={column.id} className="w-[340px] flex-shrink-0 h-full">
-              {/* Header de columna estilo moderno */}
-              <div className="flex flex-col h-full">
-                {/* Panel header moderno con gradiente y sombra */}
-                <div className={`${column.bgColor} border-l-4 ${column.borderColor} rounded-lg shadow-sm mb-4 p-4`}>
+
+      {/* ── VISTA COLUMNAS ── */}
+      {viewMode === 'columns' && (
+        <div className="flex-1 overflow-x-auto overflow-y-hidden px-4 py-4">
+          <div className="flex gap-3 h-full" style={{ minWidth: 'max-content' }}>
+            {columns.map((column) => (
+              <div key={column.id} className="w-[210px] flex-shrink-0 flex flex-col h-full">
+                {/* Header columna */}
+                <div className={`${column.bgColor} border-l-4 ${column.borderColor} rounded-lg shadow-sm mb-3 px-3 py-2`}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`${column.color} rounded-lg px-3 py-1.5 shadow-sm`}>
-                        <h3 className="text-sm font-bold tracking-wide">
-                          {column.title}
-                        </h3>
-                      </div>
+                    <div className={`${column.color} rounded-md px-2 py-1 shadow-sm`}>
+                      <h3 className="text-xs font-bold tracking-wide">{column.title}</h3>
                     </div>
-                    <Badge
-                      className={`${column.color} rounded-full h-7 min-w-[28px] px-2.5 font-semibold shadow-sm`}
-                    >
+                    <Badge className={`${column.color} rounded-full h-5 min-w-[20px] px-2 text-xs font-semibold shadow-sm`}>
                       {column.orders.length}
                     </Badge>
                   </div>
                 </div>
-
-                {/* Cards container */}
-                <ScrollArea className="flex-1 pr-2">
-                  <div className="space-y-3">
+                {/* Cards */}
+                <ScrollArea className="flex-1 pr-1">
+                  <div className="space-y-2">
                     {column.orders.map((order) => (
-                      <div
-                        key={order.id_orden_pedido}
-                        onClick={() => handleOrderClick(order)}
-                        className="cursor-pointer"
-                      >
+                      <div key={order.id_orden_pedido} onClick={() => handleOrderClick(order)} className="cursor-pointer">
                         <OrderCard order={order} columnColor={column.color} />
                       </div>
                     ))}
-
                     {column.orders.length === 0 && (
-                      <div className="text-center py-12 text-muted-foreground/50">
-                        <div className="text-xs">Sin órdenes</div>
-                      </div>
+                      <div className="text-center py-8 text-muted-foreground/40 text-xs">Sin órdenes</div>
                     )}
                   </div>
                 </ScrollArea>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── VISTA FILAS ── */}
+      {viewMode === 'rows' && (
+        <ScrollArea className="flex-1">
+          <div className="px-4 py-4 space-y-4">
+            {columns.map((column) => (
+              <div key={column.id} className={`${column.bgColor} border-l-4 ${column.borderColor} rounded-lg shadow-sm`}>
+                {/* Header fila */}
+                <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border/20">
+                  <div className={`${column.color} rounded-md px-2.5 py-1 shadow-sm`}>
+                    <h3 className="text-xs font-bold tracking-wide">{column.title}</h3>
+                  </div>
+                  <Badge className={`${column.color} rounded-full h-5 min-w-[20px] px-2 text-xs font-semibold`}>
+                    {column.orders.length}
+                  </Badge>
+                </div>
+                {/* Cards en fila horizontal */}
+                {column.orders.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-muted-foreground/50">Sin órdenes</div>
+                ) : (
+                  <div className="flex gap-3 px-4 py-3 overflow-x-auto">
+                    {column.orders.map((order) => (
+                      <div key={order.id_orden_pedido} onClick={() => handleOrderClick(order)}
+                        className="cursor-pointer flex-shrink-0 w-[200px]">
+                        <OrderCard order={order} columnColor={column.color} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
+
+      {/* ── VISTA LISTA ── */}
+      {viewMode === 'list' && (
+        <ScrollArea className="flex-1">
+          <div className="px-4 py-4">
+            {/* Encabezado de tabla */}
+            <div className="flex items-center gap-3 px-4 py-2 mb-1 border-b border-border/60">
+              <span className="w-28 flex-shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Orden</span>
+              <span className="flex-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cliente / Proyecto</span>
+              <span className="w-28 flex-shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:block">Fase</span>
+              <span className="w-24 flex-shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Estado</span>
+              <span className="w-16 flex-shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wide text-right">Fecha</span>
+            </div>
+
+            {/* Filas agrupadas por fase */}
+            <div className="rounded-lg border border-border/50 overflow-hidden bg-card">
+              {columns.map((column) => column.orders.length > 0 && (
+                <React.Fragment key={column.id}>
+                  {/* Separador de fase */}
+                  <div className={`flex items-center gap-2 px-4 py-1.5 border-b border-border/40 ${column.bgColor}`}>
+                    <div className={`w-2 h-2 rounded-full ${column.borderColor.replace('border-l-', 'bg-').replace('border-', 'bg-')}`} />
+                    <div className={`${column.color} rounded px-2 py-0.5`}>
+                      <span className="text-xs font-bold tracking-wide">{column.title}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {column.orders.length} orden{column.orders.length !== 1 ? 'es' : ''}
+                    </span>
+                  </div>
+                  {/* Filas de órdenes */}
+                  {column.orders.map((order, idx) => {
+                    const statusConfig = estatusBadge[order.estatus];
+                    return (
+                      <div
+                        key={order.id_orden_pedido}
+                        onClick={() => handleOrderClick(order)}
+                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors ${idx !== column.orders.length - 1 ? 'border-b border-border/30' : 'border-b border-border/40'}`}
+                      >
+                        {/* Consecutivo */}
+                        <span className="font-mono font-semibold text-success text-xs w-28 flex-shrink-0">
+                          #{order.consecutivo_code ?? order.consecutivo ?? order.id_orden_pedido}
+                        </span>
+                        {/* Cliente y proyecto */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{order.nombre_cliente}</p>
+                          {order.proyecto_nombre && (
+                            <p className="text-xs text-muted-foreground truncate">{order.proyecto_nombre}</p>
+                          )}
+                        </div>
+                        {/* Tipo orden / fase */}
+                        <span className="text-xs text-muted-foreground w-28 flex-shrink-0 truncate hidden md:block">
+                          {order.tipo_orden !== 'Tipo no especificado' ? order.tipo_orden : '—'}
+                        </span>
+                        {/* Estatus */}
+                        <div className="w-24 flex-shrink-0">
+                          <Badge className={`text-xs px-2 py-0 border-0 leading-5 ${statusConfig?.color || 'bg-muted'}`}>
+                            {statusConfig?.label || order.estatus}
+                          </Badge>
+                        </div>
+                        {/* Fecha */}
+                        <span className="text-xs text-muted-foreground flex-shrink-0 w-16 text-right">
+                          {order.fecha_modificacion
+                            ? new Date(order.fecha_modificacion).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                            : '—'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </ScrollArea>
+      )}
+
 
       {/* Modal para órdenes existentes */}
       <OrderModal
