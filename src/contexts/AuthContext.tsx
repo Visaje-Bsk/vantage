@@ -124,13 +124,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Error al cerrar sesión",
-        variant: "destructive",
-      });
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (_) {
+      // Ignorar errores del servidor (403 cuando el token ya expiró)
+      // La sesión local se limpia de todas formas
     }
   };
 
