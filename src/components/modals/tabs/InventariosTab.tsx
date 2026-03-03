@@ -5,9 +5,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrdenKanban } from "@/types/kanban";
-import { CheckCircle2, AlertCircle, Package, Radio } from "lucide-react";
+import { CheckCircle2, AlertCircle, Package, Radio, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
+
+interface UsuarioProduccion {
+  user_id: string;
+  nombre: string | null;
+  role: string;
+}
 
 // Interfaces para líneas de servicio
 interface LineaServicioDisplay {
@@ -48,6 +54,10 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [lineasServicio, setLineasServicio] = useState<LineaServicioDisplay[]>([]);
   const [equipos, setEquipos] = useState<EquipoDisplay[]>([]);
+
+  // Configuradores
+  const [usuariosDisponibles, setUsuariosDisponibles] = useState<UsuarioProduccion[]>([]);
+  const [configuradoresAsignados, setConfiguradoresAsignados] = useState<string[]>([]);
 
   // Estado inicial para detectar cambios
   const [initialState, setInitialState] = useState<{ stockValidado: boolean; observaciones: string } | null>(null);
@@ -98,6 +108,22 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
 
         // Cargar líneas de servicio
         await loadLineasServicio();
+
+        // Cargar usuarios disponibles con rol produccion o ingenieria
+        const { data: usuarios } = await supabase
+          .from("profiles")
+          .select("user_id, nombre, role")
+          .in("role", ["produccion", "ingenieria"])
+          .order("nombre");
+        setUsuariosDisponibles((usuarios as UsuarioProduccion[]) || []);
+
+        // Cargar configuradores ya asignados a esta orden
+        const { data: responsables } = await supabase
+          .from("responsable_orden")
+          .select("user_id")
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .eq("role", "produccion");
+        setConfiguradoresAsignados((responsables || []).map((r) => r.user_id));
 
       } catch (error) {
         console.error("Error cargando datos:", error);
@@ -217,6 +243,30 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
     } catch (error) {
       console.error("Error cargando líneas de servicio:", error);
       setLineasServicio([]);
+    }
+  };
+
+  const handleToggleConfigurador = async (userId: string, checked: boolean) => {
+    if (readOnly) return;
+    try {
+      if (checked) {
+        await supabase.from("responsable_orden").insert({
+          id_orden_pedido: order.id_orden_pedido,
+          user_id: userId,
+          role: "produccion",
+        });
+        setConfiguradoresAsignados((prev) => [...prev, userId]);
+      } else {
+        await supabase
+          .from("responsable_orden")
+          .delete()
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .eq("user_id", userId)
+          .eq("role", "produccion");
+        setConfiguradoresAsignados((prev) => prev.filter((id) => id !== userId));
+      }
+    } catch (error) {
+      console.error("Error al actualizar configurador:", error);
     }
   };
 
@@ -356,6 +406,47 @@ export const InventariosTab = forwardRef<TabSaveHandle, InventariosTabProps>(fun
           ) : (
             <div className="p-2 text-center text-xs text-muted-foreground bg-muted/30 rounded-lg">
               No hay líneas de servicio registradas
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Configuradores asignados */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            Configuradores asignados para Producción
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {usuariosDisponibles.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No hay usuarios con rol producción o ingeniería registrados.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {usuariosDisponibles.map((u) => (
+                <div key={u.user_id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`conf-inv-${u.user_id}`}
+                    checked={configuradoresAsignados.includes(u.user_id)}
+                    disabled={readOnly}
+                    onCheckedChange={(checked) =>
+                      handleToggleConfigurador(u.user_id, !!checked)
+                    }
+                  />
+                  <Label
+                    htmlFor={`conf-inv-${u.user_id}`}
+                    className="text-xs cursor-pointer leading-tight"
+                  >
+                    {u.nombre || u.user_id}
+                    <span className="ml-1 text-muted-foreground capitalize">
+                      ({u.role})
+                    </span>
+                  </Label>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

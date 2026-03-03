@@ -1,8 +1,8 @@
 /**
  * Tab de Producción — Fase 3
  * - Recepción de la orden (check + timestamp automático)
- * - Asignación de configuradores (usuarios con rol produccion/ingenieria)
  * - Número de OP y Observaciones
+ * (La asignación de configuradores se hace en el tab de Inventarios)
  */
 
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { OrdenKanban } from "@/types/kanban";
-import { FileText, PackageCheck, Users } from "lucide-react";
+import { FileText, PackageCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,12 +27,6 @@ interface ProduccionTabProps {
   onUpdateOrder: (orderId: number, updates: Partial<OrdenKanban>) => void;
   onDirtyChange?: (isDirty: boolean) => void;
   readOnly?: boolean;
-}
-
-interface UsuarioProduccion {
-  user_id: string;
-  nombre: string | null;
-  role: string;
 }
 
 interface ProduccionData {
@@ -78,10 +72,6 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(
     // Recepción
     const [produccionData, setProduccionData] = useState<ProduccionData | null>(null);
     const [recibidoPorNombre, setRecibidoPorNombre] = useState<string | null>(null);
-
-    // Configuradores
-    const [usuariosDisponibles, setUsuariosDisponibles] = useState<UsuarioProduccion[]>([]);
-    const [configuradoresAsignados, setConfiguradoresAsignados] = useState<string[]>([]);
 
     // Estado inicial para dirty detection
     const [initialState, setInitialState] = useState<{
@@ -131,23 +121,6 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(
             setInitialState({ observaciones: "", numeroProduccion: "" });
           }
 
-          // 2. Usuarios disponibles con rol produccion o ingenieria
-          const { data: usuarios } = await supabase
-            .from("profiles")
-            .select("user_id, nombre, role")
-            .in("role", ["produccion", "ingenieria"])
-            .order("nombre");
-
-          setUsuariosDisponibles((usuarios as UsuarioProduccion[]) || []);
-
-          // 3. Configuradores ya asignados a esta orden con role=produccion
-          const { data: responsables } = await supabase
-            .from("responsable_orden")
-            .select("user_id")
-            .eq("id_orden_pedido", order.id_orden_pedido)
-            .eq("role", "produccion");
-
-          setConfiguradoresAsignados((responsables || []).map((r) => r.user_id));
         } catch (error) {
           console.error("Error cargando datos del tab producción:", error);
           setInitialState({ observaciones: "", numeroProduccion: "" });
@@ -209,32 +182,6 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(
         setRecibidoPorNombre(perfil?.nombre || "—");
       } catch (error) {
         console.error("Error al recepcionar orden:", error);
-      }
-    };
-
-    // Toggle configurador
-    const handleToggleConfigurador = async (userId: string, checked: boolean) => {
-      if (readOnly) return;
-
-      try {
-        if (checked) {
-          await supabase.from("responsable_orden").insert({
-            id_orden_pedido: order.id_orden_pedido,
-            user_id: userId,
-            role: "produccion",
-          });
-          setConfiguradoresAsignados((prev) => [...prev, userId]);
-        } else {
-          await supabase
-            .from("responsable_orden")
-            .delete()
-            .eq("id_orden_pedido", order.id_orden_pedido)
-            .eq("user_id", userId)
-            .eq("role", "produccion");
-          setConfiguradoresAsignados((prev) => prev.filter((id) => id !== userId));
-        }
-      } catch (error) {
-        console.error("Error al actualizar configurador:", error);
       }
     };
 
@@ -335,47 +282,6 @@ export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(
                     {formatFechaHora(produccionData.fecha_salida_produccion)}
                   </div>
                 )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── CONFIGURADORES ── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              Configuradores asignados
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {usuariosDisponibles.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No hay usuarios con rol producción o ingeniería registrados.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {usuariosDisponibles.map((u) => (
-                  <div key={u.user_id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`conf-${u.user_id}`}
-                      checked={configuradoresAsignados.includes(u.user_id)}
-                      disabled={readOnly}
-                      onCheckedChange={(checked) =>
-                        handleToggleConfigurador(u.user_id, !!checked)
-                      }
-                    />
-                    <Label
-                      htmlFor={`conf-${u.user_id}`}
-                      className="text-xs cursor-pointer leading-tight"
-                    >
-                      {u.nombre || u.user_id}
-                      <span className="ml-1 text-muted-foreground capitalize">
-                        ({u.role})
-                      </span>
-                    </Label>
-                  </div>
-                ))}
               </div>
             )}
           </CardContent>

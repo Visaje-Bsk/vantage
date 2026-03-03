@@ -178,6 +178,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onOrderClick, searchTerm, sta
       applyIntoColumns(updated);
       return updated;
     });
+    // Mantener selectedOrder sincronizado para que el modal refleje los cambios
+    setSelectedOrder((prev) =>
+      prev && prev.id_orden_pedido === orderId ? { ...prev, ...updates } : prev
+    );
   };
 
   // Función que se ejecuta cuando se crea una nueva orden
