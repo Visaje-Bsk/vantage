@@ -6,7 +6,13 @@
       "Bash(del TYPESCRIPT_TYPES_REFERENCE.md)",
       "Bash(npm run build:*)",
       "Bash(find:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(PGPASSWORD=\"I4YzbQ6m43c0sW7p\" \"C:/Program Files/PostgreSQL/17/bin/pg_dump.exe\":*)",
+      "Bash(\"C:/Program Files/PostgreSQL/17/bin/psql\":*)",
+      "Bash(\"C:/Program Files/PostgreSQL/17/bin/psql\" \"postgresql://postgres.ldkjcvuahfyxgnbyitqm:tDhOZCvHkqYUnQUd@aws-1-us-east-2.pooler.supabase.com:5432/postgres\" -c \"SELECT tablename, policyname, cmd, qual FROM pg_policies WHERE schemaname = ''public'' ORDER BY tablename, policyname;\")",
+      "Bash(\"C:/Program Files/PostgreSQL/17/bin/psql\" \"postgresql://postgres.ldkjcvuahfyxgnbyitqm:tDhOZCvHkqYUnQUd@aws-1-us-east-2.pooler.supabase.com:5432/postgres\" -c \"SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''public'' AND c.relkind = ''r'' ORDER BY relname;\")",
+      "Bash(PGPASSWORD=\"tDhOZCvHkqYUnQUd\" \"C:/Program Files/PostgreSQL/17/bin/psql.exe\":*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,14 +1,8 @@
 /**
- * Tab de Producción
- *
- * FASE 3: PRODUCCIÓN
- * Responsable: Rol produccion
- *
- * Según FLUJOKANBAN.md:
- * - Registro de configuración y pruebas funcionales
- * - Observaciones de producción (OBLIGATORIO)
- * - Número de producción Sapiens (OBLIGATORIO)
- * - Fecha de producción (auto-generada)
+ * Tab de Producción — Fase 3
+ * - Recepción de la orden (check + timestamp automático)
+ * - Asignación de configuradores (usuarios con rol produccion/ingenieria)
+ * - Número de OP y Observaciones
  */
 
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
@@ -16,16 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { OrdenKanban } from "@/types/kanban";
-import { CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { FileText, PackageCheck, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TabLoadingSkeleton } from "./TabLoadingSkeleton";
-
-// Data Gates
-import { useDataGateValidation } from "@/hooks/useDataGateValidation";
-import { DataGateAlert } from "@/components/dataGates/DataGateAlert";
-import type { FaseOrdenDB } from "@/types/kanban";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface TabSaveHandle {
   save: () => Promise<void>;
@@ -38,209 +29,398 @@ interface ProduccionTabProps {
   readOnly?: boolean;
 }
 
-export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(function ProduccionTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
-  const [observaciones, setObservaciones] = useState("");
-  const [numeroProduccion, setNumeroProduccion] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+interface UsuarioProduccion {
+  user_id: string;
+  nombre: string | null;
+  role: string;
+}
 
-  // Estado inicial para detectar cambios
-  const [initialState, setInitialState] = useState<{ observaciones: string; numeroProduccion: string } | null>(null);
+interface ProduccionData {
+  id_orden_produccion: number;
+  numero_produccion: string | null;
+  observaciones_produccion: string | null;
+  recibido_en_produccion: boolean;
+  fecha_ingreso_produccion: string | null;
+  fecha_salida_produccion: string | null;
+  recibido_por: string | null;
+}
 
-  // Hooks de Data Gates
-  const dataGateValidation = useDataGateValidation({
-    order: {
-      ...order,
-      observaciones_produccion: observaciones,
-      numero_produccion: numeroProduccion,
-    },
-    currentPhase: 'produccion' as FaseOrdenDB,
+function formatHora(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Bogota",
   });
+}
 
+function formatFechaHora(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Bogota",
+  });
+}
 
-  // Detectar cambios comparando con estado inicial
-  useEffect(() => {
-    if (initialState === null) return;
+export const ProduccionTab = forwardRef<TabSaveHandle, ProduccionTabProps>(
+  function ProduccionTab({ order, onUpdateOrder, onDirtyChange, readOnly = false }, ref) {
+    const { user } = useAuth();
 
-    const hasChanges =
-      observaciones !== initialState.observaciones ||
-      numeroProduccion !== initialState.numeroProduccion;
+    const [observaciones, setObservaciones] = useState("");
+    const [numeroProduccion, setNumeroProduccion] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-    onDirtyChange?.(hasChanges);
-  }, [observaciones, numeroProduccion, initialState, onDirtyChange]);
+    // Recepción
+    const [produccionData, setProduccionData] = useState<ProduccionData | null>(null);
+    const [recibidoPorNombre, setRecibidoPorNombre] = useState<string | null>(null);
 
-  // Cargar datos iniciales del tab
-  useEffect(() => {
-    const loadTabData = async () => {
-      setIsInitialLoading(true);
+    // Configuradores
+    const [usuariosDisponibles, setUsuariosDisponibles] = useState<UsuarioProduccion[]>([]);
+    const [configuradoresAsignados, setConfiguradoresAsignados] = useState<string[]>([]);
+
+    // Estado inicial para dirty detection
+    const [initialState, setInitialState] = useState<{
+      observaciones: string;
+      numeroProduccion: string;
+    } | null>(null);
+
+    // Detectar cambios
+    useEffect(() => {
+      if (initialState === null) return;
+      const hasChanges =
+        observaciones !== initialState.observaciones ||
+        numeroProduccion !== initialState.numeroProduccion;
+      onDirtyChange?.(hasChanges);
+    }, [observaciones, numeroProduccion, initialState, onDirtyChange]);
+
+    // Cargar datos
+    useEffect(() => {
+      const loadTabData = async () => {
+        setIsInitialLoading(true);
+        try {
+          // 1. Datos de orden_produccion
+          const { data: prod } = await supabase
+            .from("orden_produccion")
+            .select("*")
+            .eq("id_orden_pedido", order.id_orden_pedido)
+            .maybeSingle();
+
+          if (prod) {
+            setProduccionData(prod as ProduccionData);
+            const obs = prod.observaciones_produccion || "";
+            const num = prod.numero_produccion || "";
+            setObservaciones(obs);
+            setNumeroProduccion(num);
+            setInitialState({ observaciones: obs, numeroProduccion: num });
+
+            // Nombre del usuario que recibió
+            if (prod.recibido_por) {
+              const { data: perfil } = await supabase
+                .from("profiles")
+                .select("nombre")
+                .eq("user_id", prod.recibido_por)
+                .maybeSingle();
+              setRecibidoPorNombre(perfil?.nombre || "Usuario desconocido");
+            }
+          } else {
+            setInitialState({ observaciones: "", numeroProduccion: "" });
+          }
+
+          // 2. Usuarios disponibles con rol produccion o ingenieria
+          const { data: usuarios } = await supabase
+            .from("profiles")
+            .select("user_id, nombre, role")
+            .in("role", ["produccion", "ingenieria"])
+            .order("nombre");
+
+          setUsuariosDisponibles((usuarios as UsuarioProduccion[]) || []);
+
+          // 3. Configuradores ya asignados a esta orden con role=produccion
+          const { data: responsables } = await supabase
+            .from("responsable_orden")
+            .select("user_id")
+            .eq("id_orden_pedido", order.id_orden_pedido)
+            .eq("role", "produccion");
+
+          setConfiguradoresAsignados((responsables || []).map((r) => r.user_id));
+        } catch (error) {
+          console.error("Error cargando datos del tab producción:", error);
+          setInitialState({ observaciones: "", numeroProduccion: "" });
+        } finally {
+          setTimeout(() => setIsInitialLoading(false), 300);
+        }
+      };
+
+      loadTabData();
+    }, [order.id_orden_pedido]);
+
+    // Marcar recepción
+    const handleRecibirOrden = async () => {
+      if (!user || readOnly) return;
+
+      const now = new Date().toISOString();
 
       try {
-        // Cargar datos de orden_produccion si existen
-        const { data: produccionData, error: produccionError } = await supabase
+        // Verificar si ya existe registro de produccion
+        const { data: existing } = await supabase
+          .from("orden_produccion")
+          .select("id_orden_produccion")
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("orden_produccion")
+            .update({
+              recibido_en_produccion: true,
+              fecha_ingreso_produccion: now,
+              recibido_por: user.id,
+            })
+            .eq("id_orden_produccion", existing.id_orden_produccion);
+        } else {
+          await supabase.from("orden_produccion").insert({
+            id_orden_pedido: order.id_orden_pedido,
+            recibido_en_produccion: true,
+            fecha_ingreso_produccion: now,
+            recibido_por: user.id,
+          });
+        }
+
+        // Actualizar estado local
+        const { data: prod } = await supabase
           .from("orden_produccion")
           .select("*")
           .eq("id_orden_pedido", order.id_orden_pedido)
           .maybeSingle();
 
-        if (!produccionError && produccionData) {
-          const loadedObservaciones = produccionData.observaciones_produccion || "";
-          const loadedNumeroProduccion = produccionData.numero_produccion || "";
+        if (prod) setProduccionData(prod as ProduccionData);
 
-          setObservaciones(loadedObservaciones);
-          setNumeroProduccion(loadedNumeroProduccion);
-
-          // Guardar estado inicial
-          setInitialState({
-            observaciones: loadedObservaciones,
-            numeroProduccion: loadedNumeroProduccion,
-          });
-        } else {
-          // Si no hay datos, establecer estado inicial vacío
-          setInitialState({ observaciones: "", numeroProduccion: "" });
-        }
+        // Nombre del usuario actual
+        const { data: perfil } = await supabase
+          .from("profiles")
+          .select("nombre")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        setRecibidoPorNombre(perfil?.nombre || "—");
       } catch (error) {
-        console.error("Error cargando datos del tab:", error);
-        setInitialState({ observaciones: "", numeroProduccion: "" });
-      } finally {
-        setTimeout(() => {
-          setIsInitialLoading(false);
-        }, 300);
+        console.error("Error al recepcionar orden:", error);
       }
     };
 
-    loadTabData();
-  }, [order.id_orden_pedido]);
+    // Toggle configurador
+    const handleToggleConfigurador = async (userId: string, checked: boolean) => {
+      if (readOnly) return;
 
-  const canAdvance = observaciones.trim() !== "" && numeroProduccion.trim() !== "";
+      try {
+        if (checked) {
+          await supabase.from("responsable_orden").insert({
+            id_orden_pedido: order.id_orden_pedido,
+            user_id: userId,
+            role: "produccion",
+          });
+          setConfiguradoresAsignados((prev) => [...prev, userId]);
+        } else {
+          await supabase
+            .from("responsable_orden")
+            .delete()
+            .eq("id_orden_pedido", order.id_orden_pedido)
+            .eq("user_id", userId)
+            .eq("role", "produccion");
+          setConfiguradoresAsignados((prev) => prev.filter((id) => id !== userId));
+        }
+      } catch (error) {
+        console.error("Error al actualizar configurador:", error);
+      }
+    };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      // Verificar si ya existe un registro de producción
-      const { data: existing } = await supabase
-        .from('orden_produccion')
-        .select('id_orden_produccion')
-        .eq('id_orden_pedido', order.id_orden_pedido)
-        .maybeSingle();
+    const handleSave = async () => {
+      if (readOnly) return;
+      setSaving(true);
+      try {
+        const { data: existing } = await supabase
+          .from("orden_produccion")
+          .select("id_orden_produccion")
+          .eq("id_orden_pedido", order.id_orden_pedido)
+          .maybeSingle();
 
-      if (existing) {
-        // UPDATE existente
-        const { error } = await supabase
-          .from('orden_produccion')
-          .update({
-            observaciones_produccion: observaciones,
-            numero_produccion: numeroProduccion,
-            fecha_produccion: new Date().toISOString(),
-          })
-          .eq('id_orden_produccion', existing.id_orden_produccion);
-        if (error) throw error;
-      } else {
-        // INSERT nuevo
-        const { error } = await supabase
-          .from('orden_produccion')
-          .insert({
+        if (existing) {
+          await supabase
+            .from("orden_produccion")
+            .update({
+              observaciones_produccion: observaciones,
+              numero_produccion: numeroProduccion,
+              fecha_produccion: new Date().toISOString(),
+            })
+            .eq("id_orden_produccion", existing.id_orden_produccion);
+        } else {
+          await supabase.from("orden_produccion").insert({
             id_orden_pedido: order.id_orden_pedido,
             observaciones_produccion: observaciones,
             numero_produccion: numeroProduccion,
             fecha_produccion: new Date().toISOString(),
           });
-        if (error) throw error;
+        }
+
+        await supabase
+          .from("orden_pedido")
+          .update({ fecha_modificacion: new Date().toISOString() })
+          .eq("id_orden_pedido", order.id_orden_pedido);
+
+        setInitialState({ observaciones, numeroProduccion });
+      } catch (error) {
+        console.error("Error guardando cambios:", error);
+      } finally {
+        setSaving(false);
       }
+    };
 
-      // Actualizar fecha de modificación de la orden
-      await supabase
-        .from('orden_pedido')
-        .update({ fecha_modificacion: new Date().toISOString() })
-        .eq('id_orden_pedido', order.id_orden_pedido);
+    useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [
+      handleSave,
+      readOnly,
+    ]);
 
-      // Actualizar estado inicial para marcar como limpio
-      setInitialState({ observaciones, numeroProduccion });
+    if (isInitialLoading) return <TabLoadingSkeleton />;
 
-      alert('Cambios guardados exitosamente');
-    } catch (error) {
-      console.error('Error guardando cambios:', error);
-      alert('Error al guardar cambios');
-    } finally {
-      setSaving(false);
-    }
-  };
+    const yaRecibido = produccionData?.recibido_en_produccion === true;
 
-  useImperativeHandle(ref, () => ({ save: readOnly ? async () => {} : handleSave }), [handleSave, readOnly]);
+    return (
+      <div className="space-y-3">
 
-  // Mostrar skeleton mientras carga
-  if (isInitialLoading) {
-    return <TabLoadingSkeleton />;
-  }
+        {/* ── RECEPCIÓN ── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <PackageCheck className="h-3.5 w-3.5" />
+              Recepción en Producción
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
 
-  return (
-    <div className="space-y-3">
-      {/* Número de Producción Sapiens */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5" />
-            Orden de Producción
-          </CardTitle>
-        </CardHeader>
+            {/* Checkbox de recepción */}
+            <div className="flex items-center gap-3">
+              <Checkbox
+                id="recibido"
+                checked={yaRecibido}
+                disabled={yaRecibido || readOnly}
+                onCheckedChange={(checked) => {
+                  if (checked) handleRecibirOrden();
+                }}
+              />
+              <Label htmlFor="recibido" className="text-xs font-medium cursor-pointer">
+                {yaRecibido ? "Recibido en producción" : "Marcar como recibido en producción"}
+              </Label>
+              {yaRecibido && produccionData?.fecha_ingreso_produccion && (
+                <Badge variant="secondary" className="text-xs ml-auto">
+                  {formatHora(produccionData.fecha_ingreso_produccion)}
+                </Badge>
+              )}
+            </div>
 
-        {/* Data Gates Validation */}
-        <DataGateAlert
-          errors={dataGateValidation.errors}
-          canAdvance={dataGateValidation.canAdvance}
-          phaseName="Producción"
-        />
-        <CardContent className="space-y-2 pt-0">
-          <div className="space-y-1">
-            <Label htmlFor="numero-produccion" className="flex items-center gap-1.5 text-xs">
-              Número de OP <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="numero-produccion"
-              placeholder="OP-2024-001234"
-              value={numeroProduccion}
-              onChange={(e) => setNumeroProduccion(e.target.value)}
-              disabled={readOnly}
-            />
-          </div>
-        </CardContent>
-      </Card>
+            {/* Info de quién recibió */}
+            {yaRecibido && (
+              <div className="text-xs text-muted-foreground pl-6 space-y-0.5">
+                <div>
+                  <span className="font-medium">Ingreso:</span>{" "}
+                  {formatFechaHora(produccionData?.fecha_ingreso_produccion ?? null)}
+                  {recibidoPorNombre && <span className="ml-1">— {recibidoPorNombre}</span>}
+                </div>
+                {produccionData?.fecha_salida_produccion && (
+                  <div>
+                    <span className="font-medium">Salida:</span>{" "}
+                    {formatFechaHora(produccionData.fecha_salida_produccion)}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Observaciones de Producción */}
-      <div className="space-y-1">
-        <Label htmlFor="observaciones" className="flex items-center gap-1.5 text-xs">
-          Observaciones de Producción <span className="text-destructive">*</span>
-        </Label>
-        <Textarea
-          id="observaciones"
-          placeholder="Configuraciones realizadas y resultados de pruebas..."
-          value={observaciones}
-          onChange={(e) => setObservaciones(e.target.value)}
-          rows={4}
-          disabled={readOnly}
-        />
+        {/* ── CONFIGURADORES ── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              Configuradores asignados
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {usuariosDisponibles.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No hay usuarios con rol producción o ingeniería registrados.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {usuariosDisponibles.map((u) => (
+                  <div key={u.user_id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`conf-${u.user_id}`}
+                      checked={configuradoresAsignados.includes(u.user_id)}
+                      disabled={readOnly}
+                      onCheckedChange={(checked) =>
+                        handleToggleConfigurador(u.user_id, !!checked)
+                      }
+                    />
+                    <Label
+                      htmlFor={`conf-${u.user_id}`}
+                      className="text-xs cursor-pointer leading-tight"
+                    >
+                      {u.nombre || u.user_id}
+                      <span className="ml-1 text-muted-foreground capitalize">
+                        ({u.role})
+                      </span>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── ORDEN DE PRODUCCIÓN ── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" />
+              Orden de Producción
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            <div className="space-y-1">
+              <Label htmlFor="numero-produccion" className="flex items-center gap-1.5 text-xs">
+                Número de OP <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="numero-produccion"
+                placeholder="OP-2024-001234"
+                value={numeroProduccion}
+                onChange={(e) => setNumeroProduccion(e.target.value)}
+                disabled={readOnly}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── OBSERVACIONES ── */}
+        <div className="space-y-1">
+          <Label htmlFor="observaciones" className="flex items-center gap-1.5 text-xs">
+            Observaciones de Producción <span className="text-destructive">*</span>
+          </Label>
+          <Textarea
+            id="observaciones"
+            placeholder="Configuraciones realizadas y resultados de pruebas..."
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            rows={4}
+            disabled={readOnly}
+          />
+        </div>
+
       </div>
-
-      {/* Validación visual */}
-      {!canAdvance && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Campos Obligatorios</AlertTitle>
-          <AlertDescription>
-            Complete los campos requeridos
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {canAdvance && (
-        <Alert className="border-success/50 bg-success/10">
-          <CheckCircle2 className="h-4 w-4 text-success" />
-          <AlertTitle className="text-success">Validación Completa</AlertTitle>
-          <AlertDescription className="text-success-foreground/80">
-            Información registrada correctamente
-          </AlertDescription>
-        </Alert>
-      )}
-
-    </div>
-  );
-});
+    );
+  }
+);

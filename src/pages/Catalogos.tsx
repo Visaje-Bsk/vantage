@@ -37,7 +37,7 @@ export default function Catalogos() {
             </Button>
           </div>
         </div>
-      </header>
+      </header>s
 
       {/* Main Content */}
       <main className="container mx-auto px-2 py-8">
