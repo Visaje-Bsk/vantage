@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { 
-  Users, 
-  Search, 
+import {
+  Users,
+  Search,
   Edit,
   Save,
   X,
@@ -20,9 +20,10 @@ import {
   Key,
   Trash2,
   Eye,
-  EyeOff
+  EyeOff,
+  Mail
 } from 'lucide-react';
-import { isValidUsername, isValidPassword, sanitizeUsername } from '@/lib/auth-utils';
+import { isValidPassword } from '@/lib/auth-utils';
 
 interface EnrichedProfile {
   user_id: string;
@@ -50,21 +51,14 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ username: string; nombre: string; role: AppRole }>({ 
-    username: '', 
-    nombre: '', 
-    role: 'comercial' 
+  const [editForm, setEditForm] = useState<{ nombre: string; role: AppRole }>({
+    nombre: '',
+    role: 'comercial'
   });
   
-  // Create user modal state
+  // Invite user modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    username: '',
-    nombre: '',
-    password: '',
-    role: 'comercial' as AppRole
-  });
-  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
   
   // Password modal state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -124,31 +118,11 @@ export default function UserManagement() {
     }
   }, [currentUserProfile]);
 
-  const handleCreateUser = async () => {
-    const username = sanitizeUsername(createForm.username);
-    
-    if (!isValidUsername(username)) {
+  const handleInviteUser = async () => {
+    if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
       toast({
         title: "Error",
-        description: "El username debe tener entre 3-32 caracteres y solo contener letras, números, puntos, guiones y guiones bajos",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!isValidPassword(createForm.password)) {
-      toast({
-        title: "Error",
-        description: "La contraseña debe tener al menos 8 caracteres",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!createForm.nombre.trim()) {
-      toast({
-        title: "Error",
-        description: "El nombre es requerido",
+        description: "Ingresa un email válido",
         variant: "destructive",
       });
       return;
@@ -167,13 +141,8 @@ export default function UserManagement() {
 
       const { data, error } = await supabase.functions.invoke('admin-users', {
         body: {
-          action: 'create',
-          userData: {
-            username,
-            nombre: createForm.nombre.trim(),
-            password: createForm.password,
-            role: createForm.role
-          }
+          action: 'invite',
+          userData: { email: inviteEmail.trim() }
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -183,25 +152,25 @@ export default function UserManagement() {
       if (error) {
         toast({
           title: "Error",
-          description: error.message || "No se pudo crear el usuario",
+          description: error.message || "No se pudo enviar la invitación",
           variant: "destructive",
         });
         return;
       }
 
       toast({
-        title: "Usuario creado",
-        description: "El usuario se creó correctamente",
+        title: "Invitación enviada",
+        description: `Se envió la invitación a ${inviteEmail.trim()}`,
       });
 
       setShowCreateModal(false);
-      setCreateForm({ username: '', nombre: '', password: '', role: 'comercial' });
+      setInviteEmail('');
       fetchProfiles();
     } catch (error) {
-      console.error('Error creating user:', error);
+      console.error('Error inviting user:', error);
       toast({
         title: "Error",
-        description: "Error al crear el usuario",
+        description: "Error al enviar la invitación",
         variant: "destructive",
       });
     }
@@ -210,24 +179,12 @@ export default function UserManagement() {
   const handleEditUser = (user: EnrichedProfile) => {
     setEditingUser(user.user_id);
     setEditForm({
-      username: user.username || '',
       nombre: user.nombre || '',
       role: user.role,
     });
   };
 
   const handleSaveUser = async (userId: string) => {
-    const username = sanitizeUsername(editForm.username);
-    
-    if (editForm.username && !isValidUsername(username)) {
-      toast({
-        title: "Error",
-        description: "El username debe tener entre 3-32 caracteres y solo contener letras, números, puntos, guiones y guiones bajos",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -244,7 +201,6 @@ export default function UserManagement() {
           action: 'update',
           userId,
           userData: {
-            username: username || undefined,
             nombre: editForm.nombre,
             role: editForm.role
           }
@@ -282,7 +238,7 @@ export default function UserManagement() {
 
   const handleCancelEdit = () => {
     setEditingUser(null);
-    setEditForm({ username: '', nombre: '', role: 'comercial' });
+    setEditForm({ nombre: '', role: 'comercial' });
   };
 
   const handleChangePassword = async () => {
@@ -402,9 +358,8 @@ export default function UserManagement() {
     }
   };
 
-  const filteredProfiles = profiles.filter(profile => 
+  const filteredProfiles = profiles.filter(profile =>
     (profile.nombre?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-    (profile.username?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
     (profile.role?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   );
 
@@ -438,89 +393,40 @@ export default function UserManagement() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                Nuevo Usuario
+                Invitar Usuario
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                <DialogTitle>Invitar Usuario</DialogTitle>
                 <DialogDescription>
-                  Completa la información para crear un nuevo usuario
+                  El usuario recibirá un email con un enlace para activar su cuenta.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    name="new-username"
-                    autoComplete="off"
-                    value={createForm.username}
-                    onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
-                    placeholder="usuario123"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nombre">Nombre Completo</Label>
-                  <Input
-                    id="nombre"
-                    name="new-fullname"
-                    autoComplete="off"
-                    value={createForm.nombre}
-                    onChange={(e) => setCreateForm({ ...createForm, nombre: e.target.value })}
-                    placeholder="Juan Pérez"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Contraseña</Label>
+                  <Label htmlFor="invite-email">Email</Label>
                   <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="password"
-                      type={showCreatePassword ? "text" : "password"}
-                      name="new-password"
-                      autoComplete="new-password"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      value={createForm.password}
-                      onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                      placeholder="Mínimo 8 caracteres"
+                      id="invite-email"
+                      type="email"
+                      autoComplete="off"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="usuario@bismark.net.co"
+                      className="pl-10"
+                      onKeyDown={(e) => e.key === 'Enter' && handleInviteUser()}
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowCreatePassword(!showCreatePassword)}
-                    >
-                      {showCreatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Rol</Label>
-                  <Select 
-                    value={createForm.role} 
-                    onValueChange={(value: AppRole) => setCreateForm({ ...createForm, role: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          {role.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+                <Button variant="outline" onClick={() => { setShowCreateModal(false); setInviteEmail(''); }}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateUser}>
-                  Crear Usuario
+                <Button onClick={handleInviteUser}>
+                  Enviar invitación
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -546,18 +452,7 @@ export default function UserManagement() {
               <CardContent className="pt-4">
                 {editingUser === user.user_id ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`username-${user.user_id}`}>Username</Label>
-                        <Input
-                          id={`username-${user.user_id}`}
-                          name={`edit-username-${user.user_id}`}
-                          autoComplete="off"
-                          value={editForm.username}
-                          onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                          placeholder="usuario123"
-                        />
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor={`nombre-${user.user_id}`}>Nombre</Label>
                         <Input
@@ -571,8 +466,8 @@ export default function UserManagement() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`role-${user.user_id}`}>Rol</Label>
-                        <Select 
-                          value={editForm.role} 
+                        <Select
+                          value={editForm.role}
                           onValueChange={(value: AppRole) => setEditForm({ ...editForm, role: value })}
                         >
                           <SelectTrigger>
@@ -606,7 +501,7 @@ export default function UserManagement() {
                         {user.nombre || 'Sin nombre'}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        @{user.username || 'sin-username'} • ID: {user.user_id.substring(0, 8)}...
+                        ID: {user.user_id.substring(0, 8)}...
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge className={getRoleBadge(user.role).color}>

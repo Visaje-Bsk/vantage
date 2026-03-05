@@ -6,9 +6,10 @@ const corsHeaders = {
 }
 
 interface AdminRequest {
-  action: 'create' | 'update' | 'delete' | 'list' | 'password';
+  action: 'create' | 'invite' | 'update' | 'delete' | 'list' | 'password';
   userId?: string;
   userData?: {
+    email?: string;
     username?: string;
     nombre?: string;
     role?: string;
@@ -112,6 +113,32 @@ Deno.serve(async (req) => {
 
         return new Response(
           JSON.stringify({ data: enrichedProfiles }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'invite': {
+        if (!userData?.email) {
+          return new Response(
+            JSON.stringify({ error: 'Email is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+          userData.email
+        );
+
+        if (inviteError) {
+          console.error('Error inviting user:', inviteError);
+          return new Response(
+            JSON.stringify({ error: inviteError.message }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ data: { success: true, user_id: inviteData.user.id } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

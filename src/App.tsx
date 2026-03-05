@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
+import AcceptInvite from "./pages/AcceptInvite";
 import Dashboard from "./pages/Dashboard";
 import Ordenes from "./pages/Ordenes";
 import HistorialOrdenes from "./pages/HistorialOrdenes";
@@ -41,6 +42,7 @@ const App = () => {
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/accept-invite" element={<AcceptInvite />} />
               <Route
                 path="/*"
                 element={
