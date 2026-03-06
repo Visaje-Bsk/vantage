@@ -21,7 +21,9 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  Mail
+  Mail,
+  Copy,
+  Check
 } from 'lucide-react';
 import { isValidPassword } from '@/lib/auth-utils';
 
@@ -59,6 +61,9 @@ export default function UserManagement() {
   // Invite user modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<AppRole>('comercial');
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   
   // Password modal state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -142,7 +147,7 @@ export default function UserManagement() {
       const { data, error } = await supabase.functions.invoke('admin-users', {
         body: {
           action: 'invite',
-          userData: { email: inviteEmail.trim() }
+          userData: { email: inviteEmail.trim(), role: inviteRole }
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -152,19 +157,17 @@ export default function UserManagement() {
       if (error) {
         toast({
           title: "Error",
-          description: error.message || "No se pudo enviar la invitación",
+          description: error.message || "No se pudo generar la invitación",
           variant: "destructive",
         });
         return;
       }
 
-      toast({
-        title: "Invitación enviada",
-        description: `Se envió la invitación a ${inviteEmail.trim()}`,
-      });
+      if (data?.data?.token_hash) {
+        const appLink = `${window.location.origin}/accept-invite#access_token=${data.data.token_hash}&type=invite`;
+        setInviteLink(appLink);
+      }
 
-      setShowCreateModal(false);
-      setInviteEmail('');
       fetchProfiles();
     } catch (error) {
       console.error('Error inviting user:', error);
@@ -389,7 +392,10 @@ export default function UserManagement() {
               {filteredProfiles.length} usuarios registrados
             </CardDescription>
           </div>
-          <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <Dialog open={showCreateModal} onOpenChange={(open) => {
+            setShowCreateModal(open);
+            if (!open) { setInviteEmail(''); setInviteRole('comercial'); setInviteLink(null); setLinkCopied(false); }
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -400,34 +406,86 @@ export default function UserManagement() {
               <DialogHeader>
                 <DialogTitle>Invitar Usuario</DialogTitle>
                 <DialogDescription>
-                  El usuario recibirá un email con un enlace para activar su cuenta.
+                  {inviteLink
+                    ? 'Copia el enlace y envíaselo al usuario para que active su cuenta.'
+                    : 'Ingresa el email del nuevo usuario para generar su enlace de activación.'}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="invite-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="invite-email"
-                      type="email"
-                      autoComplete="off"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="usuario@bismark.net.co"
-                      className="pl-10"
-                      onKeyDown={(e) => e.key === 'Enter' && handleInviteUser()}
-                    />
+              {!inviteLink ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="invite-email"
+                        type="email"
+                        autoComplete="off"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="usuario@bismark.net.co"
+                        className="pl-10"
+                        onKeyDown={(e) => e.key === 'Enter' && handleInviteUser()}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-role">Rol</Label>
+                    <Select value={inviteRole} onValueChange={(v: AppRole) => setInviteRole(v)}>
+                      <SelectTrigger id="invite-role">
+                        <SelectValue placeholder="Seleccionar rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.filter(r => r.value !== 'admin').map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label>Enlace de activación</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={inviteLink}
+                      className="text-xs font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteLink);
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2000);
+                      }}
+                    >
+                      {linkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este enlace expira en 24 horas. Envíaselo al usuario por otro medio (WhatsApp, correo manual, etc.).
+                  </p>
+                </div>
+              )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setShowCreateModal(false); setInviteEmail(''); }}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleInviteUser}>
-                  Enviar invitación
-                </Button>
+                {!inviteLink ? (
+                  <>
+                    <Button variant="outline" onClick={() => { setShowCreateModal(false); setInviteEmail(''); }}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleInviteUser}>
+                      Generar enlace
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={() => { setShowCreateModal(false); setInviteEmail(''); setInviteLink(null); setLinkCopied(false); }}>
+                    Listo
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>

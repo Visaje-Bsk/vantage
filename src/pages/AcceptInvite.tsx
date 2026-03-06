@@ -17,14 +17,27 @@ export default function AcceptInvite() {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    // Supabase maneja el token del hash automáticamente al detectar el evento
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        setSessionReady(true);
-      }
-    });
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const tokenHash = params.get('access_token');
+    const type = params.get('type');
 
-    // También intentar recuperar la sesión del hash actual
+    if (tokenHash && type === 'invite') {
+      // Verificar el token de invitación con verifyOtp
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'invite' }).then(({ error }) => {
+        if (error) {
+          toast({ title: "Enlace inválido", description: "El enlace de invitación expiró o ya fue usado.", variant: "destructive" });
+        } else {
+          setSessionReady(true);
+        }
+      });
+      return;
+    }
+
+    // Fallback: si Supabase ya estableció sesión automáticamente (flujo email)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) setSessionReady(true);
+    });
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setSessionReady(true);
     });
@@ -57,12 +70,13 @@ export default function AcceptInvite() {
       const { error: passwordError } = await supabase.auth.updateUser({ password });
       if (passwordError) throw passwordError;
 
-      // Actualizar nombre en profiles
+      // Actualizar nombre y rol en profiles
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        const assignedRole = user.user_metadata?.role || 'comercial';
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({ nombre: nombre.trim() })
+          .update({ nombre: nombre.trim(), role: assignedRole })
           .eq('user_id', user.id);
 
         if (profileError) throw profileError;

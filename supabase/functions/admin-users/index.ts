@@ -125,20 +125,22 @@ Deno.serve(async (req) => {
           );
         }
 
-        const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-          userData.email
-        );
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'invite',
+          email: userData.email,
+          options: { data: { role: userData.role || 'comercial' } },
+        });
 
-        if (inviteError) {
-          console.error('Error inviting user:', inviteError);
+        if (linkError) {
+          console.error('Error generating invite link:', linkError);
           return new Response(
-            JSON.stringify({ error: inviteError.message }),
+            JSON.stringify({ error: linkError.message }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
         return new Response(
-          JSON.stringify({ data: { success: true, user_id: inviteData.user.id } }),
+          JSON.stringify({ data: { success: true, user_id: linkData.user.id, token_hash: linkData.properties.hashed_token } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
