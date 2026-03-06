@@ -146,6 +146,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
         clase_cobro: string | null;
         permanencia: string | null;
         cantidad_linea: number | null;
+        es_backup: boolean | null;
         operador?: { id_operador: number; nombre_operador: string } | null;
         plan?: { id_plan: number; nombre_plan: string } | null;
         apn?: { id_apn: number; apn: string } | null;
@@ -164,6 +165,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
             clase_cobro,
             permanencia,
             cantidad_linea,
+            es_backup,
             operador:operador ( id_operador, nombre_operador ),
             plan:plan ( id_plan, nombre_plan ),
             apn:apn ( id_apn, apn )
@@ -236,6 +238,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 claseCobro: (ls?.clase_cobro as any) ?? "",
                 valorMensual: d.valor_unitario != null ? String(d.valor_unitario) : "",
                 cantidadLineas: ls?.cantidad_linea != null ? String(ls.cantidad_linea) : "",
+                esBackup: ls?.es_backup ?? false,
                 isConfirmed: true, // Las líneas que vienen de BD ya están confirmadas
               };
             })
@@ -250,6 +253,7 @@ export const useComercialData = (orderId: number, clienteId?: string | null) => 
                 claseCobro: "",
                 valorMensual: "",
                 cantidadLineas: "",
+                esBackup: false,
                 isConfirmed: false,
               },
             ];

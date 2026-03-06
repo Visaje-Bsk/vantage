@@ -34,6 +34,7 @@ export interface ServiceLine {
   claseCobro: ClaseCobro | "";
   valorMensual: string;
   cantidadLineas: string; // Cantidad de líneas
+  esBackup: boolean; // Si es línea de backup (no facturable)
   isConfirmed: boolean; // Indica si la línea fue confirmada por el usuario
 }
 
@@ -48,6 +49,7 @@ const INITIAL_SERVICE_LINE: ServiceLine = {
   claseCobro: "",
   valorMensual: "",
   cantidadLineas: "",
+  esBackup: false,
   isConfirmed: false,
 };
 

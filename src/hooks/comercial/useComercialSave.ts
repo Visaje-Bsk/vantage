@@ -149,6 +149,7 @@ export const useComercialSave = (orderId: number) => {
           permanencia: sl.permanencia,
           valor_mensual: sl.valorMensual,
           cantidad_linea: sl.cantidadLineas,
+          es_backup: sl.esBackup ?? false,
         }));
 
         // 5. Llamar a la función RPC atómica

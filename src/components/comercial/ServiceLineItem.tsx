@@ -9,6 +9,7 @@ import { memo, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -110,6 +111,13 @@ function ServiceLineItemComponent({
     [line.id_linea_detalle, onPermanenciaChange]
   );
 
+  const handleEsBackupChange = useCallback(
+    (checked: boolean) => {
+      onUpdate(line.id_linea_detalle, "esBackup", checked);
+    },
+    [line.id_linea_detalle, onUpdate]
+  );
+
   const handleConfirm = useCallback(() => {
     onConfirm(line.id_linea_detalle);
   }, [line.id_linea_detalle, onConfirm]);
@@ -150,10 +158,10 @@ function ServiceLineItemComponent({
   // Vista de línea confirmada
   if (line.isConfirmed) {
     return (
-      <div className="p-4 rounded-lg border-2 transition-all bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-800">
+      <div className={`p-4 rounded-lg border-2 transition-all ${line.esBackup ? "bg-amber-50 border-amber-300 dark:bg-amber-950/20 dark:border-amber-700" : "bg-blue-50 border-blue-300 dark:bg-blue-950/20 dark:border-blue-800"}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 flex-1">
-            <CheckCircle2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
+            <CheckCircle2 className={`w-5 h-5 flex-shrink-0 ${line.esBackup ? "text-amber-600" : "text-blue-600"}`} />
             <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
               <div>
                 <span className="font-medium text-muted-foreground">Operador:</span>{" "}
@@ -174,6 +182,11 @@ function ServiceLineItemComponent({
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
+            {line.esBackup && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-300">
+                BACKUP
+              </span>
+            )}
             <span>{line.cantidadLineas || "0"} líneas</span>
             <span>•</span>
             <span>{line.permanencia} meses</span>
@@ -313,7 +326,17 @@ function ServiceLineItemComponent({
               onChange={handlePermanencia}
             />
           </div>
-          <div className="col-span-6 md:col-span-5 flex gap-2 justify-end">
+          <div className="col-span-6 md:col-span-5 flex gap-2 justify-end items-end">
+            <div className="flex items-center gap-2 mr-2">
+              <Switch
+                id={`backup-${line.id_linea_detalle}`}
+                checked={line.esBackup}
+                onCheckedChange={handleEsBackupChange}
+              />
+              <Label htmlFor={`backup-${line.id_linea_detalle}`} className="text-sm cursor-pointer">
+                Backup
+              </Label>
+            </div>
             <Button
               type="button"
               variant="default"
@@ -362,6 +385,7 @@ function arePropsEqual(
   if (prev.claseCobro !== next.claseCobro) return false;
   if (prev.valorMensual !== next.valorMensual) return false;
   if (prev.cantidadLineas !== next.cantidadLineas) return false;
+  if (prev.esBackup !== next.esBackup) return false;
   if (prev.isConfirmed !== next.isConfirmed) return false;
 
   // Comparar props de estado

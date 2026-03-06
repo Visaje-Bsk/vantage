@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OrdenKanban } from "@/types/kanban";
@@ -43,6 +44,7 @@ interface FacturaData {
   moneda_base: "COP" | "USD" | "";
   trm_aplicada: string;
   fecha_trm: string;
+  observaciones: string;
 }
 
 interface FacturacionInitialState {
@@ -64,6 +66,7 @@ const createEmptyFactura = (tipo: TipoFactura): FacturaData => ({
   moneda_base: "",
   trm_aplicada: "",
   fecha_trm: "",
+  observaciones: "",
 });
 
 export interface TabSaveHandle {
@@ -79,8 +82,10 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
   // Tipos de factura activos (visibles en el formulario)
   const [activeTipos, setActiveTipos] = useState<TipoFactura[]>([]);
 
-  // Estado inicial para detectar cambios
+  // Estado inicial para detectar cambios y registrar historial
   const [initialState, setInitialState] = useState<FacturacionInitialState | null>(null);
+  // Mapa de número de factura original (para detectar cambios al guardar)
+  const [originalNumeros, setOriginalNumeros] = useState<Record<number, { numero: string; fecha: string }>>({});
 
   // Detectar cambios comparando con estado inicial
   useEffect(() => {
@@ -113,11 +118,18 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
             moneda_base: (f.moneda_base as "COP" | "USD") || "",
             trm_aplicada: f.trm_aplicada?.toString() || "",
             fecha_trm: f.fecha_trm || "",
+            observaciones: (f as any).observaciones || "",
           }));
 
           setFacturas(loadedFacturas);
           setActiveTipos(loadedFacturas.map((f) => f.tipo_factura));
           setInitialState({ facturas: loadedFacturas });
+          // Guardar números originales para detectar reemplazos
+          const numeros: Record<number, { numero: string; fecha: string }> = {};
+          loadedFacturas.forEach((f) => {
+            if (f.id_factura) numeros[f.id_factura] = { numero: f.numero_factura, fecha: f.fecha_factura };
+          });
+          setOriginalNumeros(numeros);
         } else {
           // Si no hay facturas, iniciar con factura de equipos por defecto
           const defaultFactura = createEmptyFactura("equipos");
@@ -207,6 +219,8 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
     setSaving(true);
     try {
       // Guardar cada factura que tenga datos
+      const newOriginalNumeros: Record<number, { numero: string; fecha: string }> = { ...originalNumeros };
+
       for (const factura of facturas) {
         if (factura.numero_factura.trim() || factura.fecha_factura.trim()) {
           const needsTrm = factura.moneda_base === "USD";
@@ -219,9 +233,27 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
             moneda_base: factura.moneda_base || null,
             trm_aplicada: needsTrm && factura.trm_aplicada ? parseFloat(factura.trm_aplicada) : null,
             fecha_trm: needsTrm && factura.fecha_trm ? factura.fecha_trm : null,
+            observaciones: factura.observaciones.trim() || null,
           };
 
           if (factura.id_factura) {
+            const original = originalNumeros[factura.id_factura];
+
+            // Si cambió el número de factura, registrar historial
+            if (original && original.numero && factura.numero_factura.trim() !== original.numero) {
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabase.from("historial_factura").insert({
+                id_factura: factura.id_factura,
+                numero_factura_anterior: original.numero,
+                fecha_factura_anterior: original.fecha || null,
+                numero_factura_nuevo: factura.numero_factura,
+                fecha_factura_nueva: factura.fecha_factura || null,
+                motivo_cambio: "Actualización manual",
+                usuario_cambio: user?.email || null,
+              });
+              newOriginalNumeros[factura.id_factura] = { numero: factura.numero_factura, fecha: factura.fecha_factura };
+            }
+
             // Actualizar factura existente
             const { error } = await supabase
               .from("factura")
@@ -239,6 +271,8 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
 
             if (error) throw error;
 
+            newOriginalNumeros[data.id_factura] = { numero: factura.numero_factura, fecha: factura.fecha_factura };
+
             // Actualizar el ID en el estado local
             setFacturas((prev) =>
               prev.map((f) =>
@@ -248,6 +282,8 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
           }
         }
       }
+
+      setOriginalNumeros(newOriginalNumeros);
 
       // Actualizar fecha de modificación de la orden
       await supabase
@@ -396,6 +432,19 @@ export const FacturacionTab = forwardRef<TabSaveHandle, FacturacionTabProps>(fun
                   </div>
                 </div>
               )}
+
+              {/* Observaciones */}
+              <div className="space-y-1">
+                <Label className="text-xs">Observaciones</Label>
+                <Textarea
+                  placeholder="Observaciones sobre esta factura..."
+                  value={factura.observaciones}
+                  onChange={(e) => updateFactura(tipo, "observaciones", e.target.value)}
+                  disabled={readOnly}
+                  rows={2}
+                  className="text-sm resize-none"
+                />
+              </div>
             </CardContent>
           </Card>
         );
